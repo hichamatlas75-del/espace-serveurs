@@ -24,7 +24,7 @@ const myDeviceId = (() => {
 //                  via "wrangler secret put WORKER_SECRET"
 // ============================================================================
 
-const WORKER_URL    = "https://greycorner-fcm.TON-SUBDOMAIN.workers.dev";
+const WORKER_URL    = "https://greycorner-fcm.hichamatlas75.workers.dev";
 const WORKER_SECRET = "REMPLACER_PAR_TON_MOT_DE_PASSE_WORKER";
 
 /**
