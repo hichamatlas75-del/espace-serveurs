@@ -14,15 +14,6 @@ const myDeviceId = (() => {
 // ============================================================================
 // FCM — Notifications Android HIGH PRIORITY via Cloudflare Worker
 // ============================================================================
-//
-//  La clé privée Firebase est stockée côté serveur (Cloudflare Worker).
-//  waiter.js envoie uniquement le payload + un secret partagé.
-//  La clé n'est jamais exposée dans le JS client.
-//
-//  WORKER_URL  → URL du Worker après "wrangler deploy"
-//  WORKER_SECRET → doit être IDENTIQUE au secret configuré dans le Worker
-//                  via "wrangler secret put WORKER_SECRET"
-// ============================================================================
 
 const WORKER_URL    = "https://greycorner-fcm.hichamatlas75.workers.dev";
 const WORKER_SECRET = "greycorner_secure_2026";
@@ -31,8 +22,6 @@ const WORKER_SECRET = "greycorner_secure_2026";
  * Envoie un DATA MESSAGE FCM HIGH PRIORITY au topic "waiters"
  * via le Cloudflare Worker greycorner-fcm.
  *
- * Fonctionne même si l'app Android est tuée / arrière-plan / écran éteint.
- *
  * @param {string}        type   "WAITER_CALL" | "PRE_ORDER"
  * @param {string}        title  Titre de la notification
  * @param {string}        body   Corps de la notification
@@ -40,16 +29,19 @@ const WORKER_SECRET = "greycorner_secure_2026";
  * @param {string}        docId  ID du document Firestore
  */
 async function sendFcmToWaiters(type, title, body, table, docId) {
-    if (!WORKER_URL || WORKER_URL.includes("TON-SUBDOMAIN")) {
+    if (!WORKER_URL) {
         console.warn("⚠️ FCM Worker : URL non configurée.");
         return;
     }
     try {
+        // CORRECTION : Envoi du secret dans le header Authorization comme attendu par le Worker
         const res = await fetch(WORKER_URL, {
             method:  "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${WORKER_SECRET}`
+            },
             body: JSON.stringify({
-                secret: WORKER_SECRET,
                 type,
                 title,
                 body,
@@ -60,12 +52,11 @@ async function sendFcmToWaiters(type, title, body, table, docId) {
 
         const json = await res.json();
         if (json.success) {
-            console.log("✅ FCM envoyé via Worker →", type, "table", table);
+            console.log("🚀 Push FCM expédié avec succès via le Worker →", type, "table", table);
         } else {
             console.error("❌ FCM Worker échec :", json);
         }
     } catch (e) {
-        // Erreur réseau → silencieux, le fallback poller Android prend le relais
         console.warn("⚠️ FCM Worker fetch error:", e);
     }
 }
@@ -80,18 +71,15 @@ const activeWaiterName = "Serveur";
 let unsubCalls = null;
 let unsubOrders = null;
 
-// Sets pour éviter de rejouer le son/vibration sur les listes déjà chargées
 const knownCallIds = new Set();
 const knownOrderIds = new Set();
 let isCallsInitialLoad = true;
 let isOrdersInitialLoad = true;
 
-// Données actives pour les compteurs
 let activeCallsList = [];
 let activePreOrdersList = [];
 let globalWaiters = [];
 
-// Flag de reconnexion en cours (évite les doubles subscribe)
 let isReconnecting = false;
 
 // ============================================================================
@@ -118,11 +106,6 @@ function playAlertSound() {
 // ANDROID NATIVE BRIDGE — Helpers sécurisés
 // ============================================================================
 
-/**
- * Envoie une notification native Android avec bouton d'action (Accepter).
- * Correspond aux actions ACTION_ACCEPT_CALL / ACTION_ACCEPT_ORDER
- * interceptées par WaiterForegroundService.BroadcastReceiver.
- */
 function triggerAndroidAlert(id, type, title, message) {
     if (typeof AndroidInterface === "undefined") return;
     try {
@@ -136,13 +119,8 @@ function triggerAndroidAlert(id, type, title, message) {
     }
 }
 
-/**
- * Heartbeat vers le service Android toutes les 20 min.
- * Déclenche onStartCommand → réacquiert le WakeLock (timeout 30 min)
- * avant qu'il n'expire, gardant le service vivant indéfiniment.
- */
 function startAndroidKeepAlive() {
-    const INTERVAL_MS = 20 * 60 * 1000; // 20 minutes < timeout WakeLock 30 min
+    const INTERVAL_MS = 20 * 60 * 1000;
 
     setInterval(() => {
         if (typeof AndroidInterface === "undefined") return;
@@ -219,10 +197,6 @@ function startRealtimeHub() {
     console.log("✅ Listeners Firestore démarrés.");
 }
 
-/**
- * Reconnexion propre : arrêt → reset état → redémarrage.
- * Appelée sur retour réseau ou visibilité retrouvée après absence prolongée.
- */
 async function reconnectHub() {
     if (isReconnecting) return;
     isReconnecting = true;
@@ -231,12 +205,10 @@ async function reconnectHub() {
     stopRealtimeHub();
     resetState();
 
-    // Petite pause pour laisser Firestore se stabiliser
     await new Promise(r => setTimeout(r, 1500));
 
     try {
         if (typeof dbService !== "undefined" && dbService.isCloud()) {
-            // Re-authentification anonyme si la session a expiré
             const user = firebase.auth().currentUser;
             if (!user) {
                 await firebase.auth().signInAnonymously();
@@ -304,7 +276,6 @@ function processCallsFeed(calls) {
             if (isAcceptedByMe) myActiveCallsCount++;
         }
 
-        // Rendu carte
         const card = document.createElement("div");
         card.className = `alert-card ${call.status === "pending" ? "call-pending" : "call-accepted"} ${isAcceptedByOther ? "unassigned-card" : ""}`;
         card.dataset.id = call.id;
@@ -418,7 +389,6 @@ function processPreOrdersFeed(orders) {
             if (isAcceptedByMe) myActiveOrdersCount++;
         }
 
-        // Rendu carte
         const card = document.createElement("div");
         card.className = `alert-card ${order.status === "pending" ? "call-pending" : "call-accepted"} ${isAcceptedByOther ? "unassigned-card" : ""}`;
         card.dataset.id = order.id;
@@ -516,7 +486,6 @@ function processPreOrdersFeed(orders) {
 // TIMERS PÉRIODIQUES
 // ============================================================================
 
-// Mise à jour des timers "Il y a X min" toutes les 30 secondes
 setInterval(() => {
     document.querySelectorAll(".time-elapsed").forEach(el => {
         const createdStr = el.getAttribute("data-created");
@@ -546,26 +515,21 @@ function initTabNavigation() {
 // RÉSEAU & VISIBILITÉ — Reconnexion automatique
 // ============================================================================
 
-// Retour réseau → reconnexion Firestore + Android Bridge
 window.addEventListener("online", () => {
     console.log("🌐 Réseau rétabli → reconnexion...");
     reconnectHub();
 });
 
-// Perte réseau → arrêt propre des listeners
 window.addEventListener("offline", () => {
     console.warn("📴 Réseau perdu → arrêt des listeners.");
     stopRealtimeHub();
 });
 
-// Page redevient visible après un long arrière-plan
-// (ex : retour d'une autre app, déverrouillage écran)
 let hiddenAt = null;
 document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
         hiddenAt = Date.now();
     } else {
-        // Si la page était cachée plus de 3 min → reconnexion préventive
         const hiddenDuration = hiddenAt ? Date.now() - hiddenAt : 0;
         if (hiddenDuration > 3 * 60 * 1000) {
             console.log(`🔄 Page cachée ${Math.round(hiddenDuration / 1000)}s → reconnexion préventive.`);
@@ -575,7 +539,6 @@ document.addEventListener("visibilitychange", () => {
     }
 });
 
-// Cleanup propre avant rechargement WebView (géré par le service Android)
 window.addEventListener("beforeunload", () => {
     stopRealtimeHub();
 });
@@ -587,7 +550,6 @@ window.addEventListener("beforeunload", () => {
 document.addEventListener("DOMContentLoaded", () => {
     initTabNavigation();
 
-    // Déverrouiller l'audio au premier tap (politique browser/WebView)
     document.addEventListener("click", () => {
         alertChime.play().then(() => {
             alertChime.pause();
@@ -595,10 +557,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }).catch(() => { });
     }, { once: true });
 
-    // Démarrage du heartbeat keep-alive vers le service Android
     startAndroidKeepAlive();
 
-    // Authentification + démarrage des listeners
     if (typeof dbService !== "undefined" && dbService.isCloud()) {
         firebase.auth().signInAnonymously()
             .then(() => {
