@@ -25,7 +25,7 @@ const myDeviceId = (() => {
 // ============================================================================
 
 const WORKER_URL    = "https://greycorner-fcm.hichamatlas75.workers.dev";
-const WORKER_SECRET = "REMPLACER_PAR_TON_MOT_DE_PASSE_WORKER";
+const WORKER_SECRET = "greycorner_secure_2026";
 
 /**
  * Envoie un DATA MESSAGE FCM HIGH PRIORITY au topic "waiters"
