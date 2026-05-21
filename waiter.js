@@ -3,7 +3,7 @@
 // ============================================================================
 
 const myDeviceId = (() => {
-    let id = localStorage.getItem("waiter_device_id");
+    let id = laocalStorage.getItem("waiter_device_id");
     if (!id) {
         id = "srv_" + Math.random().toString(36).substring(2, 9);
         localStorage.setItem("waiter_device_id", id);
