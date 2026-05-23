@@ -3,6 +3,7 @@
  * GREY CORNER — FIREBASE CONFIGURATION & DUAL-MODE SERVICE LAYER
  * ============================================================================
  * COMPLETE FIXED VERSION — ALIGNED WITH SITE URL & FORCED CLOUD MODE
+ * + AUTH ANONYME avec whenAuthReady() pour sécuriser les writes
  * ============================================================================
  */
 
@@ -24,7 +25,6 @@ let isFirebaseActive = false;
 let db = null;
 
 function hasValidFirebaseKeys() {
-    // Forcer le retour à true pour contourner les restrictions d'URL locales/hub
     return true;
 }
 
@@ -50,6 +50,38 @@ if (hasValidFirebaseKeys()) {
     }
 } else {
     console.log("ℹ️ Simulation Mode Active");
+}
+
+// ============================================================================
+// AUTH ANONYME — whenAuthReady() garantit que l'auth est résolue avant tout write
+// ============================================================================
+
+let _authReady = false;
+let _authReadyQueue = [];
+
+function whenAuthReady(fn) {
+    if (_authReady) {
+        fn();
+    } else {
+        _authReadyQueue.push(fn);
+    }
+}
+
+if (isFirebaseActive) {
+    firebase.auth().onAuthStateChanged(user => {
+        if (user) {
+            _authReady = true;
+            console.log("🔓 Auth anonyme OK — UID:", user.uid);
+            _authReadyQueue.forEach(fn => { try { fn(); } catch(e) { console.error(e); } });
+            _authReadyQueue = [];
+        }
+    });
+
+    firebase.auth().signInAnonymously()
+        .catch(e => console.warn("⚠️ signInAnonymously échoué:", e));
+} else {
+    // Mode simulation : pas besoin d'auth
+    _authReady = true;
 }
 
 // ============================================================================
@@ -146,7 +178,7 @@ async function sendFcmToWaiters(type, title, body, table, docId) {
     try {
         const res = await fetch(WORKER_URL, {
             method:  "POST",
-            headers: { 
+            headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${WORKER_SECRET}`
             },
@@ -247,53 +279,53 @@ const dbService = {
     },
 
     // =========================================================================
-    // CALLS (CORRECTED COLLECTION NAME: waiters_calls)
+    // CALLS (waiters_calls)
     // =========================================================================
     sendCall(tableId, type, callback) {
-        const execute = (waiterId) => {
-            const data = {
-                table: parseInt(tableId),
-                assignedTo: waiterId || "",
-                type: type,
-                status: "pending",
-                createdAt: isFirebaseActive ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString(),
-                acceptedAt: null,
-                completedAt: null
+        whenAuthReady(() => {
+            const execute = (waiterId) => {
+                const data = {
+                    table: parseInt(tableId),
+                    assignedTo: waiterId || "",
+                    type: type,
+                    status: "pending",
+                    createdAt: isFirebaseActive ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString(),
+                    acceptedAt: null,
+                    completedAt: null
+                };
+                if (isFirebaseActive) {
+                    db.collection("waiters_calls").add(data)
+                        .then(docRef => {
+                            const zoneName = getTableZoneName(tableId);
+                            const typeLabels = { waiter: "Appel Serveur", water: "Besoin d'Eau", bill: "L'Addition" };
+                            const typeLabel = typeLabels[type] || "Appel";
+                            const alertTitle = `🔔 Nouveau Appel : ${zoneName} ${tableId}`;
+                            const alertBody = `Demande : ${typeLabel}`;
+                            sendFcmToWaiters("WAITER_CALL", alertTitle, alertBody, tableId, docRef.id);
+                            if (callback) callback(true, docRef.id);
+                        })
+                        .catch(e => { console.error(e); if (callback) callback(false); });
+                } else {
+                    const calls = getLocalCollection("calls");
+                    const id = "call_" + Math.random().toString(36).substring(2, 9);
+                    calls.push({ id, ...data });
+                    setLocalCollection("calls", calls);
+                    if (callback) callback(true, id);
+                }
             };
             if (isFirebaseActive) {
-                // Modification ici : "waiters_calls" au lieu de "waiter_calls"
-                db.collection("waiters_calls").add(data)
-                    .then(docRef => {
-                        const zoneName = getTableZoneName(tableId);
-                        const typeLabels = { waiter: "Appel Serveur", water: "Besoin d'Eau", bill: "L'Addition" };
-                        const typeLabel = typeLabels[type] || "Appel";
-                        const alertTitle = `🔔 Nouveau Appel : ${zoneName} ${tableId}`;
-                        const alertBody = `Demande : ${typeLabel}`;
-                        sendFcmToWaiters("WAITER_CALL", alertTitle, alertBody, tableId, docRef.id);
-                        if (callback) callback(true, docRef.id);
-                    })
-                    .catch(e => { console.error(e); if (callback) callback(false); });
+                db.collection("tables").doc(String(tableId)).get()
+                    .then(doc => { execute(doc.exists ? doc.data().assignedTo : ""); })
+                    .catch(() => execute(""));
             } else {
-                const calls = getLocalCollection("calls");
-                const id = "call_" + Math.random().toString(36).substring(2, 9);
-                calls.push({ id, ...data });
-                setLocalCollection("calls", calls);
-                if (callback) callback(true, id);
+                const tables = getLocalCollection("tables");
+                execute(tables[tableId] ? tables[tableId].assignedTo : "");
             }
-        };
-        if (isFirebaseActive) {
-            db.collection("tables").doc(String(tableId)).get()
-                .then(doc => { execute(doc.exists ? doc.data().assignedTo : ""); })
-                .catch(() => execute(""));
-        } else {
-            const tables = getLocalCollection("tables");
-            execute(tables[tableId] ? tables[tableId].assignedTo : "");
-        }
+        });
     },
 
     onCallsChange(callback) {
         if (isFirebaseActive) {
-            // Modification ici : "waiters_calls" au lieu de "waiter_calls"
             return db.collection("waiters_calls")
                 .orderBy("createdAt", "desc")
                 .onSnapshot(snapshot => {
@@ -329,7 +361,6 @@ const dbService = {
         };
         if (waiterId) updateData.assignedTo = waiterId;
         if (isFirebaseActive) {
-            // Modification ici : "waiters_calls" au lieu de "waiter_calls"
             db.collection("waiters_calls").doc(callId).update(updateData)
                 .then(() => { if (callback) callback(true); })
                 .catch(e => { console.error(e); if (callback) callback(false); });
@@ -348,43 +379,45 @@ const dbService = {
     // PRE-ORDERS
     // =========================================================================
     sendPreOrder(tableId, items, note, totalPrice, callback) {
-        const execute = (waiterId) => {
-            const data = {
-                table: parseInt(tableId),
-                assignedTo: waiterId || "",
-                items: items,
-                note: note || "",
-                totalPrice: parseFloat(totalPrice),
-                status: "pending",
-                createdAt: isFirebaseActive ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString(),
-                acceptedAt: null
+        whenAuthReady(() => {
+            const execute = (waiterId) => {
+                const data = {
+                    table: parseInt(tableId),
+                    assignedTo: waiterId || "",
+                    items: items,
+                    note: note || "",
+                    totalPrice: parseFloat(totalPrice),
+                    status: "pending",
+                    createdAt: isFirebaseActive ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString(),
+                    acceptedAt: null
+                };
+                if (isFirebaseActive) {
+                    db.collection("pre_orders").add(data)
+                        .then(docRef => {
+                            const zoneName = getTableZoneName(tableId);
+                            const alertTitle = `👨‍🍳 Nouvelle Précommande : ${zoneName} ${tableId}`;
+                            const alertBody = `Total : ${totalPrice} MAD`;
+                            sendFcmToWaiters("PRE_ORDER", alertTitle, alertBody, tableId, docRef.id);
+                            if (callback) callback(true, docRef.id);
+                        })
+                        .catch(e => { console.error(e); if (callback) callback(false); });
+                } else {
+                    const orders = getLocalCollection("pre_orders");
+                    const id = "order_" + Math.random().toString(36).substring(2, 9);
+                    orders.push({ id, ...data });
+                    setLocalCollection("pre_orders", orders);
+                    if (callback) callback(true, id);
+                }
             };
             if (isFirebaseActive) {
-                db.collection("pre_orders").add(data)
-                    .then(docRef => {
-                        const zoneName = getTableZoneName(tableId);
-                        const alertTitle = `👨‍🍳 Nouvelle Précommande : ${zoneName} ${tableId}`;
-                        const alertBody = `Total : ${totalPrice} MAD`;
-                        sendFcmToWaiters("PRE_ORDER", alertTitle, alertBody, tableId, docRef.id);
-                        if (callback) callback(true, docRef.id);
-                    })
-                    .catch(e => { console.error(e); if (callback) callback(false); });
+                db.collection("tables").doc(String(tableId)).get()
+                    .then(doc => { execute(doc.exists ? doc.data().assignedTo : ""); })
+                    .catch(() => execute(""));
             } else {
-                const orders = getLocalCollection("pre_orders");
-                const id = "order_" + Math.random().toString(36).substring(2, 9);
-                orders.push({ id, ...data });
-                setLocalCollection("pre_orders", orders);
-                if (callback) callback(true, id);
+                const tables = getLocalCollection("tables");
+                execute(tables[tableId] ? tables[tableId].assignedTo : "");
             }
-        };
-        if (isFirebaseActive) {
-            db.collection("tables").doc(String(tableId)).get()
-                .then(doc => { execute(doc.exists ? doc.data().assignedTo : ""); })
-                .catch(() => execute(""));
-        } else {
-            const tables = getLocalCollection("tables");
-            execute(tables[tableId] ? tables[tableId].assignedTo : "");
-        }
+        });
     },
 
     onPreOrdersChange(callback) {
@@ -478,7 +511,6 @@ const dbService = {
     cleanupOldData(callback) {
         const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
         if (isFirebaseActive) {
-            // Modification ici : "waiters_calls" au lieu de "waiter_calls"
             db.collection("waiters_calls").where("createdAt", "<", cutoff).get()
                 .then(snapshot => {
                     const batch = db.batch();
