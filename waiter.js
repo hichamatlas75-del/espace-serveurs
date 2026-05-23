@@ -253,11 +253,13 @@ async function reconnectHub() {
             if (!user) {
                 await firebase.auth().signInAnonymously();
                 console.log("🔒 Ré-authentification anonyme réussie.");
+                updateVisualConnectionStatus(true);
             }
         }
         startRealtimeHub();
     } catch (e) {
         console.error("❌ Reconnexion échouée, fallback sans auth:", e);
+        updateVisualConnectionStatus(false);
         startRealtimeHub();
     } finally {
         isReconnecting = false;
@@ -608,8 +610,6 @@ function renderHistoryFeed() {
 }
 
 // ============================================================================
-
-// ============================================================================
 // TIMERS PÉRIODIQUES
 // ============================================================================
 
@@ -650,6 +650,7 @@ window.addEventListener("online", () => {
 window.addEventListener("offline", () => {
     console.warn("📴 Réseau perdu → arrêt des listeners.");
     stopRealtimeHub();
+    updateVisualConnectionStatus(false);
 });
 
 let hiddenAt = null;
@@ -671,8 +672,23 @@ window.addEventListener("beforeunload", () => {
 });
 
 // ============================================================================
-// INITIALISATION
+// INITIALISATION — PILOTAGE DE L'INDICATEUR DE CONNEXION VISUEL
 // ============================================================================
+
+function updateVisualConnectionStatus(connected) {
+    const pill = document.getElementById("connectionPill");
+    const label = document.getElementById("connectionLabel");
+    
+    if (pill && label) {
+        if (connected) {
+            pill.className = "connection-pill connected";
+            label.textContent = "Connecté";
+        } else {
+            pill.className = "connection-pill disconnected";
+            label.textContent = "Connexion...";
+        }
+    }
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     initTabNavigation();
@@ -690,13 +706,16 @@ document.addEventListener("DOMContentLoaded", () => {
         firebase.auth().signInAnonymously()
             .then(() => {
                 console.log("🔒 Authentification anonyme réussie.");
+                updateVisualConnectionStatus(true); // Passe l'indicateur au VERT (pill active)
                 startRealtimeHub();
             })
             .catch(e => {
                 console.error("❌ Auth échouée, démarrage en mode fallback:", e);
+                updateVisualConnectionStatus(false); // Reste ROUGE
                 startRealtimeHub();
             });
     } else {
+        updateVisualConnectionStatus(false);
         startRealtimeHub();
     }
 });
