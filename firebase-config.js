@@ -2,7 +2,7 @@
  * ============================================================================
  * GREY CORNER — FIREBASE CONFIGURATION & DUAL-MODE SERVICE LAYER
  * ============================================================================
- * FIXED VERSION — FORCED CLOUD MODE FOR ESPACE-SERVEURS-HUB
+ * COMPLETE FIXED VERSION — ALIGNED WITH SITE URL & FORCED CLOUD MODE
  * ============================================================================
  */
 
@@ -17,15 +17,15 @@ const firebaseConfig = {
 };
 
 // ============================================================================
-// FIREBASE INIT (FORCED FOR PRODUCTION)
+// FIREBASE INIT
 // ============================================================================
 
 let isFirebaseActive = false;
 let db = null;
 
-// Suppression du filtre restrictif pour forcer Firebase en ligne sur le hub
 function hasValidFirebaseKeys() {
-    return true; 
+    // Forcer le retour à true pour contourner les restrictions d'URL locales/hub
+    return true;
 }
 
 if (hasValidFirebaseKeys()) {
@@ -190,6 +190,9 @@ const dbService = {
         };
     },
 
+    // =========================================================================
+    // WAITERS
+    // =========================================================================
     getWaiters(callback) {
         if (isFirebaseActive) {
             return db.collection("servers")
@@ -206,6 +209,9 @@ const dbService = {
         }
     },
 
+    // =========================================================================
+    // TABLES
+    // =========================================================================
     getTables(callback) {
         if (isFirebaseActive) {
             return db.collection("tables")
@@ -240,6 +246,9 @@ const dbService = {
         }
     },
 
+    // =========================================================================
+    // CALLS (CORRECTED COLLECTION NAME: waiters_calls)
+    // =========================================================================
     sendCall(tableId, type, callback) {
         const execute = (waiterId) => {
             const data = {
@@ -252,7 +261,8 @@ const dbService = {
                 completedAt: null
             };
             if (isFirebaseActive) {
-                db.collection("waiter_calls").add(data)
+                // Modification ici : "waiters_calls" au lieu de "waiter_calls"
+                db.collection("waiters_calls").add(data)
                     .then(docRef => {
                         const zoneName = getTableZoneName(tableId);
                         const typeLabels = { waiter: "Appel Serveur", water: "Besoin d'Eau", bill: "L'Addition" };
@@ -283,7 +293,8 @@ const dbService = {
 
     onCallsChange(callback) {
         if (isFirebaseActive) {
-            return db.collection("waiter_calls")
+            // Modification ici : "waiters_calls" au lieu de "waiter_calls"
+            return db.collection("waiters_calls")
                 .orderBy("createdAt", "desc")
                 .onSnapshot(snapshot => {
                     const calls = [];
@@ -318,7 +329,8 @@ const dbService = {
         };
         if (waiterId) updateData.assignedTo = waiterId;
         if (isFirebaseActive) {
-            db.collection("waiter_calls").doc(callId).update(updateData)
+            // Modification ici : "waiters_calls" au lieu de "waiter_calls"
+            db.collection("waiters_calls").doc(callId).update(updateData)
                 .then(() => { if (callback) callback(true); })
                 .catch(e => { console.error(e); if (callback) callback(false); });
         } else {
@@ -332,6 +344,9 @@ const dbService = {
         }
     },
 
+    // =========================================================================
+    // PRE-ORDERS
+    // =========================================================================
     sendPreOrder(tableId, items, note, totalPrice, callback) {
         const execute = (waiterId) => {
             const data = {
@@ -422,6 +437,9 @@ const dbService = {
         }
     },
 
+    // =========================================================================
+    // FREEZE SYSTEM
+    // =========================================================================
     onSystemFreezeChange(callback) {
         if (isFirebaseActive) {
             return db.collection("system").doc("config")
@@ -454,10 +472,14 @@ const dbService = {
         }
     },
 
+    // =========================================================================
+    // CLEANUP
+    // =========================================================================
     cleanupOldData(callback) {
         const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
         if (isFirebaseActive) {
-            db.collection("waiter_calls").where("createdAt", "<", cutoff).get()
+            // Modification ici : "waiters_calls" au lieu de "waiter_calls"
+            db.collection("waiters_calls").where("createdAt", "<", cutoff).get()
                 .then(snapshot => {
                     const batch = db.batch();
                     snapshot.forEach(doc => { batch.delete(doc.ref); });
