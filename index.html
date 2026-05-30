@@ -1,715 +1,2883 @@
-<!DOCTYPE html>
-<html lang="fr">
+// Grey Corner — Suivi des Livraisons — app.js v4.3 (bugfixes: produits locaux + rules)
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Grey Corner — Espace Serveurs</title>
+// ============================================================
+// FIREBASE DEFAULT CONFIG
+// ============================================================
+const FIREBASE_DEFAULT_CONFIG = {
+    apiKey: "AIzaSyAsPq_Dx5g844lgH-m141hXh6Jwie76woA",
+    authDomain: "grey-stock.firebaseapp.com",
+    projectId: "grey-stock",
+    storageBucket: "grey-stock.firebasestorage.app",
+    messagingSenderId: "68799918814",
+    appId: "1:68799918814:web:12e85abaefa81a050a36cf"
+};
 
-    <!-- Design system : Cormorant Garamond + DM Sans (aligné avec tout l'écosystème GC) -->
-    <link
-        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap"
-        rel="stylesheet">
+// ============================================================
+// STATE
+// ============================================================
+let state = {
+    // Catalog from Firebase (real-time)
+    productsDatabase: [],   // [{id, name, category}]
+    deliveriesHistory: [],
 
-    <link rel="stylesheet" href="waiter.css">
+    // Chef/Barman smart order: {productId -> qty}
+    smartSelection: {},
 
-    <style>
-        /* ── Reset & Variables ───────────────────────────────────────────── */
-        *,
-        *::before,
-        *::after {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+    // Auth / Role
+    currentUser: null,
+    userRole: 'guest',      // admin | chef | barman | petitdej | economat | guest
 
-        :root {
-            --bg: #07060a;
-            --surface: #111118;
-            --surface-2: #18181f;
-            --border: rgba(201, 169, 110, .12);
-            --border-hover: rgba(201, 169, 110, .28);
-            --gold: #C9A96E;
-            --gold-light: #e2c98a;
-            --gold-dim: rgba(201, 169, 110, .14);
-            --alert: #e05252;
-            --alert-dim: rgba(224, 82, 82, .14);
-            --order: #6eaec9;
-            --order-dim: rgba(110, 174, 201, .14);
-            --success: #6ec99a;
-            --success-dim: rgba(110, 201, 154, .14);
-            --muted: rgba(255, 255, 255, .35);
-            --text: rgba(255, 255, 255, .88);
-            --font-serif: 'Cormorant Garamond', Georgia, serif;
-            --font-sans: 'DM Sans', sans-serif;
-            --radius: 14px;
-            --radius-sm: 9px;
+    // Economat form
+    currentRole: 'chef',    // chef | economat (toggle)
+    loadedDeliveryId: null,
+    isConsultationMode: false,
 
-            /* Safe area pour les appareils avec encoche / home bar */
-            --safe-top: env(safe-area-inset-top, 0px);
-            --safe-bottom: env(safe-area-inset-bottom, 0px);
-        }
+    // Signature
+    isDrawing: false,
+    lastX: 0,
+    lastY: 0,
 
-        html {
-            -webkit-text-size-adjust: 100%;
-        }
+    // Firebase
+    firebaseActive: false,
+    firebaseConfig: null,
 
-        body {
-            background: var(--bg);
-            color: var(--text);
-            font-family: var(--font-sans);
-            font-size: 14px;
-            line-height: 1.6;
-            min-height: 100dvh;
-            overscroll-behavior: none;
-            -webkit-tap-highlight-color: transparent;
-        }
+    // Catalogue filter (admin)
+    catalogueFilter: 'all',   // all | cuisine | barman | both
 
-        /* ── Grain overlay (identique aux autres apps GC) ────────────────── */
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            z-index: 0;
-            pointer-events: none;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-            opacity: .025;
-        }
+    // History filter
+    historyStatusFilter: 'all',  // all | en_attente | livre
 
-        /* ── App container ───────────────────────────────────────────────── */
-        .app-container {
-            position: relative;
-            z-index: 1;
-            display: flex;
-            flex-direction: column;
-            min-height: 100dvh;
-            max-width: 600px;
-            margin: 0 auto;
-        }
+    // Stock movements
+    stockMovements: []
+};
 
-        /* ── Header ──────────────────────────────────────────────────────── */
-        .app-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: calc(14px + var(--safe-top)) 18px 14px;
-            border-bottom: 1px solid var(--border);
-            background: rgba(7, 6, 10, .85);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
+let db = null;
+let unsubscribeFirestore = null;
+let unsubscribeProducts  = null;
 
-        .header-left {
-            display: flex;
-            align-items: baseline;
-            gap: 10px;
-        }
+// ============================================================
+// DOM
+// ============================================================
+const $ = id => document.getElementById(id);
 
-        .brand-title {
-            font-family: var(--font-serif);
-            font-size: 1.3rem;
-            font-weight: 700;
-            letter-spacing: .16em;
-            color: var(--gold);
-        }
+// FIX 1: Variables DOM déclarées en let et initialisées DANS DOMContentLoaded.
+// Les déclarer au top-level avec $() causait un crash immédiat (null.getContext)
+// si le script s'exécutait avant que le parser HTML ait créé les éléments.
+let serviceSelect, dateInput, timeInput, productRowsContainer, signatureCanvas, ctx;
 
-        .hub-badge {
-            font-size: .6rem;
-            font-weight: 700;
-            letter-spacing: .18em;
-            text-transform: uppercase;
-            color: var(--muted);
-            border: 1px solid var(--border);
-            padding: 2px 8px;
-            border-radius: 4px;
-        }
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+    serviceSelect        = $('service-select');
+    dateInput            = $('date-input');
+    timeInput            = $('time-input');
+    productRowsContainer = $('product-rows-container');
+    signatureCanvas      = $('signature-canvas');
+    ctx                  = signatureCanvas.getContext('2d');
 
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+    initDateTime();
+    initSignatureCanvas();
+    setupEventListeners();
+    initDatabase();
 
-        /* Statut connexion pill */
-        .connection-pill {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-size: .68rem;
-            font-weight: 600;
-            letter-spacing: .06em;
-            text-transform: uppercase;
-            color: var(--muted);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 3px 10px;
-            transition: color .3s, border-color .3s;
-        }
-
-        .connection-pill.connected {
-            color: var(--success);
-            border-color: rgba(110, 201, 154, .3);
-        }
-
-        .connection-pill.disconnected {
-            color: var(--alert);
-            border-color: rgba(224, 82, 82, .3);
-        }
-
-        .conn-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: currentColor;
-            flex-shrink: 0;
-        }
-
-        .connection-pill.connected .conn-dot {
-            animation: pulse-dot 2s infinite;
-        }
-
-        @keyframes pulse-dot {
-
-            0%,
-            100% {
-                opacity: 1
+    // FIX 16: Toujours actualiser les données quand l'app revient au premier plan.
+    // Sur mobile/WebView, l'app peut rester en cache longtemps sans rechargement.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            if (state.firebaseActive && db) {
+                subscribeProducts();
+                subscribeDeliveries();
             }
+            initDateTime();
+        }
+    });
+    // pageshow avec persisted=true = retour depuis le cache bfcache
+    window.addEventListener('pageshow', (e) => {
+        if (e.persisted) location.reload();
+    });
+});
 
-            50% {
-                opacity: .3
+function initDatabase() {
+    const storedFb = localStorage.getItem('gourmet_firebase_config_v3');
+    if (storedFb) {
+        try { initializeFirebase(JSON.parse(storedFb)); return; }
+        catch(e) { /* fall through */ }
+    }
+    initializeFirebase(FIREBASE_DEFAULT_CONFIG);
+}
+
+function initializeFirebase(config) {
+    if (!config || !config.apiKey || !config.projectId) { loadLocalFallback(); return; }
+    try {
+        const boot = () => {
+            db = firebase.firestore();
+            state.firebaseActive = true;
+            updateFirebaseBadge('badge-connected', 'Firebase Connecté');
+            fillFirebaseInputs(config);
+            setupAuthListener();
+            subscribeProducts();
+            subscribeDeliveries();
+        };
+        if (firebase.apps.length === 0) { firebase.initializeApp(config); boot(); }
+        else firebase.app().delete().then(() => { firebase.initializeApp(config); boot(); }).catch(() => boot());
+    } catch(e) {
+        console.error('Firebase init failed', e);
+        updateFirebaseBadge('badge-error', 'Échec');
+        loadLocalFallback();
+    }
+}
+
+function fillFirebaseInputs(config) {
+    ['apiKey','projectId','authDomain','appId'].forEach(k => {
+        const el = $(('fb-' + k));
+        if (el) el.value = config[k] || '';
+    });
+}
+
+function loadLocalFallback() {
+    // FIX A: JSON.parse sans try/catch crashait toute l'initialisation si le
+    // localStorage contenait un JSON corrompu (écriture interrompue, manipulation manuelle).
+    try {
+        const s = localStorage.getItem('gourmet_deliveries_history');
+        state.deliveriesHistory = s ? JSON.parse(s) : [];
+    } catch(e) {
+        console.warn('localStorage deliveries corrompu, réinitialisation.', e);
+        state.deliveriesHistory = [];
+        localStorage.removeItem('gourmet_deliveries_history');
+    }
+    try {
+        const p = localStorage.getItem('gourmet_products_db_v2');
+        state.productsDatabase = p ? JSON.parse(p) : getDefaultProducts();
+    } catch(e) {
+        console.warn('localStorage products corrompu, réinitialisation.', e);
+        state.productsDatabase = getDefaultProducts();
+        localStorage.removeItem('gourmet_products_db_v2');
+    }
+    state.productsDatabase.sort((a,b) => a.name.localeCompare(b.name));
+    state.firebaseActive = false;
+    state.userRole = 'admin';
+    document.body.setAttribute('data-role', 'admin');
+    updateFirebaseBadge('badge-local', 'Mode Local');
+    hideLoginModal();
+    applyRoleUI('admin');
+    renderHistory();
+    renderSmartGrid();
+    renderCatalogueTab();
+    requestNotificationPermission();
+}
+
+function getDefaultProducts() {
+    return [
+        { id:'d1', name:'Croissant', category:'cuisine' },
+        { id:'d2', name:'Pain au Chocolat', category:'cuisine' },
+        { id:'d3', name:'Baguette Tradition', category:'cuisine' },
+        { id:'d4', name:'Muffin Myrtille', category:'cuisine' },
+        { id:'d5', name:'Cookie Pépites Chocolat', category:'cuisine' },
+        { id:'d6', name:'Lait Demi-Écrémé (1L)', category:'both' },
+        { id:'d7', name:'Lait d\'Avoine (1L)', category:'both' },
+        { id:'d8', name:'Espresso Blend (1kg)', category:'barman' },
+        { id:'d9', name:'Café Décaféiné (1kg)', category:'barman' },
+        { id:'d10',name:'Lait d\'Amande (1L)', category:'barman' },
+        { id:'d11',name:'Jus d\'Orange (1L)', category:'barman' },
+        { id:'d12',name:'Sirop de Vanille (1L)', category:'barman' },
+        { id:'d13',name:'Sirop de Caramel (1L)', category:'barman' },
+        { id:'d14',name:'Chocolat en Poudre (1kg)', category:'barman' },
+        { id:'d15',name:'Gobelets Carton (x100)', category:'both' },
+        { id:'d16',name:'Serviettes en papier (x500)', category:'both' }
+    ];
+}
+
+// ============================================================
+// AUTH
+// ============================================================
+function setupAuthListener() {
+    firebase.auth().onAuthStateChanged(user => {
+        if (user) { state.currentUser = user; fetchUserRole(user); }
+        else { state.currentUser = null; state.userRole = 'guest'; showLoginModal(); }
+    });
+}
+
+function fetchUserRole(user) {
+    db.collection('users').doc(user.uid).get()
+        .then(doc => {
+            let role = 'chef';
+            let name = capitalize(user.email.split('@')[0]);
+            if (doc.exists) {
+                // FIX 2: Le rôle ne vient QUE de Firestore — jamais déduit de l'email.
+                // parseRoleFromEmail() permettait à n'importe qui de s'attribuer
+                // un rôle admin/barman/economat en choisissant son adresse email.
+                role = doc.data().role || 'chef';
+                name = doc.data().name ? capitalize(doc.data().name) : name;
+            } else {
+                // Nouveau compte inconnu → rôle 'chef' par défaut, toujours.
+                // L'admin doit attribuer le bon rôle manuellement dans Firestore.
+                db.collection('users').doc(user.uid).set({ name, role: 'chef' }).catch(console.error);
+            }
+            setUserUI(user, role, name);
+        })
+        .catch(() => setUserUI(user, 'chef', user.email));
+}
+
+function setUserUI(user, role, name) {
+    state.userRole = role;
+    // Apply role theme
+    document.body.setAttribute('data-role', role);
+    const themeColors = { admin:'#b5893a', chef:'#dc4a38', barman:'#2563eb', petitdej:'#9333ea', economat:'#16a34a' };
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', themeColors[role] || '#b5893a');
+    $('user-display-name').textContent = name;
+    const badge = $('user-display-role');
+    badge.textContent = translateRole(role);
+    badge.className = 'status-badge ' + role;
+    $('user-profile-banner').style.display = 'flex';
+    hideLoginModal();
+    applyRoleUI(role);
+    requestNotificationPermission();
+}
+
+// FIX 2: parseRoleFromEmail() supprimée — vecteur d'élévation de privilège.
+// Le rôle est désormais exclusivement lu depuis Firestore (doc users/{uid}).
+
+function translateRole(r) {
+    return { admin:'Administrateur', chef:'Cuisine', barman:'Barman', petitdej:'Petit-Déjeuner', economat:'Économat' }[r] || 'Personnel';
+}
+
+function applyRoleUI(role) {
+    // Hide all sections first, then show what applies
+    $('section-smart-order').style.display     = 'none';
+    $('section-reception-table').style.display = 'none';
+    $('section-signature-area').style.display  = 'none';
+    $('section-actions').style.display         = 'none';
+    $('firebase-section').style.display        = 'none';
+    $('tab-btn-catalogue').style.display       = 'none';
+    $('btn-clear-history').style.display       = 'none';
+    $('tab-btn-form').style.display            = '';
+    $('role-selector-group') && ($('role-selector-group').style.display = '');
+
+    const btnSave  = $('btn-save');
+    const btnPrint = $('btn-print');
+    const btnShareWhatsapp = $('btn-share-whatsapp');
+    btnPrint.style.display = 'none';
+    if (btnShareWhatsapp) btnShareWhatsapp.style.display = 'none';
+
+    if (role === 'admin') {
+        // ── Admin: supervision only
+        // Show catalogue tab, firebase config, clear history btn
+        $('tab-btn-catalogue').style.display = '';
+        $('firebase-section').style.display  = '';
+        $('btn-clear-history').style.display = '';
+        // No form section at all — switch to history tab
+        switchTab('history');
+        // Hide the "New Order" tab for admin
+        $('tab-btn-form').style.display = 'none';
+        // Show stock tab for admin
+        const stockTabBtn = $('tab-btn-stock');
+        if (stockTabBtn) stockTabBtn.style.display = '';
+        btnPrint.style.display = 'none';
+        renderCatalogueTab();
+
+    } else if (role === 'chef' || role === 'barman' || role === 'petitdej') {
+        // ── Chef / Barman / Petit-déj: smart order only
+        $('section-smart-order').style.display  = '';
+        $('section-actions').style.display      = '';
+        btnSave.textContent = role === 'barman'
+            ? '💾 Envoyer la Commande (Bar)'
+            : role === 'petitdej'
+                ? '💾 Envoyer la Commande (Petit-Déj)'
+                : '💾 Envoyer la Commande (Cuisine)';
+        // No signature, no print
+        switchTab('form');
+        renderSmartGrid();
+
+    } else if (role === 'economat') {
+        // ── Economat: reception table + signature
+        $('section-reception-table').style.display = '';
+        $('section-signature-area').style.display   = '';
+        $('section-actions').style.display           = '';
+        btnSave.textContent = '💾 Valider la Réception';
+        btnPrint.style.display = 'inline-flex';
+        if (btnShareWhatsapp) btnShareWhatsapp.style.display = 'inline-flex';
+        // Lock to economat mode
+        state.currentRole = 'economat';
+        $('role-btn-economat').classList.add('active');
+        $('role-btn-chef').classList.remove('active');
+        $('role-selector-group').style.display = 'none';
+        // FIX 3: Suppression de la condition morte ($('main-products-section') inexistant dans le HTML)
+        // et du doublon classList.add('mode-economat') qui s'en suivait.
+        $('section-reception-table').classList.remove('mode-chef');
+        $('section-reception-table').classList.add('mode-economat');
+        $('add-row-bar').style.display = 'none';
+        // Show stock tab for economat
+        const stockTabBtn2 = $('tab-btn-stock');
+        if (stockTabBtn2) stockTabBtn2.style.display = '';
+        switchTab('form');
+        // FIX E: garde null sur productRowsContainer avant querySelector
+        if (productRowsContainer && !productRowsContainer.querySelector('tr')) addNewRow();
+    }
+
+    updateSenderInfo();
+    renderHistory();
+
+    // Show stock control panel for admin/economat
+    const stockCtrl = $('section-stock-control');
+    if (stockCtrl) {
+        stockCtrl.style.display = (role === 'admin' || role === 'economat') ? '' : 'none';
+        if (role === 'admin' || role === 'economat') renderStockControl();
+    }
+}
+
+// ============================================================
+// DATETIME
+// ============================================================
+function initDateTime() {
+    const now = new Date(), pad = n => String(n).padStart(2,'0');
+    dateInput.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+    timeInput.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    if (now.getHours() < 12) serviceSelect.value = 'Matin';
+    else if (now.getHours() < 17) serviceSelect.value = 'Après-midi';
+    else serviceSelect.value = 'Soir';
+}
+
+// ============================================================
+// FIRESTORE — PRODUCTS (real-time)
+// ============================================================
+function subscribeProducts() {
+    if (!db) return;
+    if (unsubscribeProducts) unsubscribeProducts();
+    unsubscribeProducts = db.collection('products').onSnapshot(snapshot => {
+        state.productsDatabase = [];
+        snapshot.forEach(doc => {
+            const d = doc.data();
+            if (d.name) state.productsDatabase.push({ id: doc.id, name: d.name, category: d.category || 'both' });
+        });
+        if (state.productsDatabase.length === 0) state.productsDatabase = getDefaultProducts();
+        state.productsDatabase.sort((a,b) => a.name.localeCompare(b.name));
+        localStorage.setItem('gourmet_products_db_v2', JSON.stringify(state.productsDatabase));
+
+        // FIX Bug 1: Synchroniser les produits créés hors-ligne (id: local_*) vers Firebase.
+        // Sans ça, les articles commandés par le barman hors-ligne s'affichent sous forme
+        // d'id brut (ex: "local_1716734521234") côté économat car Firebase ne les connaît pas.
+        syncLocalProductsToFirebase(snapshot);
+
+        renderSmartGrid();
+        renderCatalogueTab();
+    }, err => {
+        console.error('Products listener failed', err);
+        const p = localStorage.getItem('gourmet_products_db_v2');
+        state.productsDatabase = p ? JSON.parse(p) : getDefaultProducts();
+        renderSmartGrid();
+        renderCatalogueTab();
+    });
+}
+
+// Migre les produits local_* (créés hors-ligne) vers Firebase en une seule fois.
+// N'est exécutée que si l'utilisateur est admin (seul rôle autorisé à écrire dans /products).
+function syncLocalProductsToFirebase(firestoreSnapshot) {
+    if (state.userRole !== 'admin') return;
+    try {
+        const local = JSON.parse(localStorage.getItem('gourmet_products_db_v2') || '[]');
+        const localOnly = local.filter(p => p.id && p.id.startsWith('local_'));
+        if (!localOnly.length) return;
+
+        // Noms déjà dans Firebase (pour éviter les doublons)
+        const fbNames = new Set();
+        firestoreSnapshot.forEach(doc => fbNames.add(normalize(doc.data().name || '')));
+
+        const toSync = localOnly.filter(p => !fbNames.has(normalize(p.name)));
+        if (!toSync.length) return;
+
+        console.log(`Sync ${toSync.length} produits locaux → Firebase...`);
+        Promise.all(toSync.map(p =>
+            db.collection('products').add({ name: p.name, category: p.category || 'both' })
+        )).then(() => {
+            showToast('Sync produits', `${toSync.length} produit(s) hors-ligne synchronisé(s) vers Firebase.`, 'info');
+        }).catch(err => {
+            console.error('Sync produits locaux échouée:', err);
+        });
+    } catch(e) {
+        console.warn('syncLocalProductsToFirebase: erreur lecture localStorage', e);
+    }
+}
+
+function subscribeDeliveries() {
+    if (!db) return;
+    if (unsubscribeFirestore) unsubscribeFirestore();
+    let initialLoad = true;
+    unsubscribeFirestore = db.collection('deliveries').orderBy('timestamp','desc').onSnapshot(snapshot => {
+        if (!initialLoad) {
+            snapshot.docChanges().forEach(change => {
+                const doc = change.doc.data();
+                doc.id = change.doc.id;
+                
+                if (change.type === 'added') {
+                    // FIX 4a: Filtrer les propres commandes (ex: sync hors-ligne)
+                    // pour éviter une notification sur ses propres actions.
+                    const isOwnOrder = state.currentUser && doc.senderEmail === state.currentUser.email;
+                    // Notifier économat ET admin quand une nouvelle commande arrive
+                    if ((state.userRole === 'economat' || state.userRole === 'admin') && doc.status === 'en_attente' && !isOwnOrder) {
+                        const dept = translateRole(doc.senderRole);
+                        notifyUser("Nouvelle Commande !", `Département : ${dept}\nService : ${doc.service}\nPar : ${doc.senderEmail.split('@')[0]}`, 'warning');
+                    }
+                } else if (change.type === 'modified') {
+                    if (doc.status === 'livre') {
+                        // Notifier chef/barman/petitdej quand leur commande est validée
+                        const isSender = doc.senderEmail === (state.currentUser ? state.currentUser.email : 'local');
+                        const isSenderRole = doc.senderRole === state.userRole;
+                        if ((state.userRole === 'chef' || state.userRole === 'barman' || state.userRole === 'petitdej') && (isSender || isSenderRole)) {
+                            const validator = doc.receiverRole === 'admin' ? 'l\'administrateur' : 'l\'économat';
+                            notifyUser("Commande Livrée !", `Votre commande pour le service ${doc.service} a été réceptionnée et validée par ${validator}.`, 'success');
+                        }
+                    } else if ((state.userRole === 'economat' || state.userRole === 'admin') && doc.status === 'en_attente') {
+                        // Notifier économat ET admin quand une commande en attente est modifiée
+                        const isOwnOrder = state.currentUser && doc.senderEmail === state.currentUser.email;
+                        if (!isOwnOrder) {
+                            const dept = translateRole(doc.senderRole);
+                            notifyUser("Commande modifiée !", `Département : ${dept}\nService : ${doc.service}\nPar : ${doc.senderEmail.split('@')[0]}`, 'info');
+                        }
+                    }
+                }
+            });
+        }
+
+        state.deliveriesHistory = [];
+        snapshot.forEach(doc => state.deliveriesHistory.push({ id: doc.id, ...doc.data() }));
+        renderHistory();
+        
+        if (state.loadedDeliveryId) {
+            const log = state.deliveriesHistory.find(l => l.id === state.loadedDeliveryId);
+            if (log) {
+                renderComments(log.comments || []);
+            } else {
+                // FIX 4b: La commande chargée a été supprimée à distance (par l'admin
+                // depuis un autre appareil). On réinitialise le formulaire pour éviter
+                // qu'une soumission échoue silencieusement sur un document inexistant.
+                showToast("Commande supprimée", "La commande en cours a été supprimée à distance. Formulaire réinitialisé.", "warning");
+                if (state.userRole === 'chef' || state.userRole === 'barman' || state.userRole === 'petitdej') {
+                    resetSmartOrder();
+                } else {
+                    resetEcomatForm();
+                }
             }
         }
-
-        /* ── Stats bar ───────────────────────────────────────────────────── */
-        .stats-bar {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1px;
-            background: var(--border);
-            border-bottom: 1px solid var(--border);
+        
+        initialLoad = false;
+    }, err => {
+        console.error('Deliveries listener failed', err);
+        if (state.deliveriesHistory.length === 0) {
+            const s = localStorage.getItem('gourmet_deliveries_history');
+            state.deliveriesHistory = s ? JSON.parse(s) : [];
+            renderHistory();
         }
+    });
+}
 
-        .stat-card {
-            background: var(--surface);
-            padding: 12px 14px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 2px;
-            text-align: center;
-            transition: background .2s;
-        }
+// ============================================================
+// SMART GRID — Chef / Barman
+// ============================================================
+function getFilteredProducts() {
+    const role = state.userRole;
+    return state.productsDatabase.filter(p => {
+        const cat = p.category || 'both';
+        if (role === 'chef')     return cat === 'cuisine' || cat === 'both';
+        if (role === 'barman')   return cat === 'barman'  || cat === 'both';
+        if (role === 'petitdej') return cat === 'cuisine' || cat === 'both';
+        return true; // admin / economat see all
+    }).sort((a, b) => a.name.localeCompare(b.name));
+}
 
-        .stat-label {
-            font-size: .63rem;
-            font-weight: 600;
-            letter-spacing: .08em;
-            text-transform: uppercase;
-            color: var(--muted);
-        }
+function renderSmartGrid() {
+    const grid = $('product-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
 
-        .stat-value {
-            font-size: 1.5rem;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-            color: var(--text);
-            line-height: 1.1;
-        }
+    const search   = normalize(($('smart-search') ? $('smart-search').value : ''));
+    const products = getFilteredProducts().filter(p => normalize(p.name).includes(search));
 
-        .stat-card.alert-state .stat-value {
-            color: var(--alert);
-        }
+    if (!products.length) {
+        grid.innerHTML = '<p style="color:var(--text-muted);grid-column:1/-1;text-align:center;padding:20px;">Aucun produit trouvé.</p>';
+        return;
+    }
 
-        .stat-card.order-state .stat-value {
-            color: var(--order);
-        }
-
-        .stat-card.tables-state .stat-value {
-            color: var(--gold);
-        }
-
-        /* Pulse animation sur stat active */
-        .stat-card.pulse-active {
-            animation: pulse-card 2s infinite;
-        }
-
-        @keyframes pulse-card {
-
-            0%,
-            100% {
-                background: var(--surface);
-            }
-
-            50% {
-                background: var(--alert-dim);
-            }
-        }
-
-        .stat-card.order-state.pulse-active {
-            animation-name: pulse-card-order;
-        }
-
-        @keyframes pulse-card-order {
-
-            0%,
-            100% {
-                background: var(--surface);
-            }
-
-            50% {
-                background: var(--order-dim);
-            }
-        }
-
-        /* ── Navigation Tabs ─────────────────────────────────────────────── */
-        .hub-tabs {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1px;
-            background: var(--border);
-            border-bottom: 1px solid var(--border);
-        }
-
-        .tab-btn {
-            background: var(--surface-2);
-            border: none;
-            font-family: var(--font-sans);
-            font-size: .78rem;
-            font-weight: 600;
-            letter-spacing: .06em;
-            text-transform: uppercase;
-            color: var(--muted);
-            padding: 13px 12px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            position: relative;
-            transition: color .2s, background .2s;
-        }
-
-        .tab-btn::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background: var(--gold);
-            transform: scaleX(0);
-            transition: transform .25s ease;
-        }
-
-        .tab-btn.active {
-            color: var(--gold);
-            background: var(--surface);
-        }
-
-        .tab-btn.active::after {
-            transform: scaleX(1);
-        }
-
-        /* Badge notification tab */
-        .tab-badge {
-            background: var(--alert);
-            color: #fff;
-            font-size: .62rem;
-            font-weight: 700;
-            min-width: 18px;
-            height: 18px;
-            border-radius: 9px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 5px;
-            line-height: 1;
-            animation: pulse-dot 2s infinite;
-        }
-
-        /* ── Viewport & Panels ───────────────────────────────────────────── */
-        .hub-viewport {
-            flex: 1;
-            overflow: hidden;
-        }
-
-        .tab-panel {
-            display: none;
-            flex-direction: column;
-            height: 100%;
-        }
-
-        .tab-panel.active {
-            display: flex;
-        }
-
-        .panel-section {
-            flex: 1;
-            padding: 16px 14px calc(16px + var(--safe-bottom));
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .panel-section::-webkit-scrollbar {
-            display: none;
-        }
-
-        .section-title {
-            font-family: var(--font-serif);
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--gold);
-            letter-spacing: .06em;
-            margin-bottom: 14px;
-        }
-
-        /* ── Feed grid ───────────────────────────────────────────────────── */
-        .feed-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        /* ── Alert Cards ─────────────────────────────────────────────────── */
-        .alert-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 14px 16px;
-            transition: border-color .2s;
-        }
-
-        .call-pending {
-            border-color: rgba(224, 82, 82, .35);
-            background: linear-gradient(135deg, var(--surface) 80%, rgba(224, 82, 82, .06));
-        }
-
-        .call-accepted {
-            border-color: rgba(110, 201, 154, .25);
-            background: linear-gradient(135deg, var(--surface) 80%, rgba(110, 201, 154, .04));
-        }
-
-        .unassigned-card {
-            opacity: .55;
-        }
-
-        .card-top {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-        }
-
-        .card-title-wrap {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        /* Zone/Table pill */
-        .table-circle {
-            background: var(--gold-dim);
-            color: var(--gold-light);
-            border: 1px solid rgba(201, 169, 110, .25);
-            font-family: var(--font-sans);
-            font-size: .78rem;
-            font-weight: 700;
-            letter-spacing: .04em;
-            padding: 4px 10px;
-            border-radius: 20px;
-            white-space: nowrap;
-        }
-
-        /* Type badges */
-        .request-badge {
-            font-size: .65rem;
-            font-weight: 700;
-            letter-spacing: .08em;
-            text-transform: uppercase;
-            padding: 3px 9px;
-            border-radius: 20px;
-        }
-
-        .badge-waiter {
-            background: rgba(201, 169, 110, .15);
-            color: var(--gold);
-            border: 1px solid rgba(201, 169, 110, .25);
-        }
-
-        .badge-water {
-            background: rgba(110, 174, 201, .15);
-            color: var(--order);
-            border: 1px solid rgba(110, 174, 201, .25);
-        }
-
-        .badge-bill {
-            background: rgba(110, 201, 154, .15);
-            color: var(--success);
-            border: 1px solid rgba(110, 201, 154, .25);
-        }
-
-        .badge-order {
-            background: rgba(110, 174, 201, .15);
-            color: var(--order);
-            border: 1px solid rgba(110, 174, 201, .25);
-        }
-
-        /* Elapsed time */
-        .time-elapsed {
-            font-size: .68rem;
-            color: var(--muted);
-            white-space: nowrap;
-            font-variant-numeric: tabular-nums;
-        }
-
-        /* ── Card Actions ────────────────────────────────────────────────── */
-        .card-actions {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            margin-top: 10px;
-            flex-wrap: wrap;
-        }
-
-        .action-btn-accept,
-        .action-btn-complete {
-            flex: 1;
-            font-family: var(--font-sans);
-            font-size: .78rem;
-            font-weight: 700;
-            letter-spacing: .06em;
-            text-transform: uppercase;
-            border: none;
-            border-radius: var(--radius-sm);
-            padding: 10px 16px;
-            cursor: pointer;
-            min-height: 42px;
-            transition: opacity .15s, transform .1s;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .action-btn-accept:active,
-        .action-btn-complete:active {
-            transform: scale(.97);
-            opacity: .85;
-        }
-
-        .action-btn-accept {
-            background: var(--alert);
-            color: #fff;
-        }
-
-        .action-btn-accept:hover {
-            background: #d44;
-        }
-
-        .action-btn-complete {
-            background: var(--success-dim);
-            color: var(--success);
-            border: 1px solid rgba(110, 201, 154, .3);
-        }
-
-        .action-btn-complete:hover {
-            background: rgba(110, 201, 154, .22);
-        }
-
-        /* Status badge */
-        .accepted-status-badge {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            font-size: .75rem;
-            font-weight: 600;
-            color: var(--success);
-        }
-
-        .mini-pulse {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: var(--success);
-            animation: pulse-dot 2s infinite;
-            flex-shrink: 0;
-        }
-
-        /* ── Order Items ─────────────────────────────────────────────────── */
-        .order-items-list {
-            background: var(--surface-2);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            padding: 10px 12px;
-            margin: 2px 0 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .order-item-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 8px;
-            font-size: .82rem;
-        }
-
-        .item-qty-lbl {
-            color: var(--gold);
-            font-weight: 700;
-            font-size: .75rem;
-            min-width: 24px;
-        }
-
-        .item-name-lbl {
-            color: var(--text);
-        }
-
-        .item-price-lbl {
-            color: var(--muted);
-            font-size: .78rem;
-            white-space: nowrap;
-        }
-
-        .order-comments {
-            font-size: .75rem;
-            color: var(--muted);
-            border-top: 1px solid var(--border);
-            padding-top: 6px;
-            margin-top: 2px;
-        }
-
-        .order-total-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-top: 1px solid var(--border);
-            padding-top: 8px;
-            margin-top: 2px;
-            font-size: .8rem;
-            font-weight: 600;
-            color: var(--muted);
-        }
-
-        .order-total-price {
-            color: var(--gold);
-            font-size: .9rem;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-        }
-
-        /* ── Empty states ────────────────────────────────────────────────── */
-        .feed-empty-state {
-            text-align: center;
-            padding: 48px 24px;
-            font-size: .82rem;
-            color: var(--muted);
-            font-style: italic;
-            letter-spacing: .03em;
-        }
-    </style>
-</head>
-
-<body>
-
-    <div class="app-container">
-
-        <!-- ── Header ─────────────────────────────────────────────────────── -->
-        <header class="app-header">
-            <div class="header-left">
-                <span class="brand-title">Grey Corner</span>
-                <span class="hub-badge">Serveur</span>
+    products.forEach(p => {
+        const qty = state.smartSelection[p.id] || 0;
+        const numQty = parseQty(qty);
+        const tile = document.createElement('div');
+        tile.className = 'product-tile' + (numQty > 0 ? ' tile-selected' : '');
+        tile.dataset.id = p.id;
+        tile.innerHTML = `
+            <span class="tile-name">${escHtml(p.name)}</span>
+            <div class="tile-qty-group">
+                ${numQty > 0 ? `<button class="tile-qty-btn btn-minus" data-id="${p.id}" title="Diminuer">−</button>
+                <input class="tile-qty-input" type="text" inputmode="text" value="${qty}" data-id="${p.id}" title="Quantité">` : ''}
+                <button class="tile-qty-btn btn-add" data-id="${p.id}" title="Ajouter">＋</button>
             </div>
+        `;
+        // Events
+        tile.querySelector('.btn-add').addEventListener('click', () => changeQty(p.id, 1));
+        const minusBtn = tile.querySelector('.btn-minus');
+        if (minusBtn) minusBtn.addEventListener('click', () => changeQty(p.id, -1));
+        const qtyInput = tile.querySelector('.tile-qty-input');
+        if (qtyInput) {
+            qtyInput.addEventListener('change', e => {
+                setQty(p.id, e.target.value);
+            });
+            qtyInput.addEventListener('focus', e => e.target.select());
+        }
+        grid.appendChild(tile);
+    });
 
-            <div class="header-right">
-                <!-- Statut connexion Firebase (piloté depuis waiter.js) -->
-                <div class="connection-pill disconnected" id="connectionPill">
-                    <span class="conn-dot"></span>
-                    <span id="connectionLabel">Connexion...</span>
+    renderSelectedSummary();
+    updateMetrics();
+}
+
+function changeQty(productId, delta) {
+    const current = state.smartSelection[productId] || 0;
+    const num = parseQty(current);
+    const unit = extractUnit(current);
+    const newVal = num + delta;
+    setQty(productId, newVal <= 0 ? 0 : (unit ? newVal + unit : newVal));
+}
+
+function setQty(productId, qty) {
+    const num = parseQty(qty);
+    const capped = Math.max(0, Math.min(9999, num));
+    if (capped <= 0) {
+        delete state.smartSelection[productId];
+    } else {
+        const unit = extractUnit(qty);
+        state.smartSelection[productId] = unit ? capped + unit : capped;
+    }
+    renderSmartGrid();
+}
+
+function renderSelectedSummary() {
+    const summary  = $('selected-summary');
+    const list     = $('selected-items-list');
+    if (!summary || !list) return;
+
+    const selected = Object.entries(state.smartSelection).filter(([,q]) => parseQty(q) > 0);
+    if (!selected.length) { summary.style.display = 'none'; return; }
+    summary.style.display = '';
+    list.innerHTML = '';
+
+    selected.forEach(([id, qty]) => {
+        const p = state.productsDatabase.find(p => p.id === id);
+        if (!p) return;
+        const row = document.createElement('div');
+        row.className = 'selected-item-row';
+        row.innerHTML = `
+            <span class="si-name">${escHtml(p.name)}</span>
+            <span class="si-qty">× ${qty}</span>
+            <button class="si-remove" data-id="${id}" title="Retirer">✕</button>
+        `;
+        row.querySelector('.si-remove').addEventListener('click', () => {
+            delete state.smartSelection[id];
+            renderSmartGrid();
+        });
+        list.appendChild(row);
+    });
+}
+
+// ============================================================
+// METRICS
+// ============================================================
+function updateMetrics() {
+    let items = 0, requested = 0, delivered = 0, discrepancies = 0;
+
+    if (state.userRole === 'chef' || state.userRole === 'barman' || state.userRole === 'petitdej') {
+        // Smart grid metrics
+        // FIX 15: Les quantités avec unité (ex: "500 g", "2 kg") étaient comptées
+        // comme leur valeur brute (500, 2) dans les totaux. Maintenant, si une
+        // quantité contient une unité texte, elle compte comme 1 dans le total.
+        Object.entries(state.smartSelection).forEach(([id, qty]) => {
+            const n = parseQty(qty);
+            if (n > 0) {
+                items++;
+                const unit = extractUnit(qty);
+                requested += unit ? 1 : n;
+            }
+        });
+        delivered     = 0;
+        discrepancies = 0;
+    } else {
+        // FIX D: L'admin sur l'onglet Historique n'a pas de formulaire actif —
+        // productRowsContainer est vide et afficher des métriques à 0 est trompeur.
+        // On retourne immédiatement si le formulaire n'est pas visible.
+        if (state.userRole === 'admin' && !state.loadedDeliveryId) return;
+        // Table metrics
+        if (productRowsContainer) {
+            productRowsContainer.querySelectorAll('tr').forEach(row => {
+                const name = row.querySelector('.product-input') ? row.querySelector('.product-input').value.trim() : '';
+                if (!name) return;
+                items++;
+                const reqVal = row.querySelector('.qty-requested-input').value;
+                const delVal = row.querySelector('.qty-delivered-input').value;
+                const req = parseQty(reqVal);
+                const del = parseQty(delVal);
+                const reqUnit = extractUnit(reqVal);
+                const delUnit = extractUnit(delVal);
+                requested  += reqUnit ? 1 : req;
+                delivered  += delUnit ? 1 : del;
+                if (req !== del) discrepancies++;
+            });
+        }
+    }
+
+    $('stat-v-items').textContent        = items;
+    $('stat-v-requested').textContent    = requested;
+    $('stat-v-delivered').textContent    = delivered;
+    $('stat-v-discrepancies').textContent= discrepancies;
+}
+
+// ============================================================
+// SENDER INFO BOX (replaces satisfaction widget)
+// ============================================================
+function updateSenderInfo(log) {
+    const si = {
+        sender:   log ? (log.senderEmail   || '—') : (state.currentUser ? state.currentUser.email : '—'),
+        dept:     log ? translateRole(log.senderRole || 'chef') : translateRole(state.userRole),
+        service:  log ? (log.service || '—') : (serviceSelect ? serviceSelect.value : '—'),
+        receiver: log ? (log.receiverEmail || '—') : '—'
+    };
+    const sender   = si.sender.split('@')[0];
+    const receiver = si.receiver !== '—' ? si.receiver.split('@')[0] : '—';
+
+    $('si-sender').textContent   = capitalize(sender);
+    $('si-dept').textContent     = si.dept;
+    $('si-service').textContent  = si.service;
+    $('si-receiver').textContent = capitalize(receiver);
+}
+
+// ============================================================
+// ECONOMAT TABLE ROW MANAGEMENT
+// ============================================================
+function addNewRow(name='', req='', del='') {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td data-label="Produit">
+            <div class="autocomplete-container">
+                <input type="text" class="table-input product-input" placeholder="Produit..." value="${escHtml(name)}" autocomplete="off">
+                <div class="autocomplete-list" style="display:none;"></div>
+            </div>
+        </td>
+        <td data-label="Qté Demandée">
+            <input type="text" inputmode="text" class="table-input qty-requested-input" placeholder="0" value="${escHtml(String(req))}">
+        </td>
+        <td data-label="Qté Livrée" class="col-delivered">
+            <input type="text" inputmode="text" class="table-input qty-delivered-input" placeholder="0" value="${escHtml(String(del))}">
+        </td>
+        <td class="hide-on-print col-action" style="text-align:center;">
+            <button class="btn-delete-row" title="Supprimer">✕</button>
+        </td>
+    `;
+    setupTableRowListeners(tr);
+    productRowsContainer.appendChild(tr);
+    updateMetrics();
+    if (!name) setTimeout(() => tr.querySelector('.product-input').focus(), 50);
+}
+
+function setupTableRowListeners(tr) {
+    const pInput = tr.querySelector('.product-input');
+    const acList = tr.querySelector('.autocomplete-list');
+    const qrInput= tr.querySelector('.qty-requested-input');
+    const qdInput= tr.querySelector('.qty-delivered-input');
+    const delBtn = tr.querySelector('.btn-delete-row');
+
+    pInput.addEventListener('input', () => {
+        const val = normalize(pInput.value.trim());
+        acList.innerHTML = '';
+        if (!val) { acList.style.display='none'; return; }
+        const matches = state.productsDatabase.filter(p => normalize(p.name).includes(val)).slice(0,7);
+        if (!matches.length) { acList.style.display='none'; return; }
+        matches.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'autocomplete-item';
+            div.textContent = p.name;
+            div.addEventListener('mousedown', e => { e.preventDefault(); pInput.value = p.name; acList.style.display='none'; updateMetrics(); });
+            acList.appendChild(div);
+        });
+        acList.style.display = 'block';
+    });
+    pInput.addEventListener('blur', () => setTimeout(() => { acList.style.display='none'; updateMetrics(); }, 150));
+
+    qrInput.addEventListener('input', () => { validateTableRow(tr); updateMetrics(); });
+    qdInput.addEventListener('input', () => { validateTableRow(tr); updateMetrics(); });
+    delBtn.addEventListener('click', () => { tr.remove(); updateMetrics(); });
+}
+
+function validateTableRow(tr) {
+    if (state.currentRole !== 'economat') { tr.classList.remove('row-mismatch','row-match'); return; }
+    const req = parseQty(tr.querySelector('.qty-requested-input').value);
+    const del = parseQty(tr.querySelector('.qty-delivered-input').value);
+    tr.classList.remove('row-mismatch','row-match');
+    if (req > 0 || del > 0) tr.classList.add(req !== del ? 'row-mismatch' : 'row-match');
+}
+
+// ============================================================
+// SAVE DELIVERY
+// ============================================================
+function saveCurrentDelivery() {
+    const now = new Date(), pad = n => String(n).padStart(2,'0');
+    const dateStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+    const hourStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+    if (state.userRole === 'chef' || state.userRole === 'barman' || state.userRole === 'petitdej') {
+        // Smart order
+        const selected = Object.entries(state.smartSelection).filter(([,q]) => parseQty(q) > 0);
+        if (!selected.length) { showToast('Sélection vide', 'Veuillez sélectionner au moins un article.', 'warning'); return; }
+
+        const items = selected.map(([id, qty]) => {
+            const p = state.productsDatabase.find(p => p.id === id);
+            // FIX Bug 1b: si le produit est introuvable dans Firebase (id local_* non encore synchro),
+            // on cherche dans le localStorage pour récupérer le vrai nom plutôt que d'afficher l'id brut.
+            let name = id;
+            if (p) {
+                name = p.name;
+            } else {
+                try {
+                    const local = JSON.parse(localStorage.getItem('gourmet_products_db_v2') || '[]');
+                    const localP = local.find(lp => lp.id === id);
+                    if (localP) name = localP.name;
+                } catch(e) { /* garder l'id comme fallback ultime */ }
+            }
+            return { productId: id, name, requested: qty, delivered: 0 };
+        });
+
+        const order = {
+            date: dateStr, hour: hourStr, timestamp: Date.now(),
+            service: serviceSelect.value, status: 'en_attente', items,
+            senderEmail: state.currentUser ? state.currentUser.email : 'local',
+            senderRole: state.userRole, signature: null
+        };
+
+        // Disable save button to prevent double submit
+        const btnSave = $('btn-save');
+        if (btnSave) {
+            btnSave.disabled = true;
+            btnSave.style.opacity = '0.5';
+            btnSave.style.pointerEvents = 'none';
+        }
+
+        if (state.firebaseActive && db && navigator.onLine) {
+            if (state.loadedDeliveryId) {
+                // Updating existing order
+                db.collection('deliveries').doc(state.loadedDeliveryId).update({
+                    items: items,
+                    timestamp: Date.now(),
+                    date: dateStr,
+                    hour: hourStr,
+                    service: serviceSelect.value
+                })
+                .then(() => {
+                    showSuccessAnimation('Commande mise à jour !');
+                    showToast('Commande modifiée', 'Votre commande a été mise à jour.', 'success');
+                    resetSmartOrder();
+                })
+                .catch(err => {
+                    console.error(err);
+                    // FIX 7b: resetSmartOrder() ajouté — sans lui le bouton restait
+                    // grisé indéfiniment en cas d'échec Firebase lors d'une modification.
+                    updateLocally(state.loadedDeliveryId, {
+                        items: items,
+                        timestamp: Date.now(),
+                        date: dateStr,
+                        hour: hourStr,
+                        service: serviceSelect.value
+                    });
+                    resetSmartOrder();
+                });
+            } else {
+                // Creating new order
+                db.collection('deliveries').add(order)
+                    .then(() => { showSuccessAnimation('Commande envoyée !'); showToast('Commande envoyée', 'Votre commande a été transmise à l\'économat.', 'success'); resetSmartOrder(); })
+                    // FIX 6: passer une copie de order ({...order}) car saveLocally mute
+                    // l'objet en ajoutant .id et .unsynced — si Firebase a déjà reçu la
+                    // commande avant l'erreur, l'objet muté serait incohérent dans state.
+                    .catch(err => { console.error(err); saveLocally({...order}); });
+            }
+        } else {
+            if (state.loadedDeliveryId) {
+                updateLocally(state.loadedDeliveryId, {
+                    items: items,
+                    timestamp: Date.now(),
+                    date: dateStr,
+                    hour: hourStr,
+                    service: serviceSelect.value
+                });
+            } else {
+                saveLocally(order);
+            }
+        }
+
+    } else if (state.currentRole === 'economat' || state.userRole === 'admin') {
+        // Economat / Admin reception or modification
+        if (!state.loadedDeliveryId) { showToast('Aucune commande chargée', 'Veuillez charger d\'abord une commande en attente depuis l\'historique.', 'warning'); return; }
+
+        const rows = productRowsContainer.querySelectorAll('tr');
+        const items = [];
+        rows.forEach(row => {
+            const name = row.querySelector('.product-input').value.trim();
+            if (name) items.push({
+                name,
+                // FIX 5: Validation min/max des quantités pour éviter valeurs négatives
+                // ou absurdes (ex: 99999) qui ne seraient pas rejetées par Firestore.
+                requested: sanitizeQty(row.querySelector('.qty-requested-input').value),
+                delivered: sanitizeQty(row.querySelector('.qty-delivered-input').value)
+            });
+        });
+        if (!items.length) { showToast('Formulaire vide', 'Veuillez ajouter au moins un article.', 'warning'); return; }
+
+        // Keep old signature if modified by admin and signature canvas is blank
+        const originalDelivery = state.deliveriesHistory.find(l => l.id === state.loadedDeliveryId);
+        const oldSignature = originalDelivery ? originalDelivery.signature : null;
+
+        // FIX 6: Détection canvas vide robuste.
+        // Avant: comparaison uniquement à 0xFFFFFFFF (blanc pur RGBA little-endian).
+        // Si resizeCanvas() n'a pas encore été appelé après loadDelivery, les pixels
+        // sont transparents (0x00000000) → signature chargée écrasée par null.
+        // On accepte désormais les deux états "vide" : blanc pur ET transparence totale.
+        const pixelData = new Uint32Array(
+            ctx.getImageData(0, 0, signatureCanvas.width, signatureCanvas.height).data.buffer
+        );
+        const blank = !pixelData.some(c => c !== 0xFFFFFFFF && c !== 0x00000000);
+        const update = {
+            date: dateStr, hour: hourStr, status: 'livre', items,
+            signature: blank ? oldSignature : signatureCanvas.toDataURL(),
+            receiverEmail: state.currentUser ? state.currentUser.email : 'local',
+            receiverRole: state.userRole
+        };
+
+        // Disable save button to prevent double submit
+        const btnSave = $('btn-save');
+        if (btnSave) {
+            btnSave.disabled = true;
+            btnSave.style.opacity = '0.5';
+            btnSave.style.pointerEvents = 'none';
+        }
+
+        if (state.firebaseActive && db && navigator.onLine) {
+            // Build the delivery log for stock deduction
+            const deliveryForStock = { items, senderRole: originalDelivery ? originalDelivery.senderRole : 'unknown', service: originalDelivery ? originalDelivery.service : '' };
+            db.collection('deliveries').doc(state.loadedDeliveryId).update(update)
+                .then(() => {
+                    showToast('Livraison validée', 'La réception de la livraison a été validée.', 'success');
+                    // Auto-deduct stock
+                    deductStockFromDelivery(deliveryForStock);
+                    resetEcomatForm();
+                })
+                // FIX 7: resetEcomatForm() ajouté dans le catch
+                .catch(err => { console.error(err); updateLocally(state.loadedDeliveryId, update); resetEcomatForm(); });
+        } else {
+            updateLocally(state.loadedDeliveryId, update);
+        }
+    }
+}
+
+function saveLocally(record) {
+    record.id = 'del_' + Date.now();
+    if (state.firebaseActive) {
+        record.unsynced = true;
+    }
+    state.deliveriesHistory.unshift(record);
+    localStorage.setItem('gourmet_deliveries_history', JSON.stringify(state.deliveriesHistory));
+    renderHistory();
+    resetSmartOrder();
+    showToast('Mode Hors-ligne', 'Commande enregistrée localement sur l\'appareil.', 'info');
+}
+
+function updateLocally(id, data) {
+    const idx = state.deliveriesHistory.findIndex(l => l.id === id);
+    if (idx !== -1) {
+        state.deliveriesHistory[idx] = { ...state.deliveriesHistory[idx], ...data };
+        if (state.firebaseActive) {
+            state.deliveriesHistory[idx].unsyncedUpdate = true;
+        }
+        localStorage.setItem('gourmet_deliveries_history', JSON.stringify(state.deliveriesHistory));
+        renderHistory();
+        if (state.userRole === 'chef' || state.userRole === 'barman' || state.userRole === 'petitdej') {
+            resetSmartOrder();
+        } else {
+            resetEcomatForm();
+        }
+    }
+}
+
+function resetSmartOrder() {
+    state.smartSelection = {};
+    state.loadedDeliveryId = null;
+    
+    // Restore and enable button
+    const btnSave = $('btn-save');
+    if (btnSave) {
+        btnSave.textContent = state.userRole === 'barman'
+            ? '💾 Envoyer la Commande (Bar)'
+            : state.userRole === 'petitdej'
+                ? '💾 Envoyer la Commande (Petit-Déj)'
+                : '💾 Envoyer la Commande (Cuisine)';
+        btnSave.disabled = false;
+        btnSave.style.opacity = '1';
+        btnSave.style.pointerEvents = 'auto';
+    }
+
+    initDateTime();
+    renderSmartGrid();
+    updateMetrics();
+}
+
+function resetEcomatForm() {
+    state.loadedDeliveryId   = null;
+    state.isConsultationMode = false;
+    productRowsContainer.innerHTML = '';
+    addNewRow();
+    
+    // Enable button
+    const btnSave = $('btn-save');
+    if (btnSave) {
+        btnSave.disabled = false;
+        btnSave.style.opacity = '1';
+        btnSave.style.pointerEvents = 'auto';
+    }
+
+    initDateTime();
+    resizeCanvas(false);
+    // FIX 8: garde null ajoutée — comments-section peut être absent dans certaines configs.
+    const commentsSection = $('comments-section');
+    if (commentsSection) commentsSection.style.display = 'none';
+    updateSenderInfo();
+    applyConsultationMode();
+    updateMetrics();
+}
+
+// ============================================================
+// HISTORY
+// ============================================================
+function renderHistory() {
+    const container = $('history-logs-container');
+    // FIX 4: garde null ajoutée
+    if (!container) return;
+    container.innerHTML = '';
+
+    // 1. Filter by user role
+    let filteredHistory = state.deliveriesHistory;
+    if (state.userRole === 'chef') {
+        filteredHistory = filteredHistory.filter(log => log.senderRole === 'chef');
+    } else if (state.userRole === 'barman') {
+        filteredHistory = filteredHistory.filter(log => log.senderRole === 'barman');
+    } else if (state.userRole === 'petitdej') {
+        filteredHistory = filteredHistory.filter(log => log.senderRole === 'petitdej');
+    }
+
+    // Update pending badge
+    const pendingCount = filteredHistory.filter(l => l.status === 'en_attente').length;
+    const badge = $('pending-badge');
+    if (badge) {
+        if (pendingCount > 0) {
+            badge.textContent = pendingCount;
+            badge.style.display = '';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    // 2. Filter by status (history filter buttons)
+    const statusFilter = state.historyStatusFilter || 'all';
+    if (statusFilter !== 'all') {
+        filteredHistory = filteredHistory.filter(log => log.status === statusFilter);
+    }
+
+    // 3. Filter by search text
+    const searchInput = $('history-search');
+    const searchTerm = searchInput ? normalize(searchInput.value.trim()) : '';
+    if (searchTerm) {
+        filteredHistory = filteredHistory.filter(log => {
+            const haystack = normalize(
+                (log.senderEmail || '') + ' ' +
+                (log.service || '') + ' ' +
+                (log.date || '') + ' ' +
+                (Array.isArray(log.items) ? log.items.map(i => i.name).join(' ') : '')
+            );
+            return haystack.includes(searchTerm);
+        });
+    }
+
+    if (!filteredHistory.length) {
+        container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:24px;">Aucune commande enregistrée.</p>';
+        return;
+    }
+
+    filteredHistory.forEach(log => {
+        const [y,m,d] = (log.date || '').split('-').map(Number);
+        const dateStr = (y&&m&&d) ? new Date(y,m-1,d).toLocaleDateString('fr-FR') : log.date;
+        const count  = Array.isArray(log.items) ? log.items.length : 0;
+        const disc   = Array.isArray(log.items) ? log.items.filter(i=>parseQty(i.requested)!==parseQty(i.delivered)).length : 0;
+        const pending= log.status === 'en_attente';
+
+        let statClass = 'status-pending', statLabel = 'En attente';
+        if (!pending) {
+            // FIX B: Avant, la détection du validateur se basait sur log.receiverEmail.includes('admin')
+            // → même faille que parseRoleFromEmail (email crafté). De plus, la priorité des opérateurs
+            // (&&  avant ||) rendait l'expression ambiguë. Maintenant on lit uniquement receiverRole,
+            // qui est bien enregistré dans Firestore depuis le FIX 2 (v4.0).
+            const v = log.receiverRole || 'economat';
+            statLabel = v === 'admin' ? 'VALIDÉ PAR ADMIN' : 'VALIDÉ PAR ÉCONOMAT';
+            statClass = 'status-completed ' + (v === 'admin' ? 'admin-badge' : 'economat-badge');
+        }
+
+        let deptHtml = '';
+        const senderName = log.senderEmail ? capitalize(log.senderEmail.split('@')[0].replace(/[._-]/g,' ')) : '';
+        if (log.senderRole==='chef')     deptHtml = '<span class="history-status-badge" style="background:var(--danger-bg);color:var(--danger);border-color:var(--danger-border);">' + escHtml(senderName || 'Cuisine') + '</span>';
+        if (log.senderRole==='barman')   deptHtml = '<span class="history-status-badge" style="background:var(--info-bg);color:var(--info);border-color:var(--info-border);">' + escHtml(senderName || 'Bar') + '</span>';
+        if (log.senderRole==='petitdej') deptHtml = '<span class="history-status-badge" style="background:var(--petitdej-bg);color:var(--petitdej);border-color:var(--petitdej-border);">' + escHtml(senderName || 'Petit-Déj') + '</span>';
+
+        const canLoad   = (state.userRole === 'economat' || state.userRole === 'admin') && pending;
+        const canView   = true;
+        const canDelete = state.userRole === 'admin';
+        const isSenderRole = log.senderRole === state.userRole;
+        const canEdit   = (state.userRole === 'chef' || state.userRole === 'barman' || state.userRole === 'petitdej') && pending && isSenderRole;
+
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        item.innerHTML = `
+            <div class="history-meta">
+                <div>
+                    <span class="history-date">${dateStr} · ${log.hour || ''} · ${log.service||''}</span>
+                    <span class="history-status-badge ${statClass}">${statLabel}</span>
+                    ${deptHtml}
+                </div>
+                <span class="history-sub">${count} article(s) ${!pending ? `· Écarts: ${disc}` : ''}</span>
+            </div>
+            <div class="history-actions">
+                ${canLoad  ? `<button class="btn btn-primary btn-sm btn-load" data-id="${log.id}">Charger</button>` : ''}
+                ${canEdit  ? `<button class="btn btn-outline btn-sm btn-edit" data-id="${log.id}">✏️ Modifier</button>` : ''}
+                ${canView  ? `<button class="btn btn-outline btn-sm btn-view" data-id="${log.id}">👁 Voir</button>` : ''}
+                ${canDelete? `<button class="btn btn-danger-outline btn-sm btn-del" data-id="${log.id}">✕</button>` : ''}
+            </div>
+        `;
+        if (canLoad)  item.querySelector('.btn-load').addEventListener('click', () => loadDelivery(log.id));
+        if (canEdit)  item.querySelector('.btn-edit').addEventListener('click', () => editDelivery(log.id));
+        if (canView)  item.querySelector('.btn-view').addEventListener('click', () => viewDelivery(log.id));
+        if (canDelete)item.querySelector('.btn-del').addEventListener('click',  () => deleteDelivery(log.id));
+        container.appendChild(item);
+    });
+}
+
+// ============================================================
+// STOCK CONTROL — Monthly product consumption (admin/economat)
+// ============================================================
+function renderStockControl() {
+    const resultsContainer = $('stock-control-results');
+    const monthLabel = $('stock-month-label');
+    if (!resultsContainer) return;
+
+    // Current month label
+    const now = new Date();
+    const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+    if (monthLabel) monthLabel.textContent = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+
+    // Current month boundaries
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).getTime();
+
+    // Aggregate product quantities for this month
+    const productStats = {}; // { productName: { total, orders, byDept: {chef, barman, petitdej}, quantities: [] } }
+
+    state.deliveriesHistory.forEach(log => {
+        // Filter by current month
+        const ts = log.timestamp || 0;
+        if (ts < monthStart || ts > monthEnd) return;
+
+        const dept = log.senderRole || 'unknown';
+        (log.items || []).forEach(item => {
+            const name = (item.name || '').trim();
+            if (!name) return;
+            const qty = parseQty(item.requested);
+            if (qty <= 0) return;
+
+            const key = normalize(name);
+            if (!productStats[key]) {
+                productStats[key] = {
+                    name: name,
+                    total: 0,
+                    orderCount: 0,
+                    quantities: [],
+                    byDept: {}
+                };
+            }
+            productStats[key].total += qty;
+            productStats[key].orderCount++;
+            productStats[key].quantities.push(item.requested);
+            productStats[key].byDept[dept] = (productStats[key].byDept[dept] || 0) + qty;
+        });
+    });
+
+    // Search filter
+    const searchInput = $('stock-control-search');
+    const searchTerm = searchInput ? normalize(searchInput.value.trim()) : '';
+
+    let results = Object.values(productStats);
+    if (searchTerm) {
+        results = results.filter(p => normalize(p.name).includes(searchTerm));
+    }
+
+    // Sort by total descending
+    results.sort((a, b) => b.total - a.total);
+
+    // No search yet = show all top products
+    if (!searchTerm && results.length > 20) {
+        results = results.slice(0, 20);
+    }
+
+    // Render
+    if (!results.length) {
+        resultsContainer.innerHTML = searchTerm
+            ? '<p class="stock-result-empty">Aucun produit trouvé pour "' + escHtml(searchInput.value) + '" ce mois-ci.</p>'
+            : '<p class="stock-result-empty">Aucune commande enregistrée ce mois-ci.</p>';
+        return;
+    }
+
+    const maxTotal = Math.max(...results.map(p => p.total));
+    const grid = document.createElement('div');
+    grid.className = 'stock-result-grid';
+
+    results.forEach(p => {
+        const barWidth = maxTotal > 0 ? Math.round((p.total / maxTotal) * 100) : 0;
+
+        // Department tags
+        const deptTags = Object.entries(p.byDept).map(([dept, qty]) => {
+            const label = translateRole(dept);
+            return `<span class="stock-dept-tag ${dept}">${label}: ${qty}</span>`;
+        }).join('');
+
+        // Build display for mixed quantities (with units)
+        const hasUnits = p.quantities.some(q => extractUnit(String(q)));
+        const totalDisplay = hasUnits
+            ? `${p.orderCount} fois`
+            : `${p.total}`;
+
+        const card = document.createElement('div');
+        card.className = 'stock-result-card';
+        card.innerHTML = `
+            <div class="stock-result-name">${escHtml(p.name)}</div>
+            <div class="stock-result-stats">
+                <div class="stock-stat">
+                    <span class="stock-stat-value">${totalDisplay}</span>
+                    <span class="stock-stat-label">Qté demandée</span>
+                </div>
+                <div class="stock-stat">
+                    <span class="stock-stat-value">${p.orderCount}</span>
+                    <span class="stock-stat-label">Commandes</span>
                 </div>
             </div>
-        </header>
+            <div class="stock-bar-bg"><div class="stock-bar-fill" style="width:${barWidth}%"></div></div>
+            <div class="stock-dept-tags">${deptTags}</div>
+        `;
+        grid.appendChild(card);
+    });
 
-        <!-- ── Stats Bar ──────────────────────────────────────────────────── -->
-        <div class="stats-bar">
-            <div class="stat-card tables-state">
-                <span class="stat-label">Tables</span>
-                <span class="stat-value" id="statMyTables">0</span>
+    resultsContainer.innerHTML = '';
+    resultsContainer.appendChild(grid);
+}
+
+function loadDelivery(id) {
+    // Economat: load a pending order to fill delivered quantities
+    const log = state.deliveriesHistory.find(l => l.id === id);
+    if (!log) return;
+    switchTab('form');
+    state.loadedDeliveryId   = id;
+    state.isConsultationMode = false;
+
+    serviceSelect.value = log.service || 'Matin';
+    dateInput.value     = log.date || '';
+    timeInput.value     = log.hour || '';
+
+    productRowsContainer.innerHTML = '';
+    (log.items || []).forEach(item => addNewRow(item.name, item.requested, 0));
+
+    // Economat mode: hide empty rows, set delivered to 0
+    productRowsContainer.querySelectorAll('tr').forEach(row => {
+        const req  = parseQty(row.querySelector('.qty-requested-input').value);
+        const prod = row.querySelector('.product-input').value.trim();
+        if (req > 0 && prod) {
+            row.classList.remove('row-hidden');
+            const del = row.querySelector('.qty-delivered-input');
+            if (!del.value) del.value = '0';
+            validateTableRow(row);
+        } else {
+            row.classList.add('row-hidden');
+        }
+    });
+
+    updateSenderInfo(log);
+    resizeCanvas(false);
+    if (log.signature) { const img=new Image(); img.onload=()=>ctx.drawImage(img,0,0); img.src=log.signature; }
+    // FIX F: garde null sur comments-section — incohérence corrigée avec resetEcomatForm (FIX 8 v4.0).
+    const commentsSection = $('comments-section');
+    if (commentsSection) commentsSection.style.display = 'block';
+    renderComments(log.comments||[]);
+    if (state.userRole === 'admin') {
+        $('tab-btn-form').style.display = '';
+        $('section-reception-table').style.display = '';
+        $('section-signature-area').style.display   = '';
+        $('section-actions').style.display           = '';
+        $('btn-save').textContent = '💾 Valider la Réception';
+        $('btn-save').style.display = 'inline-flex';
+        // FIX 10: btn-print n'était pas affiché pour l'admin après loadDelivery
+        // (contrairement à viewDelivery qui le faisait). Correction de l'incohérence.
+        $('btn-print').style.display = 'inline-flex';
+        const btnShareWhatsapp = $('btn-share-whatsapp');
+        if (btnShareWhatsapp) btnShareWhatsapp.style.display = 'inline-flex';
+    }
+    applyConsultationMode();
+    updateMetrics();
+    window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function viewDelivery(id) {
+    const log = state.deliveriesHistory.find(l => l.id === id);
+    if (!log) return;
+
+    state.loadedDeliveryId   = id;
+    state.isConsultationMode = true;
+
+    if (state.userRole === 'admin') {
+        $('tab-btn-form').style.display = '';
+    }
+    switchTab('form');
+
+    serviceSelect.value = log.service || 'Matin';
+    dateInput.value     = log.date || '';
+    timeInput.value     = log.hour || '';
+
+    productRowsContainer.innerHTML = '';
+    (log.items || []).forEach(item => addNewRow(item.name, item.requested, item.delivered));
+
+    productRowsContainer.querySelectorAll('tr').forEach(row => {
+        row.classList.remove('row-hidden');
+        validateTableRow(row);
+    });
+
+    $('section-smart-order').style.display = 'none';
+    $('section-reception-table').style.display = '';
+    $('section-signature-area').style.display  = '';
+    $('section-actions').style.display         = '';
+    $('btn-print').style.display = 'inline-flex';
+    const isEcomatOrAdmin = state.userRole === 'economat' || state.userRole === 'admin';
+    if ($('btn-share-whatsapp')) {
+        $('btn-share-whatsapp').style.display = isEcomatOrAdmin ? 'inline-flex' : 'none';
+    }
+
+    resizeCanvas(false);
+    if (log.signature) {
+        const img = new Image();
+        img.onload = () => ctx.drawImage(img, 0, 0);
+        img.src = log.signature;
+    }
+
+    // FIX 1: garde null sur comments-section — même correction que loadDelivery (FIX F v4.1)
+    // et resetEcomatForm (FIX 8 v4.0). viewDelivery était la 3ème occurrence manquée.
+    const commentsSectionView = $('comments-section');
+    if (commentsSectionView) commentsSectionView.style.display = 'block';
+    renderComments(log.comments || []);
+
+    updateSenderInfo(log);
+    applyConsultationMode();
+    updateMetrics();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function editDelivery(id) {
+    const log = state.deliveriesHistory.find(l => l.id === id);
+    if (!log) return;
+
+    state.loadedDeliveryId = id;
+
+    // Reset smart selection and load item quantities
+    state.smartSelection = {};
+    (log.items || []).forEach(item => {
+        // FIX 11: item.productId est absent si la commande a été validée par l'économat
+        // (qui n'enregistre que name/requested/delivered). Fallback par recherche de nom.
+        const pid = item.productId
+            || (state.productsDatabase.find(p => p.name === item.name) || {}).id;
+        if (pid) state.smartSelection[pid] = item.requested;
+    });
+
+    switchTab('form');
+
+    // Update button text
+    const btnSave = $('btn-save');
+    if (btnSave) {
+        btnSave.textContent = '💾 Mettre à jour la Commande';
+    }
+
+    renderSmartGrid();
+    updateMetrics();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function deleteDelivery(id) {
+    if (!confirm('Supprimer définitivement cette commande ?')) return;
+    if (state.firebaseActive && db) {
+        db.collection('deliveries').doc(id).delete().then(() => { showToast('Suppression', 'La commande a été supprimée.', 'success'); renderHistory(); }).catch(console.error);
+    } else {
+        state.deliveriesHistory = state.deliveriesHistory.filter(l => l.id !== id);
+        localStorage.setItem('gourmet_deliveries_history', JSON.stringify(state.deliveriesHistory));
+        renderHistory();
+        showToast('Suppression', 'La commande locale a été supprimée.', 'success');
+    }
+}
+
+// ============================================================
+// CATALOGUE TAB (admin)
+// ============================================================
+function renderCatalogueTab() {
+    const grid = $('catalogue-grid');
+    if (!grid) return;
+    const search = normalize(($('cat-search') ? $('cat-search').value : ''));
+    const filter = state.catalogueFilter || 'all';
+
+    // Count per category (before search filter)
+    const countCuisine = state.productsDatabase.filter(p => p.category === 'cuisine' || p.category === 'both').length;
+    const countBarman  = state.productsDatabase.filter(p => p.category === 'barman' || p.category === 'both').length;
+    const countBoth    = state.productsDatabase.filter(p => p.category === 'both').length;
+    const countAll     = state.productsDatabase.length;
+
+    // Render counters
+    const counters = $('cat-counters');
+    if (counters) {
+        counters.innerHTML = `
+            <span class="cat-counter-item">Total <span class="cat-count">${countAll}</span></span>
+            <span class="cat-counter-item">🍳 Cuisine <span class="cat-count">${countCuisine}</span></span>
+            <span class="cat-counter-item">☕ Barman <span class="cat-count">${countBarman}</span></span>
+            <span class="cat-counter-item">🌟 Les deux <span class="cat-count">${countBoth}</span></span>
+        `;
+    }
+
+    // Filter products
+    let products = state.productsDatabase;
+    if (filter === 'cuisine') {
+        products = products.filter(p => p.category === 'cuisine' || p.category === 'both');
+    } else if (filter === 'barman') {
+        products = products.filter(p => p.category === 'barman' || p.category === 'both');
+    } else if (filter === 'both') {
+        products = products.filter(p => p.category === 'both');
+    }
+    products = products.filter(p => normalize(p.name).includes(search));
+
+    grid.innerHTML = '';
+    if (!products.length) {
+        grid.innerHTML = '<p style="color:var(--text-muted);grid-column:1/-1;text-align:center;padding:20px;">Aucun produit dans cette catégorie.</p>';
+        return;
+    }
+
+    products.forEach(p => {
+        const tile = document.createElement('div');
+        tile.className = 'cat-tile';
+        tile.innerHTML = `
+            <span class="cat-tile-name">${escHtml(p.name)}</span>
+            <select class="cat-tile-cat-select" data-id="${p.id}">
+                <option value="cuisine" ${p.category==='cuisine'?'selected':''}>🍳 Cuisine</option>
+                <option value="barman"  ${p.category==='barman' ?'selected':''}>☕ Barman</option>
+                <option value="both"    ${p.category==='both'   ?'selected':''}>🌟 Les deux</option>
+            </select>
+            <button class="cat-tile-del" data-id="${p.id}" title="Supprimer">✕</button>
+        `;
+        tile.querySelector('.cat-tile-del').addEventListener('click', () => deleteProduct(p.id, p.name));
+        tile.querySelector('.cat-tile-cat-select').addEventListener('change', (e) => changeProductCategory(p.id, e.target.value));
+        grid.appendChild(tile);
+    });
+}
+
+function addProductToCatalogue() {
+    const name = $('cat-new-name').value.trim();
+    const cat  = $('cat-new-category').value;
+    if (!name) { showToast('Champ requis', 'Veuillez saisir un nom de produit.', 'warning'); return; }
+    if (state.productsDatabase.some(p => normalize(p.name) === normalize(name))) {
+        showToast('Doublon', 'Ce produit existe déjà.', 'warning'); return;
+    }
+    if (state.firebaseActive && db) {
+        db.collection('products').add({ name, category: cat })
+            .then(() => { $('cat-new-name').value = ''; renderCatalogueTab(); renderSmartGrid(); showToast('Produit ajouté', `"${name}" a été ajouté au catalogue Firebase.`, 'success'); })
+            .catch(err => { console.error(err); showToast('Erreur Firebase', 'Une erreur est survenue lors de la communication avec Firebase.', 'danger'); });
+    } else {
+        const id = 'local_' + Date.now();
+        state.productsDatabase.push({ id, name, category: cat });
+        state.productsDatabase.sort((a,b) => a.name.localeCompare(b.name));
+        localStorage.setItem('gourmet_products_db_v2', JSON.stringify(state.productsDatabase));
+        $('cat-new-name').value = '';
+        renderCatalogueTab();
+        renderSmartGrid();
+        showToast('Produit ajouté', `"${name}" a été ajouté au catalogue local.`, 'success');
+    }
+}
+
+function deleteProduct(id, name) {
+    if (!confirm(`Supprimer "${name}" du catalogue ?`)) return;
+    if (state.firebaseActive && db) {
+        db.collection('products').doc(id).delete().then(() => { renderCatalogueTab(); renderSmartGrid(); showToast('Suppression', `"${name}" a été supprimé du catalogue Firebase.`, 'success'); }).catch(console.error);
+    } else {
+        state.productsDatabase = state.productsDatabase.filter(p => p.id !== id);
+        localStorage.setItem('gourmet_products_db_v2', JSON.stringify(state.productsDatabase));
+        renderCatalogueTab();
+        renderSmartGrid();
+        showToast('Suppression', `"${name}" a été supprimé du catalogue local.`, 'success');
+    }
+}
+
+function changeProductCategory(id, newCategory) {
+    if (state.firebaseActive && db) {
+        db.collection('products').doc(id).update({ category: newCategory })
+            .then(() => showToast('Mise à jour', 'Catégorie de produit mise à jour sur Firebase.', 'success'))
+            .catch(err => { console.error(err); showToast('Erreur', 'Impossible de modifier la catégorie du produit.', 'danger'); });
+    } else {
+        const p = state.productsDatabase.find(p => p.id === id);
+        if (p) {
+            p.category = newCategory;
+            localStorage.setItem('gourmet_products_db_v2', JSON.stringify(state.productsDatabase));
+            renderCatalogueTab();
+            renderSmartGrid();
+            showToast('Mise à jour', 'Catégorie de produit mise à jour localement.', 'success');
+        }
+    }
+}
+
+// ============================================================
+// ADD NEW ARTICLE (Chef / Barman quick-add)
+// ============================================================
+function addNewArticleFromSmartOrder() {
+    const input = $('new-article-name');
+    if (!input) return;
+    const name = input.value.trim();
+    if (!name) { showToast('Champ requis', 'Veuillez saisir un nom de produit.', 'warning'); return; }
+
+    if (state.productsDatabase.some(p => normalize(p.name) === normalize(name))) {
+        showToast('Doublon', 'Ce produit existe déjà dans le catalogue.', 'warning'); return;
+    }
+
+    // Category depends on the connected role
+    const cat = state.userRole === 'barman' ? 'barman' : 'cuisine';
+
+    if (state.firebaseActive && db) {
+        db.collection('products').add({ name, category: cat })
+            .then(() => { input.value = ''; renderSmartGrid(); showToast('Produit ajouté', `"${name}" a été ajouté au catalogue.`, 'success'); })
+            .catch(err => { console.error(err); showToast('Erreur Firebase', 'Une erreur est survenue lors de la communication avec Firebase.', 'danger'); });
+    } else {
+        const id = 'local_' + Date.now();
+        state.productsDatabase.push({ id, name, category: cat });
+        state.productsDatabase.sort((a,b) => a.name.localeCompare(b.name));
+        localStorage.setItem('gourmet_products_db_v2', JSON.stringify(state.productsDatabase));
+        input.value = '';
+        renderSmartGrid();
+        showToast('Produit ajouté', `"${name}" a été ajouté au catalogue.`, 'success');
+    }
+}
+
+// ============================================================
+// CONSULTATION MODE (economat read-only loaded delivery)
+// ============================================================
+function applyConsultationMode() {
+    const isConsult = state.isConsultationMode;
+    // FIX 3: garde null sur productRowsContainer — appelée depuis loadDelivery,
+    // viewDelivery et resetEcomatForm, contextes où il peut être non initialisé.
+    if (!productRowsContainer) return;
+    const inputs    = productRowsContainer.querySelectorAll('.table-input');
+    const delBtns   = productRowsContainer.querySelectorAll('.btn-delete-row');
+
+    if (serviceSelect) { serviceSelect.disabled = isConsult; serviceSelect.style.opacity = isConsult ? '.6' : '1'; }
+    if (dateInput) { dateInput.disabled = isConsult; dateInput.style.opacity = isConsult ? '.6' : '1'; }
+    if (timeInput) { timeInput.disabled = isConsult; timeInput.style.opacity = isConsult ? '.6' : '1'; }
+
+    inputs.forEach(input => {
+        if (isConsult) {
+            // Admin can modify delivery quantities in consultation mode
+            if (state.userRole === 'admin' && input.classList.contains('qty-delivered-input')) {
+                input.disabled = false;
+                input.style.opacity = '1';
+                input.style.pointerEvents = 'auto';
+            } else {
+                input.disabled = true;
+                input.style.opacity = '.6';
+                input.style.pointerEvents = 'none';
+            }
+        }
+        else {
+            if ((state.currentRole==='economat' || state.userRole==='admin') && (input.classList.contains('product-input')||input.classList.contains('qty-requested-input'))) {
+                input.disabled=true; input.style.opacity='.5'; input.style.pointerEvents='none'; return;
+            }
+            input.disabled=false; input.style.opacity='1'; input.style.pointerEvents='auto';
+        }
+    });
+
+    const btnSave = $('btn-save');
+    if (isConsult) {
+        $('add-row-bar').style.display='none';
+        if(btnSave) {
+            if (state.userRole === 'admin') {
+                btnSave.style.display = 'inline-flex';
+                btnSave.textContent = '💾 Enregistrer les modifications';
+            } else {
+                btnSave.style.display='none';
+            }
+        }
+        $('btn-clear-sig').style.display='none';
+        delBtns.forEach(b=>b.style.display='none');
+        signatureCanvas.style.pointerEvents='none';
+    } else {
+        $('add-row-bar').style.display = (state.currentRole==='economat' || state.userRole==='admin') ? 'none' : 'flex';
+        if(btnSave) btnSave.style.display='inline-flex';
+        $('btn-clear-sig').style.display='inline-block';
+        signatureCanvas.style.pointerEvents='auto';
+        if (state.currentRole==='chef') delBtns.forEach(b=>b.style.display='');
+        else delBtns.forEach(b=>b.style.display='none');
+    }
+}
+
+// ============================================================
+// COMMENTS
+// ============================================================
+function submitComment() {
+    const input = $('comment-input');
+    const text  = input.value.trim();
+    if (!text || !state.loadedDeliveryId) return;
+    const c = {
+        senderName: state.currentUser ? state.currentUser.email.split('@')[0] : 'Utilisateur',
+        senderRole: state.userRole, text, timestamp: Date.now()
+    };
+    const log = state.deliveriesHistory.find(l => l.id === state.loadedDeliveryId);
+    if (!log) return;
+    if (!log.comments) log.comments = [];
+    log.comments.push(c);
+
+    if (state.firebaseActive && db) {
+        db.collection('deliveries').doc(state.loadedDeliveryId).update({ comments: log.comments })
+            .then(() => { input.value=''; renderComments(log.comments); })
+            .catch(err => {
+                console.error('submitComment Firebase failed:', err);
+                // FIX I: En cas d'échec Firebase, le commentaire était déjà dans state
+                // mais non persisté. On sauvegarde en localStorage pour éviter la perte
+                // silencieuse au prochain snapshot Firestore (qui écraserait state).
+                localStorage.setItem('gourmet_deliveries_history', JSON.stringify(state.deliveriesHistory));
+                input.value='';
+                renderComments(log.comments);
+                showToast('Hors-ligne', 'Commentaire enregistré localement.', 'info');
+            });
+    } else {
+        localStorage.setItem('gourmet_deliveries_history', JSON.stringify(state.deliveriesHistory));
+        input.value=''; renderComments(log.comments); renderHistory();
+    }
+}
+
+function renderComments(comments) {
+    const list = $('comments-list');
+    if (!list) return;
+    list.innerHTML = '';
+    if (!comments || !comments.length) {
+        list.innerHTML = '<p style="color:var(--text-muted);font-size:.82rem;text-align:center;padding:10px;">Aucune observation.</p>';
+        return;
+    }
+    comments.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'comment-item';
+        const t = new Date(c.timestamp);
+        div.innerHTML = `
+            <div class="comment-meta">
+                <span>👤 ${escHtml(capitalize(c.senderName||'Utilisateur'))} (${translateRole(c.senderRole)})</span>
+                <span class="comment-time">${t.toLocaleDateString('fr-FR')} à ${t.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>
             </div>
-            <div class="stat-card alert-state" id="statCardCalls">
-                <span class="stat-label">Appels</span>
-                <span class="stat-value" id="statActiveCalls">0</span>
+            <div class="comment-text">${escHtml(c.text)}</div>
+        `;
+        list.appendChild(div);
+    });
+    list.scrollTop = list.scrollHeight;
+}
+
+// ============================================================
+// SIGNATURE CANVAS
+// ============================================================
+function initSignatureCanvas() {
+    resizeCanvas(false);
+    ctx.strokeStyle='#1a1a18'; ctx.lineWidth=2; ctx.lineCap='round'; ctx.lineJoin='round';
+}
+
+function resizeCanvas(preserve) {
+    let saved = null;
+    const rect = signatureCanvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+
+    // FIX 8: Si le canvas est caché (onglet form non actif), rect.width/height = 0.
+    // Appeler ctx.scale() sur un canvas 0×0 produisait une signature distordue
+    // après le prochain resize (copie sauvegardée à la mauvaise échelle).
+    if (!rect.width || !rect.height) return;
+
+    if (preserve && signatureCanvas.width > 0) {
+        const t = document.createElement('canvas');
+        t.width = signatureCanvas.width;
+        t.height = signatureCanvas.height;
+        t.getContext('2d').drawImage(signatureCanvas, 0, 0);
+        saved = t;
+    }
+
+    signatureCanvas.width  = (rect.width  || 300) * dpr;
+    signatureCanvas.height = (rect.height || 170) * dpr;
+    ctx.scale(dpr, dpr);
+
+    ctx.fillStyle='#ffffff'; ctx.fillRect(0, 0, rect.width || 300, rect.height || 170);
+    ctx.strokeStyle='#1a1a18'; ctx.lineWidth=2; ctx.lineCap='round'; ctx.lineJoin='round';
+    if (saved) ctx.drawImage(saved, 0, 0, rect.width || 300, rect.height || 170);
+}
+
+function draw(e) {
+    if (!state.isDrawing) return;
+    let x,y;
+    if (e.type.startsWith('touch')) {
+        const t=e.touches[0], r=signatureCanvas.getBoundingClientRect();
+        x=t.clientX-r.left; y=t.clientY-r.top;
+    } else { x=e.offsetX; y=e.offsetY; }
+    ctx.beginPath(); ctx.moveTo(state.lastX,state.lastY); ctx.lineTo(x,y); ctx.stroke();
+    state.lastX=x; state.lastY=y;
+}
+
+// ============================================================
+// ROLE TOGGLE (Economat chef/economat switch)
+// ============================================================
+function setupRoleToggle() {
+    const btnChef    = $('role-btn-chef');
+    const btnEcomat  = $('role-btn-economat');
+    const section    = $('section-reception-table');
+    if (!btnChef || !btnEcomat) return;
+
+    btnChef.addEventListener('click', () => {
+        state.currentRole='chef';
+        btnChef.classList.add('active'); btnEcomat.classList.remove('active');
+        section.classList.remove('mode-economat'); section.classList.add('mode-chef');
+        $('add-row-bar').style.display='flex';
+        $('btn-save').textContent='💾 Envoyer la Commande';
+        productRowsContainer.querySelectorAll('tr').forEach(r=>{r.classList.remove('row-hidden','row-mismatch','row-match');});
+        updateMetrics();
+    });
+
+    btnEcomat.addEventListener('click', () => {
+        state.currentRole='economat';
+        btnEcomat.classList.add('active'); btnChef.classList.remove('active');
+        section.classList.remove('mode-chef'); section.classList.add('mode-economat');
+        $('add-row-bar').style.display='none';
+        $('btn-print').style.display='inline-flex';
+        $('btn-save').textContent='💾 Valider la Réception';
+        productRowsContainer.querySelectorAll('tr').forEach(row=>{
+            const req=parseQty(row.querySelector('.qty-requested-input').value);
+            const prod=row.querySelector('.product-input').value.trim();
+            if (req>0&&prod) {
+                row.classList.remove('row-hidden');
+                const del=row.querySelector('.qty-delivered-input');
+                if (!del.value) del.value='0';
+                validateTableRow(row);
+            } else { row.classList.add('row-hidden'); }
+        });
+        updateMetrics();
+    });
+}
+
+// ============================================================
+// TAB SWITCH
+// ============================================================
+function switchTab(tab) {
+    const form    = document.querySelectorAll('.form-tab-content');
+    const hist    = document.querySelectorAll('.history-tab-content');
+    const cat     = document.querySelectorAll('.catalogue-tab-content');
+    const stock   = document.querySelectorAll('.stock-tab-content');
+
+    document.querySelectorAll('.nav-tab').forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+    });
+
+    form.forEach(el=>el.classList.add('tab-hidden'));
+    hist.forEach(el=>el.classList.add('tab-hidden'));
+    cat.forEach(el=>el.classList.add('tab-hidden'));
+    stock.forEach(el=>el.classList.add('tab-hidden'));
+
+    if (tab==='form') {
+        const btn = $('tab-btn-form');
+        if (btn) { btn.classList.add('active'); btn.setAttribute('aria-selected', 'true'); }
+        form.forEach(el=>el.classList.remove('tab-hidden'));
+        setTimeout(()=>resizeCanvas(true),120);
+    } else if (tab==='history') {
+        const btn = $('tab-btn-history');
+        if (btn) { btn.classList.add('active'); btn.setAttribute('aria-selected', 'true'); }
+        hist.forEach(el=>el.classList.remove('tab-hidden'));
+        if (state.userRole === 'admin') {
+            $('tab-btn-form').style.display = 'none';
+        }
+    } else if (tab==='catalogue') {
+        const btn = $('tab-btn-catalogue');
+        if (btn) { btn.classList.add('active'); btn.setAttribute('aria-selected', 'true'); }
+        cat.forEach(el=>el.classList.remove('tab-hidden'));
+        if (state.userRole === 'admin') {
+            $('tab-btn-form').style.display = 'none';
+        }
+        renderCatalogueTab();
+    } else if (tab==='stock') {
+        const btn = $('tab-btn-stock');
+        if (btn) { btn.classList.add('active'); btn.setAttribute('aria-selected', 'true'); }
+        stock.forEach(el=>el.classList.remove('tab-hidden'));
+        if (state.userRole === 'admin') {
+            $('tab-btn-form').style.display = 'none';
+        }
+        renderStockTab();
+    }
+}
+
+// ============================================================
+// FIREBASE CONFIG UI
+// ============================================================
+function setupFirebaseConfig() {
+    $('firebase-config-title').addEventListener('click', ()=>{
+        const c=$('firebase-config-content'), i=$('firebase-toggle-icon');
+        const open=c.style.display==='none';
+        c.style.display=open?'block':'none';
+        i.textContent=open?'▲':'▼';
+    });
+    $('btn-save-firebase').addEventListener('click', ()=>{
+        const apiKey=$('fb-apiKey').value.trim(), projectId=$('fb-projectId').value.trim();
+        const authDomain=$('fb-authDomain').value.trim(), appId=$('fb-appId').value.trim();
+        if (!apiKey||!projectId) { showToast('Configuration requise', 'API Key et Project ID sont requis.', 'warning'); return; }
+        const config={ apiKey, projectId, authDomain:authDomain||`${projectId}.firebaseapp.com`, storageBucket:`${projectId}.firebasestorage.app`, appId };
+        localStorage.setItem('gourmet_firebase_config_v3', JSON.stringify(config));
+        initializeFirebase(config);
+        showToast('Firebase', 'Connexion en cours...', 'info');
+    });
+    $('btn-clear-firebase').addEventListener('click', ()=>{
+        if (!confirm('Déconnecter Firebase ?')) return;
+        localStorage.removeItem('gourmet_firebase_config_v3');
+        if (unsubscribeFirestore) { unsubscribeFirestore(); unsubscribeFirestore=null; }
+        if (unsubscribeProducts)  { unsubscribeProducts();  unsubscribeProducts=null;  }
+        db=null; state.firebaseActive=false;
+        updateFirebaseBadge('badge-local','Mode Local');
+        loadLocalFallback();
+    });
+}
+
+function updateFirebaseBadge(cls, text) {
+    const b=$('firebase-connection-status');
+    if (b) { b.className='status-badge '+cls; b.textContent=text; }
+}
+
+// ============================================================
+// EVENT LISTENERS
+// ============================================================
+function setupEventListeners() {
+    // LOGO — masquer si image absente (remplace onerror inline dans index.html)
+    const appLogo = $('app-logo-img');
+    if (appLogo) appLogo.addEventListener('error', () => { appLogo.style.display = 'none'; }, { once: true });
+
+    // Offline sync
+    window.addEventListener('online', syncOfflineDeliveries);
+
+    // Request notification permission on first user interaction (click)
+    document.addEventListener('click', () => {
+        requestNotificationPermission();
+        if (navigator.onLine) {
+            syncOfflineDeliveries();
+        }
+    }, { once: true });
+
+    // LOGIN
+    const doLogin = () => {
+        const email=$('login-email').value.trim(), pass=$('login-password').value.trim();
+        if (!email||!pass) return;
+        const btn=$('btn-login-submit'), err=$('login-error-banner');
+        btn.textContent='Connexion…'; btn.disabled=true; err.style.display='none';
+        firebase.auth().signInWithEmailAndPassword(email, pass)
+            .then(()=>{ btn.textContent='Se connecter'; btn.disabled=false; })
+            .catch(e=>{ btn.textContent='Se connecter'; btn.disabled=false; err.style.display='block'; err.textContent=e.message||'Identifiants incorrects.'; });
+    };
+    $('btn-login-submit').addEventListener('click', doLogin);
+    $('login-password').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+
+    // LOGOUT
+    $('btn-logout').addEventListener('click', ()=>{
+        if (!confirm('Se déconnecter ?')) return;
+        firebase.auth().signOut().then(()=>{ $('user-profile-banner').style.display='none'; showLoginModal(); }).catch(console.error);
+    });
+
+    // TABS
+    $('tab-btn-form')    && $('tab-btn-form').addEventListener('click',      () => {
+        if (state.isConsultationMode) {
+            state.isConsultationMode = false;
+            if (state.userRole === 'admin') {
+                switchTab('history');
+            } else {
+                applyRoleUI(state.userRole);
+            }
+        } else {
+            switchTab('form');
+        }
+    });
+    $('tab-btn-history') && $('tab-btn-history').addEventListener('click',   ()=>switchTab('history'));
+    $('tab-btn-catalogue')&&$('tab-btn-catalogue').addEventListener('click', ()=>switchTab('catalogue'));
+    $('tab-btn-stock')    && $('tab-btn-stock').addEventListener('click',    ()=>switchTab('stock'));
+
+    // SAVE — intercept to show confirmation modal for chef/barman/petitdej
+    $('btn-save').addEventListener('click', () => {
+        if (state.userRole === 'chef' || state.userRole === 'barman' || state.userRole === 'petitdej') {
+            showConfirmModal();
+        } else {
+            saveCurrentDelivery();
+        }
+    });
+
+    // CONFIRMATION MODAL buttons
+    $('btn-confirm-cancel').addEventListener('click', hideConfirmModal);
+    $('btn-confirm-send').addEventListener('click', () => {
+        hideConfirmModal();
+        saveCurrentDelivery();
+    });
+
+    // HISTORY SEARCH & FILTERS
+    const histSearch = $('history-search');
+    if (histSearch) histSearch.addEventListener('input', renderHistory);
+    document.querySelectorAll('.hist-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.hist-filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            state.historyStatusFilter = btn.dataset.filter || 'all';
+            renderHistory();
+        });
+    });
+
+    // STOCK CONTROL SEARCH
+    const stockSearch = $('stock-control-search');
+    if (stockSearch) stockSearch.addEventListener('input', renderStockControl);
+
+    // STOCK TAB: Excel import
+    const excelInput = $('excel-file-input');
+    if (excelInput) excelInput.addEventListener('change', importExcelStock);
+
+    // STOCK TAB: Add purchase
+    const btnPurchase = $('btn-add-purchase');
+    if (btnPurchase) btnPurchase.addEventListener('click', addStockPurchase);
+
+    // STOCK TAB: Search
+    const stockTabSearch = $('stock-tab-search');
+    if (stockTabSearch) stockTabSearch.addEventListener('input', renderStockTab);
+
+    // PRINT / EXPORT PDF
+    $('btn-print').addEventListener('click', () => {
+        generateReceiptPDF();
+    });
+
+    // SHARE WHATSAPP
+    // FIX 13: garde null ajoutée — btn-share-whatsapp peut être absent selon le rôle,
+    // et son absence causait un crash (Cannot read properties of null).
+    $('btn-share-whatsapp') && $('btn-share-whatsapp').addEventListener('click', () => {
+        shareReceiptPDF();
+    });
+
+    // CLEAR FORM
+    $('btn-clear-form').addEventListener('click', ()=>{
+        if (!confirm('Réinitialiser ?')) return;
+        if (state.userRole==='chef'||state.userRole==='barman'||state.userRole==='petitdej') resetSmartOrder();
+        else resetEcomatForm();
+    });
+
+    // CLEAR HISTORY
+    $('btn-clear-history').addEventListener('click', ()=>{
+        if (state.firebaseActive) { showToast('Action impossible', 'Impossible de vider l\'historique Firebase depuis ici.', 'warning'); return; }
+        if (confirm('Vider tout l\'historique local ?')) {
+            state.deliveriesHistory=[];
+            localStorage.setItem('gourmet_deliveries_history', JSON.stringify([]));
+            renderHistory();
+        }
+    });
+
+    // SMART SEARCH
+    $('smart-search') && $('smart-search').addEventListener('input', ()=>renderSmartGrid());
+
+    // CLEAR SELECTION
+    $('btn-clear-selection') && $('btn-clear-selection').addEventListener('click', ()=>{ state.smartSelection={}; renderSmartGrid(); });
+
+    // ADD ROW (economat table)
+    $('btn-add-row') && $('btn-add-row').addEventListener('click', ()=>addNewRow());
+
+    // ROLE TOGGLE
+    setupRoleToggle();
+
+    // FIREBASE CONFIG
+    if ($('firebase-config-title')) setupFirebaseConfig();
+
+    // NEW ARTICLE (Chef / Barman)
+    $('btn-add-new-article') && $('btn-add-new-article').addEventListener('click', addNewArticleFromSmartOrder);
+    $('new-article-name') && $('new-article-name').addEventListener('keydown', e=>{ if(e.key==='Enter') addNewArticleFromSmartOrder(); });
+
+    // CATALOGUE
+    $('btn-cat-add') && $('btn-cat-add').addEventListener('click', addProductToCatalogue);
+    $('cat-new-name') && $('cat-new-name').addEventListener('keydown', e=>{ if(e.key==='Enter') addProductToCatalogue(); });
+    $('cat-search')  && $('cat-search').addEventListener('input', renderCatalogueTab);
+
+    // CATALOGUE FILTERS
+    document.querySelectorAll('.cat-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.cat-filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            state.catalogueFilter = btn.dataset.filter;
+            renderCatalogueTab();
+        });
+    });
+
+    // SIGNATURE
+    signatureCanvas.addEventListener('mousedown', e=>{
+        state.isDrawing=true;
+        const r=signatureCanvas.getBoundingClientRect();
+        state.lastX=e.clientX-r.left; state.lastY=e.clientY-r.top;
+    });
+    signatureCanvas.addEventListener('mousemove', draw);
+    signatureCanvas.addEventListener('mouseup',   ()=>state.isDrawing=false);
+    signatureCanvas.addEventListener('mouseleave',()=>state.isDrawing=false);
+    signatureCanvas.addEventListener('touchstart', e=>{
+        state.isDrawing=true;
+        const t=e.touches[0], r=signatureCanvas.getBoundingClientRect();
+        state.lastX=t.clientX-r.left; state.lastY=t.clientY-r.top; e.preventDefault();
+    },{passive:false});
+    signatureCanvas.addEventListener('touchmove', e=>{ draw(e); e.preventDefault(); },{passive:false});
+    signatureCanvas.addEventListener('touchend', ()=>state.isDrawing=false);
+    $('btn-clear-sig').addEventListener('click', ()=>resizeCanvas(false));
+
+    // RESIZE
+    window.addEventListener('resize', ()=>resizeCanvas(true));
+
+    // COMMENTS
+    $('btn-submit-comment') && $('btn-submit-comment').addEventListener('click', submitComment);
+    $('comment-input')      && $('comment-input').addEventListener('keypress', e=>{ if(e.key==='Enter') submitComment(); });
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function normalize(s) { return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+// FIX 5: escHtml créait et détruisait un nœud DOM à chaque appel (appelée en boucle
+// dans renderSmartGrid, renderHistory, addNewRow, buildReceiptHTML…).
+// Remplacé par replace chaîné : même résultat, ~10× plus rapide, sans allocation DOM.
+function escHtml(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function capitalize(s) { return s ? s.charAt(0).toUpperCase()+s.slice(1) : ''; }
+function parseQty(val) {
+    if (typeof val === 'number') return val;
+    const n = parseFloat(String(val).replace(',', '.'));
+    return isNaN(n) ? 0 : n;
+}
+function extractUnit(val) {
+    const s = String(val).trim();
+    const match = s.match(/\s*[a-zA-ZÀ-ÿ]+.*$/);
+    return match ? match[0] : '';
+}
+function sanitizeQty(val) {
+    const n = Math.max(0, Math.min(9999, parseQty(val)));
+    const u = extractUnit(val);
+    return u ? n + u : n;
+}
+
+function showLoginModal() {
+    $('login-overlay').style.display='flex';
+    $('login-email').value=''; $('login-password').value='';
+    $('login-error-banner').style.display='none';
+}
+function hideLoginModal() { $('login-overlay').style.display='none'; }
+
+// ============================================================
+// SYSTEM & IN-APP NOTIFICATIONS
+// ============================================================
+let blockedWarningShown = false;
+function showNotificationBlockedWarning() {
+    if (blockedWarningShown) return;
+    blockedWarningShown = true;
+    showToast(
+        "⚠️ Notifications désactivées", 
+        "Les notifications système sont bloquées. Veuillez les autoriser dans les paramètres de votre appareil (Paramètres > Applications > Grey Stock > Notifications) pour être alerté en arrière-plan.", 
+        "danger"
+    );
+}
+
+function requestNotificationPermission() {
+    // If running inside Android APK native wrapper, permission is requested natively on start
+    if (window.AndroidNotification) return;
+
+    if ('Notification' in window) {
+        if (Notification.permission === 'default') {
+            Notification.requestPermission().then(permission => {
+                if (permission === 'denied') {
+                    showNotificationBlockedWarning();
+                }
+            });
+        } else if (Notification.permission === 'denied') {
+            showNotificationBlockedWarning();
+        }
+    }
+}
+
+function sendLocalNotification(title, message) {
+    // Android APK Native Bridge check
+    if (window.AndroidNotification && typeof window.AndroidNotification.postNotification === 'function') {
+        try {
+            window.AndroidNotification.postNotification(title, message);
+            return;
+        } catch (e) {
+            console.warn("Android native bridge failed:", e);
+        }
+    }
+
+    if (!('Notification' in window)) return;
+    try {
+        if (Notification.permission === 'granted') {
+            new Notification(title, {
+                body: message,
+                icon: 'logo.jpg'
+            });
+        } else if (Notification.permission !== 'denied') {
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    new Notification(title, {
+                        body: message,
+                        icon: 'logo.jpg'
+                    });
+                }
+            });
+        }
+    } catch (e) {
+        console.warn("Native Notification failed (common in Android WebView):", e);
+    }
+}
+
+function showToast(title, message, type = 'info') {
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <div style="flex: 1;">
+            <div style="font-weight: 700; margin-bottom: 2px;">${escHtml(title)}</div>
+            <div style="font-size: .8rem; opacity: .9; white-space: pre-line;">${escHtml(message)}</div>
+        </div>
+        <button style="background: none; border: none; color: #fff; cursor: pointer; font-size: 1rem; opacity: .7; font-weight: 700; padding-left: 10px;" onclick="this.parentElement.remove()">✕</button>
+    `;
+    
+    container.appendChild(toast);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        toast.classList.add('toast-out');
+        setTimeout(() => toast.remove(), 200);
+    }, 5000);
+}
+
+function notifyUser(title, message, type = 'info') {
+    playNotificationSound();
+    sendLocalNotification(title, message);
+    showToast(title, message, type);
+}
+
+// ============================================================
+// AUTOMATIC OFFLINE SYNCHRONIZATION
+// ============================================================
+function syncOfflineDeliveries() {
+    if (!state.firebaseActive || !db) return;
+    
+    let localHistory = [];
+    const s = localStorage.getItem('gourmet_deliveries_history');
+    if (s) {
+        try { localHistory = JSON.parse(s); } catch(e) { return; }
+    }
+    
+    let unsyncedNew = localHistory.filter(item => item.unsynced === true);
+    let unsyncedUpdates = localHistory.filter(item => item.unsyncedUpdate === true);
+    
+    if (unsyncedNew.length === 0 && unsyncedUpdates.length === 0) return;
+    
+    showToast("Synchronisation", "Envoi des données hors-ligne vers Firebase...", "info");
+    
+    let pendingPromises = [];
+    
+    // 1. Process new offline orders
+    // FIX 7: localHistory était réassigné (=) dans chaque .then() en parallèle.
+    // Si deux promesses se terminaient simultanément, la 2ème travaillait sur la
+    // version originale → seule la dernière commande était retirée de localHistory.
+    // Solution : collecter les IDs synchés dans un Set, filtrer une seule fois dans Promise.all.
+    const syncedLocalIds = new Set();
+    unsyncedNew.forEach(order => {
+        const localId = order.id;
+        const cleanOrder = { ...order };
+        delete cleanOrder.id;
+        delete cleanOrder.unsynced;
+        
+        const p = db.collection('deliveries').add(cleanOrder)
+            .then(() => { syncedLocalIds.add(localId); })
+            .catch(err => console.error("Sync failed for order " + localId, err));
+        pendingPromises.push(p);
+    });
+    
+    // 2. Process offline reception updates
+    unsyncedUpdates.forEach(order => {
+        const orderId = order.id;
+        const updateData = {
+            date: order.date,
+            hour: order.hour,
+            status: order.status,
+            items: order.items,
+            signature: order.signature,
+            receiverEmail: order.receiverEmail,
+            receiverRole: order.receiverRole
+        };
+        
+        const p = db.collection('deliveries').doc(orderId).update(updateData)
+            .then(() => {
+                // Clear flag
+                const found = localHistory.find(item => item.id === orderId);
+                if (found) {
+                    delete found.unsyncedUpdate;
+                }
+            })
+            .catch(err => console.error("Sync failed for update " + orderId, err));
+        pendingPromises.push(p);
+    });
+    
+    Promise.all(pendingPromises).then(() => {
+        // FIX 7b: Appliquer le filtre des IDs synchés en une seule opération atomique.
+        if (syncedLocalIds.size > 0) {
+            localHistory = localHistory.filter(item => !syncedLocalIds.has(item.id));
+        }
+        localStorage.setItem('gourmet_deliveries_history', JSON.stringify(localHistory));
+        // FIX 2: Condition était `!state.firebaseActive` — toujours false ici car cette
+        // fonction ne s'exécute que si firebaseActive===true (garde ligne 1724).
+        // state.deliveriesHistory n'était donc JAMAIS mis à jour après sync.
+        // Correction : on met à jour state inconditionnellement après une sync réussie.
+        state.deliveriesHistory = localHistory;
+        renderHistory();
+        showToast("Synchronisation terminée", "Données hors-ligne synchronisées avec succès.", "success");
+    }).catch(err => {
+        console.error("Some sync promises failed", err);
+    });
+}
+
+// ============================================================
+// FIX 14: buildReceiptHTML() — fonction commune aux deux générateurs PDF.
+// Avant: generateReceiptPDF et shareReceiptPDF dupliquaient ~120 lignes identiques.
+// Tout changement de mise en page devait être appliqué deux fois.
+// ============================================================
+function buildReceiptHTML(log) {
+    const [y,m,d] = (log.date || '').split('-').map(Number);
+    const dateStr = (y&&m&&d) ? new Date(y,m-1,d).toLocaleDateString('fr-FR') : log.date;
+
+    let itemsHtml = '';
+    (log.items || []).forEach(item => {
+        const mismatchStyle = item.requested !== item.delivered ? 'style="background:#fdf0ee;color:#c0392b;"' : '';
+        itemsHtml += `
+            <tr ${mismatchStyle}>
+                <td style="padding:12px;border-bottom:1px solid #e2e0d8;font-size:14px;">${escHtml(item.name)}</td>
+                <td style="padding:12px;border-bottom:1px solid #e2e0d8;font-size:14px;text-align:center;">${item.requested}</td>
+                <td style="padding:12px;border-bottom:1px solid #e2e0d8;font-size:14px;text-align:center;">${item.delivered}</td>
+            </tr>
+        `;
+    });
+
+    const dept        = translateRole(log.senderRole);
+    const sender      = capitalize((log.senderEmail || '').split('@')[0]);
+    const receiver    = log.receiverEmail ? capitalize(log.receiverEmail.split('@')[0]) : '—';
+    const statusLabel = log.status === 'en_attente' ? 'EN ATTENTE' : 'VALIDÉ';
+    const statusStyle = log.status === 'en_attente'
+        ? 'background:#fef8e8;color:#b07800;border:1px solid #f0e0a0;'
+        : 'background:#eaf5ef;color:#2d7a4f;border:1px solid #b8ddc9;';
+    const sigHtml = log.signature
+        ? `<img src="${log.signature}" style="max-width:100%;max-height:90px;border:1px solid #e2e0d8;border-radius:4px;" />`
+        : '<p style="font-size:12px;color:#9a9890;margin:0;font-style:italic;">Pas de signature</p>';
+
+    const printArea = document.createElement('div');
+    printArea.style.cssText = 'position:absolute;left:-9999px;top:0;width:700px;background:#ffffff;color:#1a1a18;padding:35px;font-family:"DM Sans",sans-serif;';
+    printArea.innerHTML = `
+        <div style="border-bottom:3px solid #b5893a;padding-bottom:15px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+                <h1 style="font-family:'Cormorant Garamond',serif;font-size:28px;margin:0;font-weight:700;">Grey Corner</h1>
+                <p style="font-size:12px;color:#5a584f;margin:2px 0 0 0;letter-spacing:0.5px;text-transform:uppercase;">Suivi de Livraison & Réceptions</p>
             </div>
-            <div class="stat-card order-state" id="statCardOrders">
-                <span class="stat-label">Commandes</span>
-                <span class="stat-value" id="statActiveOrders">0</span>
+            <div style="text-align:right;">
+                <span style="font-size:11px;font-weight:700;${statusStyle}padding:4px 10px;border-radius:20px;text-transform:uppercase;">${statusLabel}</span>
             </div>
         </div>
-
-        <!-- ── Navigation Tabs ────────────────────────────────────────────── -->
-        <nav class="hub-tabs">
-            <button class="tab-btn active" data-tab="tabCalls">
-                <span>Appels clients</span>
-                <span class="tab-badge" id="badgeTabCalls" style="display:none;">0</span>
-            </button>
-            <button class="tab-btn" data-tab="tabOrders">
-                <span>Précommandes</span>
-                <span class="tab-badge" id="badgeTabOrders" style="display:none;">0</span>
-            </button>
-            <button class="tab-btn" data-tab="tabHistory">
-                <span>Historique</span>
-            </button>
-        </nav>
-
-        <!-- ── Tab Panels ─────────────────────────────────────────────────── -->
-        <main class="hub-viewport">
-
-            <!-- 1. Appels clients -->
-            <section class="tab-panel active" id="tabCalls">
-                <div class="panel-section">
-                    <h3 class="section-title">Demandes en Direct</h3>
-                    <div class="feed-grid" id="callsFeed">
-                        <div class="feed-empty-state">Chargement...</div>
-                    </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;background:#fafaf8;border:1px solid #e2e0d8;border-radius:8px;padding:16px;">
+            <div>
+                <p style="font-size:11px;color:#7a786f;margin:0 0 6px 0;text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">Détails Livraison</p>
+                <p style="font-size:13px;margin:3px 0;"><strong>Date :</strong> ${dateStr}</p>
+                <p style="font-size:13px;margin:3px 0;"><strong>Heure :</strong> ${log.hour || ''}</p>
+                <p style="font-size:13px;margin:3px 0;"><strong>Service :</strong> ${log.service || ''}</p>
+            </div>
+            <div>
+                <p style="font-size:11px;color:#7a786f;margin:0 0 6px 0;text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">Intervenants</p>
+                <p style="font-size:13px;margin:3px 0;"><strong>Expéditeur :</strong> ${sender} (${dept})</p>
+                <p style="font-size:13px;margin:3px 0;"><strong>Réceptionné par :</strong> ${receiver}</p>
+            </div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:30px;">
+            <thead>
+                <tr style="background:#f8f7f3;">
+                    <th style="padding:12px;text-align:left;font-size:11px;color:#7a786f;border-bottom:2px solid #e2e0d8;text-transform:uppercase;letter-spacing:0.5px;">Produit</th>
+                    <th style="padding:12px;text-align:center;font-size:11px;color:#7a786f;border-bottom:2px solid #e2e0d8;text-transform:uppercase;letter-spacing:0.5px;width:100px;">Demandé</th>
+                    <th style="padding:12px;text-align:center;font-size:11px;color:#7a786f;border-bottom:2px solid #e2e0d8;text-transform:uppercase;letter-spacing:0.5px;width:100px;">Livré</th>
+                </tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
+        </table>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;border-top:1px solid #e2e0d8;padding-top:20px;">
+            <div>
+                <h4 style="font-size:11px;color:#7a786f;text-transform:uppercase;margin:0 0 10px 0;letter-spacing:0.5px;">Informations de Réception</h4>
+                <p style="font-size:12px;margin:4px 0;color:#5a584f;"><strong>Date de signature :</strong> ${dateStr} à ${log.hour || ''}</p>
+                <p style="font-size:12px;margin:4px 0;color:#5a584f;"><strong>Statut de validation :</strong> Réceptionné et contrôlé</p>
+            </div>
+            <div style="text-align:center;">
+                <h4 style="font-size:11px;color:#7a786f;text-transform:uppercase;margin:0 0 10px 0;text-align:left;letter-spacing:0.5px;">Signature de réception</h4>
+                <div style="height:100px;display:flex;align-items:center;justify-content:center;background:#ffffff;border:1px solid #e2e0d8;border-radius:6px;padding:5px;">
+                    ${sigHtml}
                 </div>
-            </section>
+            </div>
+        </div>
+    `;
+    return printArea;
+}
 
-            <!-- 2. Précommandes -->
-            <section class="tab-panel" id="tabOrders">
-                <div class="panel-section">
-                    <h3 class="section-title">Commandes en attente de validation</h3>
-                    <div class="feed-grid" id="ordersFeed">
-                        <div class="feed-empty-state">Chargement...</div>
-                    </div>
-                </div>
-            </section>
+// FIX 14b: Nom de fichier PDF sécurisé — log.service peut contenir des accents
+// ou tirets qui échouent sur Android (ex: "Après-midi" → "Apres-midi").
+function buildPDFFileName(log) {
+    const safeService = (log.service || 'service')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_-]/g, '_');
+    return `recu_${safeService}_${log.date || 'date'}.pdf`;
+}
 
-            <!-- 3. Historique -->
-            <section class="tab-panel" id="tabHistory">
-                <div class="panel-section">
-                    <h3 class="section-title">Historique de la journée</h3>
-                    <div class="feed-grid" id="historyFeed">
-                        <div class="feed-empty-state">Aucun historique pour le moment.</div>
-                    </div>
-                </div>
-            </section>
+// FIX 14c: Logique commune de rendu PDF (html2canvas → jsPDF → callback).
+function renderPDF(log, onSuccess, onError) {
+    const printArea = buildReceiptHTML(log);
+    document.body.appendChild(printArea);
+    html2canvas(printArea, { scale: 2, useCORS: true }).then(canvas => {
+        document.body.removeChild(printArea);
+        const jsPDFClass = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+        if (!jsPDFClass) throw new Error("La bibliothèque jsPDF n'a pas pu être chargée. Vérifiez votre connexion internet.");
+        const pdf = new jsPDFClass('p', 'mm', 'a4');
+        const imgData    = canvas.toDataURL('image/png');
+        const imgWidth   = 190;
+        const pageHeight = 277;
+        const imgHeight  = (canvas.height * imgWidth) / canvas.width;
+        let heightLeft   = imgHeight;
+        let position     = 10;
+        pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        while (heightLeft > 0) {
+            position = 10 - (imgHeight - heightLeft);
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+        onSuccess(pdf, buildPDFFileName(log));
+    }).catch(err => {
+        if (printArea.parentNode) document.body.removeChild(printArea);
+        onError(err);
+    });
+}
 
-        </main>
-    </div>
+// ============================================================
+// EXPORT RECEIPT PDF GENERATION (jsPDF)
+// ============================================================
+function generateReceiptPDF() {
+    if (!state.loadedDeliveryId) return;
+    const log = state.deliveriesHistory.find(l => l.id === state.loadedDeliveryId);
+    if (!log) return;
+    showToast("Génération", "Génération du PDF en cours...", "info");
+    renderPDF(log, (pdf, fileName) => {
+        if (window.AndroidNotification && typeof window.AndroidNotification.savePdf === 'function') {
+            try {
+                window.AndroidNotification.savePdf(pdf.output('datauristring').split(',')[1], fileName);
+                showToast("Export réussi", "Enregistrement du PDF initié via l'application native.", "success");
+            } catch (err) {
+                console.error("Native PDF save failed:", err);
+                showToast("Erreur", "L'enregistrement natif a échoué. Tentative de téléchargement standard...", "warning");
+                pdf.save(fileName);
+            }
+        } else {
+            pdf.save(fileName);
+            showToast("Export réussi", "Le reçu PDF a été téléchargé.", "success");
+        }
+    }, err => {
+        console.error(err);
+        showToast("Erreur", "Impossible de générer le reçu : " + (err.message || err), "danger");
+    });
+}
 
-    <!-- ── Firebase SDK ────────────────────────────────────────────────────── -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-    <script src="firebase-config.js"></script>
+// ============================================================
+// SHARE RECEIPT PDF (WhatsApp) — utilise renderPDF() commun (FIX 14)
+// ============================================================
+function shareReceiptPDF() {
+    if (!state.loadedDeliveryId) return;
+    const log = state.deliveriesHistory.find(l => l.id === state.loadedDeliveryId);
+    if (!log) return;
+    showToast("Partage", "Préparation du fichier PDF pour WhatsApp...", "info");
+    renderPDF(log, (pdf, fileName) => {
+        if (window.AndroidNotification && typeof window.AndroidNotification.sharePdf === 'function') {
+            try {
+                window.AndroidNotification.sharePdf(pdf.output('datauristring').split(',')[1], fileName);
+                showToast("Partage", "Partage initié via l'application native.", "success");
+            } catch (err) {
+                console.error("Native PDF share failed:", err);
+                fallbackWhatsAppShare(pdf, log, fileName);
+            }
+        } else {
+            fallbackWhatsAppShare(pdf, log, fileName);
+        }
+    }, err => {
+        console.error(err);
+        showToast("Erreur", "Impossible de partager le reçu : " + (err.message || err), "danger");
+    });
+}
 
-    <!-- Waiter Logic -->
-    <script src="waiter.js"></script>
-</body>
+function fallbackWhatsAppShare(pdf, log, fileName) {
+    try {
+        pdf.save(fileName);
+        const [y,m,d] = (log.date || '').split('-').map(Number);
+        const dateStr = (y&&m&&d) ? new Date(y,m-1,d).toLocaleDateString('fr-FR') : log.date;
+        const dept = translateRole(log.senderRole);
+        const text = `Voici le reçu PDF de livraison pour Grey Corner :\n- Date : ${dateStr}\n- Service : ${log.service}\n- Département : ${dept}\n\n(Veuillez joindre le fichier '${fileName}' téléchargé à ce message)`;
+        const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        window.open(waUrl, '_blank');
+        showToast("WhatsApp ouvert", "Veuillez joindre le PDF téléchargé dans la discussion.", "success");
+    } catch (err) {
+        console.error("Fallback WhatsApp share failed:", err);
+        showToast("Erreur", "Impossible d'ouvrir WhatsApp.", "danger");
+    }
+}
 
-</html>
+// ============================================================
+// CONFIRMATION MODAL (recap before sending order)
+// ============================================================
+function showConfirmModal() {
+    const selected = Object.entries(state.smartSelection).filter(([,q]) => parseQty(q) > 0);
+    if (!selected.length) {
+        showToast('Sélection vide', 'Veuillez sélectionner au moins un article.', 'warning');
+        return;
+    }
+
+    // Meta info
+    const meta = $('confirm-modal-meta');
+    meta.innerHTML = `
+        <span>📋 ${translateRole(state.userRole)}</span>
+        <span>🕐 ${serviceSelect ? serviceSelect.value : '—'}</span>
+        <span>📅 ${dateInput ? dateInput.value : '—'}</span>
+    `;
+
+    // Items list
+    const itemsContainer = $('confirm-modal-items');
+    itemsContainer.innerHTML = '';
+    let totalItems = 0;
+    selected.forEach(([id, qty]) => {
+        const p = state.productsDatabase.find(p => p.id === id);
+        const name = p ? p.name : id;
+        totalItems++;
+        const div = document.createElement('div');
+        div.className = 'confirm-item';
+        div.innerHTML = `
+            <span class="confirm-item-name">${escHtml(name)}</span>
+            <span class="confirm-item-qty">× ${qty}</span>
+        `;
+        itemsContainer.appendChild(div);
+    });
+
+    // Total
+    $('confirm-modal-total').textContent = `${totalItems} article(s) au total`;
+
+    // Show modal
+    $('confirm-modal').style.display = 'flex';
+}
+
+function hideConfirmModal() {
+    $('confirm-modal').style.display = 'none';
+}
+
+// ============================================================
+// SUCCESS ANIMATION (after order sent)
+// ============================================================
+function showSuccessAnimation(message) {
+    const overlay = $('success-overlay');
+    const text = $('success-text');
+    if (!overlay) return;
+    text.textContent = message || 'Commande envoyée !';
+    overlay.classList.remove('dismiss');
+    overlay.style.display = 'flex';
+    // Force re-trigger animations
+    overlay.offsetHeight;
+    
+    setTimeout(() => {
+        overlay.classList.add('dismiss');
+        setTimeout(() => {
+            overlay.style.display = 'none';
+            overlay.classList.remove('dismiss');
+        }, 300);
+    }, 1800);
+}
+
+// ============================================================
+// NOTIFICATION SOUND (Web Audio API — no external file needed)
+// ============================================================
+let audioCtx = null;
+function playNotificationSound() {
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        // Resume context if suspended (autoplay policy)
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        const now = audioCtx.currentTime;
+        // Two-tone chime: pleasant and non-intrusive
+        [523.25, 659.25].forEach((freq, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.15, now + i * 0.15);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.4);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now + i * 0.15);
+            osc.stop(now + i * 0.15 + 0.5);
+        });
+
+        // Vibrate on mobile if supported
+        if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+    } catch(e) {
+        console.warn('Notification sound failed:', e);
+    }
+}
+
+// ============================================================
+// STOCK TAB — Render product stock table
+// ============================================================
+let unsubscribeStockMovements = null;
+
+function renderStockTab() {
+    const tbody = $('stock-table-body');
+    const overview = $('stock-overview');
+    if (!tbody) return;
+
+    // Search filter
+    const searchInput = $('stock-tab-search');
+    const searchTerm = searchInput ? normalize(searchInput.value.trim()) : '';
+
+    let products = state.productsDatabase.filter(p => {
+        if (!searchTerm) return true;
+        return normalize(p.name).includes(searchTerm);
+    });
+
+    products.sort((a, b) => a.name.localeCompare(b.name));
+
+    // Overview stats
+    let totalProducts = state.productsDatabase.length;
+    let okCount = 0, lowCount = 0, outCount = 0;
+    state.productsDatabase.forEach(p => {
+        const qty = p.stockQty || 0;
+        const min = p.stockMin || 0;
+        if (qty <= 0) outCount++;
+        else if (min > 0 && qty <= min) lowCount++;
+        else okCount++;
+    });
+
+    if (overview) {
+        overview.innerHTML = `
+            <div class="stock-ov-card">
+                <div class="stock-ov-value">${totalProducts}</div>
+                <div class="stock-ov-label">📦 Total produits</div>
+            </div>
+            <div class="stock-ov-card ok">
+                <div class="stock-ov-value">${okCount}</div>
+                <div class="stock-ov-label">🟢 En stock</div>
+            </div>
+            <div class="stock-ov-card low">
+                <div class="stock-ov-value">${lowCount}</div>
+                <div class="stock-ov-label">🟡 Stock bas</div>
+            </div>
+            <div class="stock-ov-card out">
+                <div class="stock-ov-value">${outCount}</div>
+                <div class="stock-ov-label">🔴 Rupture</div>
+            </div>
+        `;
+    }
+
+    // Product datalist for purchase form
+    const datalist = $('stock-product-list');
+    if (datalist) {
+        datalist.innerHTML = state.productsDatabase.map(p =>
+            `<option value="${escHtml(p.name)}">`
+        ).join('');
+    }
+
+    // Table rows
+    tbody.innerHTML = '';
+    if (!products.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Aucun produit trouvé.</td></tr>';
+        return;
+    }
+
+    products.forEach(p => {
+        const qty = p.stockQty || 0;
+        const unit = p.stockUnit || '—';
+        const min = p.stockMin || 0;
+
+        let statusClass, statusText;
+        if (qty <= 0) {
+            statusClass = 'out'; statusText = 'Rupture';
+        } else if (min > 0 && qty <= min) {
+            statusClass = 'low'; statusText = 'Stock bas';
+        } else {
+            statusClass = 'ok'; statusText = 'OK';
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${escHtml(p.name)}</strong></td>
+            <td class="stock-qty-cell">${qty}</td>
+            <td>${escHtml(unit)}</td>
+            <td>${min > 0 ? min : '—'}</td>
+            <td><span class="stock-status-dot ${statusClass}"></span><span class="stock-status-${statusClass}">${statusText}</span></td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // Subscribe to movements if not already
+    if (!unsubscribeStockMovements && state.firebaseActive && db) {
+        subscribeStockMovements();
+    }
+}
+
+// ============================================================
+// STOCK MOVEMENTS — Real-time listener
+// ============================================================
+function subscribeStockMovements() {
+    if (!db) return;
+    if (unsubscribeStockMovements) unsubscribeStockMovements();
+    unsubscribeStockMovements = db.collection('stock_movements')
+        .orderBy('timestamp', 'desc')
+        .limit(50)
+        .onSnapshot(snapshot => {
+            state.stockMovements = [];
+            snapshot.forEach(doc => {
+                state.stockMovements.push({ id: doc.id, ...doc.data() });
+            });
+            renderStockMovements();
+        }, err => {
+            console.error('Stock movements listener error:', err);
+        });
+}
+
+function renderStockMovements() {
+    const container = $('stock-movements-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!state.stockMovements || !state.stockMovements.length) {
+        container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Aucun mouvement enregistré.</p>';
+        return;
+    }
+
+    state.stockMovements.forEach(mov => {
+        const isEntry = mov.type === 'entree';
+        const div = document.createElement('div');
+        div.className = 'stock-mov-item';
+        
+        const dateObj = mov.timestamp ? new Date(mov.timestamp) : null;
+        const dateStr = dateObj ? dateObj.toLocaleDateString('fr-FR') : mov.date || '—';
+        const timeStr = dateObj ? dateObj.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}) : '';
+
+        div.innerHTML = `
+            <div class="stock-mov-icon ${isEntry ? 'entree' : 'sortie'}">${isEntry ? '➕' : '➖'}</div>
+            <div class="stock-mov-info">
+                <div class="stock-mov-product">${escHtml(mov.productName || '—')}</div>
+                <div class="stock-mov-detail">${escHtml(mov.reason || (isEntry ? 'Entrée stock' : 'Sortie stock'))} — ${escHtml(mov.userEmail ? mov.userEmail.split('@')[0] : '')}</div>
+            </div>
+            <div class="stock-mov-qty ${isEntry ? 'entree' : 'sortie'}">${isEntry ? '+' : '−'}${mov.qty} ${escHtml(mov.unit || '')}</div>
+            <div class="stock-mov-date">${dateStr} ${timeStr}</div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+// ============================================================
+// IMPORT EXCEL
+// ============================================================
+function importExcelStock(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (typeof XLSX === 'undefined') {
+        showToast('Erreur', 'La librairie SheetJS n\'est pas chargée. Vérifiez votre connexion.', 'danger');
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        try {
+            const wb = XLSX.read(evt.target.result, { type: 'binary' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+            if (!data.length) {
+                showToast('Fichier vide', 'Aucune donnée trouvée dans le fichier Excel.', 'warning');
+                return;
+            }
+
+            // Auto-detect column names (flexible)
+            const firstRow = data[0];
+            const keys = Object.keys(firstRow);
+            const findCol = (patterns) => keys.find(k => patterns.some(p => normalize(k).includes(p)));
+
+            const colName = findCol(['produit', 'nom', 'article', 'name', 'product', 'designation', 'libelle']);
+            const colQty  = findCol(['quantite', 'qty', 'qte', 'stock', 'nombre']);
+            const colUnit = findCol(['unite', 'unit', 'unité', 'mesure']);
+            const colMin  = findCol(['seuil', 'min', 'minimum', 'alerte']);
+
+            if (!colName) {
+                showToast('Format non reconnu', `Colonnes détectées : ${keys.join(', ')}. Besoin d'une colonne "Produit" ou "Nom".`, 'danger');
+                return;
+            }
+
+            let imported = 0, updated = 0, errors = 0;
+            const now = Date.now();
+            const pad = n => String(n).padStart(2, '0');
+            const d = new Date();
+            const dateStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+            const userEmail = state.currentUser ? state.currentUser.email : 'local';
+
+            const batch = state.firebaseActive && db ? db.batch() : null;
+            const movements = [];
+
+            data.forEach((row, i) => {
+                const name = String(row[colName] || '').trim();
+                if (!name) return;
+
+                const qty = parseFloat(row[colQty] || 0) || 0;
+                const unit = String(row[colUnit] || '').trim() || 'unité';
+                const min = parseFloat(row[colMin] || 0) || 0;
+
+                // Find existing product
+                const existing = state.productsDatabase.find(p => normalize(p.name) === normalize(name));
+
+                if (existing && batch) {
+                    // Update existing product stock
+                    const ref = db.collection('products').doc(existing.id);
+                    batch.update(ref, { stockQty: qty, stockUnit: unit, stockMin: min });
+                    updated++;
+                } else if (!existing && batch) {
+                    // Create new product
+                    const ref = db.collection('products').doc();
+                    batch.set(ref, { name, category: 'cuisine', stockQty: qty, stockUnit: unit, stockMin: min });
+                    imported++;
+                } else if (!state.firebaseActive) {
+                    // Local mode
+                    if (existing) {
+                        existing.stockQty = qty;
+                        existing.stockUnit = unit;
+                        existing.stockMin = min;
+                        updated++;
+                    } else {
+                        state.productsDatabase.push({
+                            id: 'local_' + Date.now() + '_' + i,
+                            name, category: 'cuisine', stockQty: qty, stockUnit: unit, stockMin: min
+                        });
+                        imported++;
+                    }
+                }
+
+                // Create stock movement
+                if (qty > 0) {
+                    movements.push({
+                        productId: existing ? existing.id : null,
+                        productName: name,
+                        type: 'entree',
+                        qty, unit,
+                        reason: 'Import Excel',
+                        date: dateStr,
+                        timestamp: now,
+                        userEmail
+                    });
+                }
+            });
+
+            if (batch) {
+                // Add movements to batch (max 500 ops per batch)
+                movements.forEach(mov => {
+                    const ref = db.collection('stock_movements').doc();
+                    batch.set(ref, mov);
+                });
+
+                batch.commit()
+                    .then(() => {
+                        showToast('Import réussi', `${imported} créé(s), ${updated} mis à jour. ${movements.length} mouvements enregistrés.`, 'success');
+                        renderStockTab();
+                    })
+                    .catch(err => {
+                        console.error('Import batch error:', err);
+                        showToast('Erreur Firebase', 'L\'import a échoué : ' + err.message, 'danger');
+                    });
+            } else {
+                // Local mode
+                state.productsDatabase.sort((a,b) => a.name.localeCompare(b.name));
+                localStorage.setItem('gourmet_products_db_v2', JSON.stringify(state.productsDatabase));
+                showToast('Import réussi (local)', `${imported} créé(s), ${updated} mis à jour.`, 'success');
+                renderStockTab();
+                renderSmartGrid();
+            }
+
+        } catch(err) {
+            console.error('Excel parse error:', err);
+            showToast('Erreur de lecture', 'Impossible de lire le fichier Excel : ' + err.message, 'danger');
+        }
+    };
+    reader.readAsBinaryString(file);
+    // Reset input so same file can be re-imported
+    e.target.value = '';
+}
+
+// ============================================================
+// ADD STOCK PURCHASE (manual entry)
+// ============================================================
+function addStockPurchase() {
+    const nameInput = $('purchase-product');
+    const qtyInput = $('purchase-qty');
+    const unitInput = $('purchase-unit');
+    const reasonInput = $('purchase-reason');
+
+    const name = nameInput ? nameInput.value.trim() : '';
+    const qty = parseFloat(qtyInput ? qtyInput.value : 0) || 0;
+    const unit = unitInput ? unitInput.value.trim() : '';
+    const reason = reasonInput ? reasonInput.value.trim() : 'Achat fournisseur';
+
+    if (!name) { showToast('Produit requis', 'Veuillez saisir un nom de produit.', 'warning'); return; }
+    if (qty <= 0) { showToast('Quantité requise', 'Veuillez saisir une quantité valide.', 'warning'); return; }
+
+    const product = state.productsDatabase.find(p => normalize(p.name) === normalize(name));
+
+    const now = Date.now();
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const dateStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    const userEmail = state.currentUser ? state.currentUser.email : 'local';
+
+    if (state.firebaseActive && db) {
+        const batch = db.batch();
+
+        // Update product stock
+        if (product) {
+            const ref = db.collection('products').doc(product.id);
+            batch.update(ref, {
+                stockQty: firebase.firestore.FieldValue.increment(qty),
+                stockUnit: unit || product.stockUnit || 'unité'
+            });
+        }
+
+        // Create movement
+        const movRef = db.collection('stock_movements').doc();
+        batch.set(movRef, {
+            productId: product ? product.id : null,
+            productName: name,
+            type: 'entree',
+            qty, unit: unit || (product ? product.stockUnit : 'unité') || 'unité',
+            reason,
+            date: dateStr,
+            timestamp: now,
+            userEmail
+        });
+
+        batch.commit()
+            .then(() => {
+                showToast('Achat enregistré', `+${qty} ${unit || 'unité(s)'} de "${name}" ajouté(s) au stock.`, 'success');
+                nameInput.value = '';
+                qtyInput.value = '';
+                unitInput.value = '';
+                reasonInput.value = '';
+            })
+            .catch(err => {
+                console.error(err);
+                showToast('Erreur', 'Impossible d\'enregistrer l\'achat.', 'danger');
+            });
+    } else {
+        // Local mode
+        if (product) {
+            product.stockQty = (product.stockQty || 0) + qty;
+            if (unit) product.stockUnit = unit;
+        }
+        localStorage.setItem('gourmet_products_db_v2', JSON.stringify(state.productsDatabase));
+        showToast('Achat local', `+${qty} ${unit || 'unité(s)'} de "${name}".`, 'success');
+        nameInput.value = ''; qtyInput.value = ''; unitInput.value = ''; reasonInput.value = '';
+        renderStockTab();
+    }
+}
+
+// ============================================================
+// AUTO-DEDUCT STOCK on delivery validation
+// ============================================================
+function deductStockFromDelivery(deliveryLog) {
+    if (!state.firebaseActive || !db) return;
+    if (!deliveryLog || !deliveryLog.items) return;
+
+    const batch = db.batch();
+    const now = Date.now();
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const dateStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    const userEmail = state.currentUser ? state.currentUser.email : 'local';
+    const lowStockAlerts = [];
+
+    deliveryLog.items.forEach(item => {
+        const name = item.name || '';
+        const delivered = parseQty(item.delivered || item.requested);
+        if (delivered <= 0 || !name) return;
+
+        // Find product
+        const product = state.productsDatabase.find(p => normalize(p.name) === normalize(name));
+        if (!product) return;
+
+        // Deduct stock
+        const ref = db.collection('products').doc(product.id);
+        batch.update(ref, {
+            stockQty: firebase.firestore.FieldValue.increment(-delivered)
+        });
+
+        // Create movement
+        const movRef = db.collection('stock_movements').doc();
+        batch.set(movRef, {
+            productId: product.id,
+            productName: name,
+            type: 'sortie',
+            qty: delivered,
+            unit: product.stockUnit || 'unité',
+            reason: `Commande ${translateRole(deliveryLog.senderRole)} — ${deliveryLog.service}`,
+            date: dateStr,
+            timestamp: now,
+            userEmail
+        });
+
+        // Check low stock
+        const newQty = (product.stockQty || 0) - delivered;
+        if (product.stockMin && newQty <= product.stockMin) {
+            lowStockAlerts.push(`${name} (${newQty} ${product.stockUnit || 'restant(s)'})`);
+        }
+    });
+
+    batch.commit()
+        .then(() => {
+            if (lowStockAlerts.length) {
+                notifyUser(
+                    '⚠️ Alerte Stock Bas',
+                    `Attention, stock faible pour :\n${lowStockAlerts.join('\n')}`,
+                    'warning'
+                );
+            }
+        })
+        .catch(err => console.error('Stock deduction error:', err));
+}
