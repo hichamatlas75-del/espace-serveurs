@@ -489,11 +489,12 @@ function renderAdminHistoryFeed() {
     sortedOrders.forEach(order => {
         let itemsHtml = "";
         order.items.forEach(it => {
+            const catBadge = it.category ? ` <span style="font-size: 0.72rem; color: var(--gold); margin-left: 6px; font-weight: 500;">(${it.category})</span>` : "";
             itemsHtml += `
                 <div class="admin-history-row">
                     <div>
                         <span style="color: var(--gold); font-weight: 600; margin-right: 6px;">${it.qty}x</span>
-                        <span style="color: #FFFFFF;">${it.name_lang}</span>
+                        <span style="color: #FFFFFF;">${it.name_lang}${catBadge}</span>
                     </div>
                     <span style="color: var(--muted); font-size: 0.78rem;">${it.price} MAD</span>
                 </div>
