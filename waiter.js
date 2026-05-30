@@ -253,13 +253,11 @@ async function reconnectHub() {
             if (!user) {
                 await firebase.auth().signInAnonymously();
                 console.log("🔒 Ré-authentification anonyme réussie.");
-                updateVisualConnectionStatus(true);
             }
         }
         startRealtimeHub();
     } catch (e) {
         console.error("❌ Reconnexion échouée, fallback sans auth:", e);
-        updateVisualConnectionStatus(false);
         startRealtimeHub();
     } finally {
         isReconnecting = false;
@@ -435,11 +433,12 @@ function processPreOrdersFeed(orders) {
 
         let itemsHtml = "";
         order.items.forEach(it => {
+            const catBadge = it.category ? ` <span style="font-size: 0.72rem; color: var(--gold); margin-left: 6px; font-weight: 500;">(${it.category})</span>` : "";
             itemsHtml += `
                 <div class="order-item-row">
                     <div>
                         <span class="item-qty-lbl">${it.qty}x</span>
-                        <span class="item-name-lbl">${it.name_lang}</span>
+                        <span class="item-name-lbl">${it.name_lang}${catBadge}</span>
                     </div>
                     <span class="item-price-lbl">${it.price} MAD</span>
                 </div>
@@ -547,11 +546,12 @@ function renderHistoryFeed() {
     sortedOrders.forEach(order => {
         let itemsHtml = "";
         order.items.forEach(it => {
+            const catBadge = it.category ? ` <span style="font-size: 0.72rem; color: var(--gold); margin-left: 6px; font-weight: 500;">(${it.category})</span>` : "";
             itemsHtml += `
                 <div class="order-item-row">
                     <div>
                         <span class="item-qty-lbl">${it.qty}x</span>
-                        <span class="item-name-lbl">${it.name_lang}</span>
+                        <span class="item-name-lbl">${it.name_lang}${catBadge}</span>
                     </div>
                     <span class="item-price-lbl">${it.price} MAD</span>
                 </div>
@@ -610,6 +610,8 @@ function renderHistoryFeed() {
 }
 
 // ============================================================================
+
+// ============================================================================
 // TIMERS PÉRIODIQUES
 // ============================================================================
 
@@ -650,7 +652,6 @@ window.addEventListener("online", () => {
 window.addEventListener("offline", () => {
     console.warn("📴 Réseau perdu → arrêt des listeners.");
     stopRealtimeHub();
-    updateVisualConnectionStatus(false);
 });
 
 let hiddenAt = null;
@@ -672,23 +673,8 @@ window.addEventListener("beforeunload", () => {
 });
 
 // ============================================================================
-// INITIALISATION — PILOTAGE DE L'INDICATEUR DE CONNEXION VISUEL
+// INITIALISATION
 // ============================================================================
-
-function updateVisualConnectionStatus(connected) {
-    const pill = document.getElementById("connectionPill");
-    const label = document.getElementById("connectionLabel");
-    
-    if (pill && label) {
-        if (connected) {
-            pill.className = "connection-pill connected";
-            label.textContent = "Connecté";
-        } else {
-            pill.className = "connection-pill disconnected";
-            label.textContent = "Connexion...";
-        }
-    }
-}
 
 document.addEventListener("DOMContentLoaded", () => {
     initTabNavigation();
@@ -706,16 +692,13 @@ document.addEventListener("DOMContentLoaded", () => {
         firebase.auth().signInAnonymously()
             .then(() => {
                 console.log("🔒 Authentification anonyme réussie.");
-                updateVisualConnectionStatus(true); // Passe l'indicateur au VERT (pill active)
                 startRealtimeHub();
             })
             .catch(e => {
                 console.error("❌ Auth échouée, démarrage en mode fallback:", e);
-                updateVisualConnectionStatus(false); // Reste ROUGE
                 startRealtimeHub();
             });
     } else {
-        updateVisualConnectionStatus(false);
         startRealtimeHub();
     }
 });
