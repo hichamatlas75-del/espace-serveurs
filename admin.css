@@ -713,3 +713,229 @@ body {
 .admin-history-row:last-child {
     border-bottom: none;
 }
+
+/* ============================================================================
+   LOCK SCREEN & AUTHENTICATION (CODE: greycorner2024)
+   ============================================================================ */
+.admin-auth-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    background: radial-gradient(circle at center, #101826 0%, #070a10 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.admin-auth-card {
+    width: 100%;
+    max-width: 420px;
+    background: rgba(18, 26, 42, 0.95);
+    border: 1px solid rgba(201, 168, 76, 0.35);
+    border-radius: 20px;
+    padding: 36px 30px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75), 0 0 25px rgba(201, 168, 76, 0.12);
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.admin-auth-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.admin-auth-icon-badge {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(201, 168, 76, 0.1);
+    border: 1.5px solid rgba(201, 168, 76, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(201, 168, 76, 0.2);
+    margin-bottom: 6px;
+}
+
+.admin-auth-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 0.08em;
+}
+
+.admin-auth-badge {
+    background: rgba(201, 168, 76, 0.12);
+    border: 1px solid rgba(201, 168, 76, 0.3);
+    color: var(--sc-gold-light);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 3px 12px;
+    border-radius: 20px;
+}
+
+.admin-auth-desc {
+    font-family: 'DM Sans', sans-serif;
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.5;
+    margin: 8px 0 22px;
+}
+
+.admin-auth-input-wrap {
+    position: relative;
+    width: 100%;
+    margin-bottom: 12px;
+}
+
+.admin-auth-input {
+    width: 100%;
+    background: rgba(10, 15, 26, 0.8);
+    border: 1.5px solid rgba(201, 168, 76, 0.3);
+    border-radius: 12px;
+    padding: 14px 44px 14px 16px;
+    color: #FFFFFF;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    letter-spacing: 0.05em;
+    outline: none;
+    transition: all 0.25s ease;
+}
+
+.admin-auth-input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 16px rgba(201, 168, 76, 0.3);
+    background: rgba(10, 15, 26, 0.95);
+}
+
+.admin-auth-toggle-pwd {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s ease;
+}
+
+.admin-auth-toggle-pwd:hover {
+    color: var(--sc-gold-light);
+}
+
+.admin-auth-error {
+    background: rgba(231, 76, 60, 0.15);
+    border: 1px solid rgba(231, 76, 60, 0.4);
+    color: #ff7675;
+    font-size: 0.78rem;
+    font-weight: 500;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 14px;
+    text-align: center;
+    animation: authErrorFadeIn 0.25s ease;
+}
+
+@keyframes authErrorFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes authShake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-9px); }
+    40%, 80% { transform: translateX(9px); }
+}
+
+.auth-shake {
+    animation: authShake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+    border-color: rgba(231, 76, 60, 0.7) !important;
+}
+
+.admin-auth-submit-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+    border: none;
+    color: #070a10;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.92rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 6px 20px rgba(201, 168, 76, 0.32);
+    transition: all 0.2s ease;
+}
+
+.admin-auth-submit-btn:hover {
+    background: linear-gradient(135deg, #d4b255 0%, #b38b2d 100%);
+    box-shadow: 0 8px 24px rgba(201, 168, 76, 0.45);
+    transform: translateY(-1px);
+}
+
+.admin-auth-submit-btn:active {
+    transform: scale(0.985);
+}
+
+.admin-auth-btn-arrow {
+    font-size: 1.1rem;
+    transition: transform 0.2s ease;
+}
+
+.admin-auth-submit-btn:hover .admin-auth-btn-arrow {
+    transform: translateX(4px);
+}
+
+.admin-auth-footer {
+    margin-top: 20px;
+    font-size: 0.72rem;
+    color: rgba(240, 234, 216, 0.3);
+    letter-spacing: 0.05em;
+}
+
+/* Bouton Déconnexion dans le Header */
+.logout-btn {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(240, 234, 216, 0.7);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 7px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    outline: none;
+}
+
+.logout-btn:hover {
+    background: rgba(231, 76, 60, 0.14);
+    border-color: rgba(231, 76, 60, 0.4);
+    color: #ff6b6b;
+}
+
+.logout-btn:active {
+    transform: scale(0.96);
+}

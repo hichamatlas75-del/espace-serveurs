@@ -546,7 +546,43 @@ function renderAdminHistoryFeed() {
     });
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+// ============================================================================
+// 🔒 ADMIN AUTHENTICATION SECURITY LAYER (CODE: greycorner2024)
+// ============================================================================
+const ADMIN_AUTH_CODE = "greycorner2024";
+const ADMIN_AUTH_STORAGE_KEY = "gc_admin_authenticated";
+
+let adminAppInitialized = false;
+
+function isAdminAuthenticated() {
+    try {
+        return sessionStorage.getItem(ADMIN_AUTH_STORAGE_KEY) === "true";
+    } catch (e) {
+        return false;
+    }
+}
+
+function unlockAdminUI() {
+    const overlay = document.getElementById("adminAuthOverlay");
+    const container = document.getElementById("adminMainContainer");
+    if (overlay) overlay.style.display = "none";
+    if (container) container.style.display = "flex";
+}
+
+function lockAdminUI() {
+    const overlay = document.getElementById("adminAuthOverlay");
+    const container = document.getElementById("adminMainContainer");
+    if (overlay) overlay.style.display = "flex";
+    if (container) container.style.display = "none";
+
+    const input = document.getElementById("adminAuthCodeInput");
+    if (input) {
+        input.value = "";
+        setTimeout(() => input.focus(), 150);
+    }
+}
+
+function startAdminApp() {
     // Initialize tab navigation
     initAdminTabs();
 
@@ -585,4 +621,97 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) {
         console.error("⚠️ Error starting streams:", err);
     }
+}
+
+function launchAdminAppSafely() {
+    if (adminAppInitialized) return;
+    adminAppInitialized = true;
+
+    if (typeof dbService !== "undefined") {
+        startAdminApp();
+    } else {
+        const checkInterval = setInterval(() => {
+            if (typeof dbService !== "undefined") {
+                clearInterval(checkInterval);
+                startAdminApp();
+            }
+        }, 50);
+    }
+}
+
+function handleAdminAuth(event) {
+    if (event) event.preventDefault();
+
+    const input = document.getElementById("adminAuthCodeInput");
+    const errorEl = document.getElementById("adminAuthError");
+    const card = document.getElementById("adminAuthCard");
+    const enteredCode = input ? input.value.trim() : "";
+
+    if (enteredCode === ADMIN_AUTH_CODE) {
+        try {
+            sessionStorage.setItem(ADMIN_AUTH_STORAGE_KEY, "true");
+        } catch (e) {}
+
+        if (errorEl) errorEl.style.display = "none";
+        unlockAdminUI();
+        launchAdminAppSafely();
+    } else {
+        if (errorEl) {
+            errorEl.style.display = "block";
+            errorEl.textContent = "❌ Code d'accès incorrect. Veuillez réessayer.";
+        }
+        if (card) {
+            card.classList.remove("auth-shake");
+            void card.offsetWidth; // Force reflow
+            card.classList.add("auth-shake");
+            setTimeout(() => card.classList.remove("auth-shake"), 500);
+        }
+        if (input) {
+            input.value = "";
+            input.focus();
+        }
+    }
+}
+
+function handleAdminLogout() {
+    if (confirm("Voulez-vous verrouiller la console d'administration ?")) {
+        try {
+            sessionStorage.removeItem(ADMIN_AUTH_STORAGE_KEY);
+        } catch (e) {}
+        location.reload();
+    }
+}
+
+function initAdminSecurity() {
+    // 1. Bouton Afficher / Masquer mot de passe
+    const toggleBtn = document.getElementById("adminAuthToggleVisibility");
+    const codeInput = document.getElementById("adminAuthCodeInput");
+    if (toggleBtn && codeInput) {
+        toggleBtn.addEventListener("click", () => {
+            const isPassword = codeInput.type === "password";
+            codeInput.type = isPassword ? "text" : "password";
+            toggleBtn.textContent = isPassword ? "🔒" : "👁️";
+        });
+    }
+
+    // 2. Bouton Déconnexion dans le Header
+    const logoutBtn = document.getElementById("adminLogoutBtn");
+    if (logoutBtn) {
+        logoutBtn.addEventListener("click", handleAdminLogout);
+    }
+
+    // 3. Vérification de l'état d'authentification
+    if (isAdminAuthenticated()) {
+        unlockAdminUI();
+        launchAdminAppSafely();
+    } else {
+        lockAdminUI();
+    }
+}
+
+window.handleAdminAuth = handleAdminAuth;
+window.handleAdminLogout = handleAdminLogout;
+
+document.addEventListener("DOMContentLoaded", () => {
+    initAdminSecurity();
 });
