@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#07060a"/>
 <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png"/>
 <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png"/>
-<link rel="stylesheet" href="admin.css?v=4.4"/>
+<link rel="stylesheet" href="admin.css?v=4.5"/>
 
 </head>
 
@@ -102,9 +102,10 @@
             <span class="nav-icon">📊</span>
             <span class="nav-text">Tables & Direct</span>
         </button>
-        <button type="button" class="admin-nav-btn" data-section="sectionLoyalty">
+        <button type="button" class="admin-nav-btn" data-section="sectionLoyalty" style="position:relative;">
             <span class="nav-icon">👑</span>
             <span class="nav-text" style="color:var(--gold,#C9A96E); font-weight:700;">Club Fidélité</span>
+            <span id="navLoyaltyAlertBadge" class="nav-alert-badge" style="display:none;" title="Transactions > 100 pts à contrôler">⚠️ 0</span>
         </button>
         <button type="button" class="admin-nav-btn" data-section="sectionHistory">
             <span class="nav-icon">📜</span>
@@ -247,6 +248,23 @@
             </div>
         </div>
 
+        <!-- 🚨 ALERTES & CONTRÔLE SERVEURS (> 100 PTS) -->
+        <div id="adminLoyaltyAlertsSection" class="admin-loyalty-alerts-card" style="display: none;">
+            <div class="alerts-card-header">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span class="alerts-card-icon">⚠️</span>
+                    <span class="alerts-card-title">Alertes & Contrôle Serveurs — Transactions > 100 Points</span>
+                </div>
+                <span id="alertsBadgeCount" class="alerts-badge-count">0 Alerte(s)</span>
+            </div>
+            <p class="alerts-card-desc">
+                Des attributions de points supérieures à 100 pts ont été saisies par un serveur. Le numéro de table a été obligatoirement exigé pour contrôle. Vérifiez avec l'addition : en cas d'erreur de saisie, vous pouvez rectifier ou déduire les points immédiatement en 1 clic.
+            </p>
+            <div id="adminLoyaltyAlertsList" class="alerts-items-list">
+                <!-- Dynamiquement alimenté -->
+            </div>
+        </div>
+
         <!-- 4. Recherche, Export & Tableau des Membres -->
         <div class="admin-loyalty-table-card">
             <div class="table-card-header">
@@ -380,9 +398,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=4.3"></script>
-<script type="module" src="js/config/firebase.js?v=4.3"></script>
-<script src="admin.js?v=4.3"></script>
+<script src="firebase-config.js?v=4.5"></script>
+<script type="module" src="js/config/firebase.js?v=4.5"></script>
+<script src="admin.js?v=4.5"></script>
 
 </body>
 </html>

@@ -1113,7 +1113,15 @@ function processPreOrdersFeed(orders) {
             btnComplete.addEventListener("click", () => {
                 if (order.loyaltyPhone && !order.loyaltyCredited) {
                     if (confirm(`Valider également les ${ptsToAdd} points de fidélité pour ${order.loyaltyName || order.loyaltyPhone} ?`)) {
-                        dbService.creditLoyaltyPoints(order.loyaltyPhone, order.totalPrice, order.table, activeWaiterId, order.id, (ok) => {
+                        let tableForControl = String(order.table || "").trim();
+                        if (ptsToAdd > 100 && !tableForControl) {
+                            tableForControl = (prompt("⚠️ Montant supérieur à 100 DH (> 100 points) :\nLe NUMÉRO DE TABLE est obligatoire pour le contrôle de la direction :\n\nVeuillez saisir le numéro de table :", "") || "").trim();
+                            if (!tableForControl) {
+                                alert("❌ Validation annulée : Le numéro de table est obligatoire pour tout crédit > 100 pts.");
+                                return;
+                            }
+                        }
+                        dbService.creditLoyaltyPoints(order.loyaltyPhone, order.totalPrice, tableForControl || order.table, activeWaiterId, order.id, (ok) => {
                             if (ok) {
                                 playAlertSound();
                                 order.loyaltyCredited = true;
@@ -1602,6 +1610,24 @@ function initDirectLoyaltyModule() {
                     return;
                 }
                 const tableNum = (inputTable ? inputTable.value : "").trim();
+
+                // 🚨 RÈGLE DE SÉCURITÉ & CONTRÔLE DIRECTION :
+                // Pour tout crédit supérieur à 100 points, le NUMÉRO DE TABLE est OBLIGATOIRE !
+                if (amount > 100 && !tableNum) {
+                    alert("⚠️ CONTRÔLE DIRECTION OBLIGATOIRE :\n\nPour tout montant supérieur à 100 DH (> 100 points), le NUMÉRO DE TABLE est OBLIGATOIRE afin de permettre un contrôle par l'administrateur.\n\nVeuillez renseigner le champ Table.");
+                    if (inputTable) {
+                        inputTable.focus();
+                        inputTable.style.border = "2px solid #e74c3c";
+                        inputTable.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }
+                    return;
+                }
+
+                if (amount > 100) {
+                    const confirmHigh = confirm(`⚠️ ATTENTION — CRÉDIT IMPORTANT (${amount} POINTS) :\n\nVous êtes sur le point d'attribuer ${amount} points au client pour la TABLE ${tableNum}.\n\nUn avertissement de contrôle sera transmis à l'administrateur.\n\nConfirmez-vous ce montant de ${amount} DH ?`);
+                    if (!confirmHigh) return;
+                }
+
                 btnCreditNow.disabled = true;
                 btnCreditNow.textContent = "Validation en cours...";
 
@@ -1609,11 +1635,11 @@ function initDirectLoyaltyModule() {
                     if (ok) {
                         playAlertSound();
                         triggerHapticVibrate();
-                        alert(`✅ Addition de ${amount} DH encaissée !\n\n+${added} points crédités à ${member.firstName || "Client"}.\nNouveau solde : ${newTotal} / 500 pts`);
+                        alert(`✅ Addition de ${amount} DH encaissée !\n\n+${added} points crédités à ${member.firstName || "Client"} (Table ${tableNum || 'N/A'}).\nNouveau solde : ${newTotal} / 500 pts`);
                         member.points = newTotal;
                         renderMember(member, contentArea, suffix);
                     } else {
-                        alert("❌ Erreur lors de l'attribution des points.");
+                        alert(typeof added === "string" ? added : "❌ Erreur lors de l'attribution des points.");
                         btnCreditNow.disabled = false;
                         btnCreditNow.textContent = "✅ Valider les points (1 DH = 1 pt)";
                     }

@@ -1548,6 +1548,183 @@ button, input, select, .admin-tab-btn, .freeze-btn, .cleanup-btn {
 }
 
 /* ============================================================================
+   ALERTES & CONTRÔLE DIRECTION (> 100 PTS) STYLING
+   ============================================================================ */
+.nav-alert-badge {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    background: #e74c3c;
+    color: #ffffff;
+    font-size: 0.68rem;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 10px;
+    letter-spacing: 0.02em;
+    box-shadow: 0 0 10px rgba(231, 76, 60, 0.6);
+    animation: alertPillPulse 2s infinite ease-in-out;
+}
+
+@keyframes alertPillPulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 6px rgba(231, 76, 60, 0.4); }
+    50% { transform: scale(1.08); box-shadow: 0 0 14px rgba(231, 76, 60, 0.8); }
+}
+
+.admin-loyalty-alerts-card {
+    background: rgba(231, 76, 60, 0.08);
+    border: 1.5px solid rgba(231, 76, 60, 0.45);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(231, 76, 60, 0.15);
+}
+
+.alerts-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.alerts-card-title {
+    font-weight: 700;
+    font-size: 1rem;
+    color: #ff7675;
+    letter-spacing: 0.02em;
+}
+
+.alerts-card-icon {
+    font-size: 1.25rem;
+}
+
+.alerts-badge-count {
+    background: #e74c3c;
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 12px;
+}
+
+.alerts-card-desc {
+    font-size: 0.82rem;
+    color: #e2e8f0;
+    margin: 6px 0 14px 0;
+    line-height: 1.4;
+}
+
+.alerts-items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.alert-tx-card {
+    background: rgba(18, 26, 42, 0.85);
+    border: 1px solid rgba(231, 76, 60, 0.35);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.alert-tx-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 6px;
+}
+
+.alert-tx-pts {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #ff7675;
+    font-variant-numeric: tabular-nums;
+}
+
+.alert-tx-table {
+    background: rgba(201, 169, 110, 0.15);
+    border: 1px solid rgba(201, 169, 110, 0.3);
+    color: var(--gold);
+    font-weight: 700;
+    font-size: 0.82rem;
+    padding: 2px 8px;
+    border-radius: 6px;
+}
+
+.alert-tx-date {
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
+.alert-tx-details {
+    display: flex;
+    gap: 14px;
+    font-size: 0.82rem;
+    color: #cbd5e1;
+    flex-wrap: wrap;
+}
+
+.alert-tx-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+}
+
+.btn-alert-verify {
+    background: #27ae60;
+    color: #ffffff;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: filter 0.2s;
+}
+
+.btn-alert-verify:hover {
+    filter: brightness(1.15);
+}
+
+.btn-alert-rectify {
+    background: rgba(231, 76, 60, 0.2);
+    border: 1px solid rgba(231, 76, 60, 0.5);
+    color: #ff7675;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-alert-rectify:hover {
+    background: rgba(231, 76, 60, 0.35);
+    color: #ffffff;
+}
+
+.badge-row-alert {
+    background: rgba(231, 76, 60, 0.2);
+    border: 1px solid rgba(231, 76, 60, 0.45);
+    color: #ff7675;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+/* ============================================================================
    7. 100% RESPONSIVE MOBILE OPTIMIZATION (TABLETS & SMARTPHONES < 768px & < 480px)
    ============================================================================ */
 @media (max-width: 768px) {
@@ -2017,6 +2194,45 @@ button, input, select, .admin-tab-btn, .freeze-btn, .cleanup-btn {
         height: 46px;
         font-size: 0.95rem;
     }
+
+    /* Loyalty Alerts Mobile */
+    .admin-loyalty-alerts-card {
+        padding: 12px 10px;
+        border-radius: 12px;
+        margin-bottom: 14px;
+    }
+
+    .alerts-card-title {
+        font-size: 0.92rem;
+    }
+
+    .alert-tx-header {
+        flex-direction: row;
+        gap: 6px;
+    }
+
+    .alert-tx-details {
+        flex-direction: column;
+        gap: 4px;
+        font-size: 0.78rem;
+    }
+
+    .alert-tx-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        width: 100%;
+    }
+
+    .btn-alert-verify,
+    .btn-alert-rectify {
+        width: 100%;
+        min-height: 40px;
+        font-size: 0.74rem;
+        padding: 6px 4px;
+        text-align: center;
+        justify-content: center;
+    }
 }
 
 /* Very Small Mobile Screens (< 380px) */
@@ -2048,6 +2264,10 @@ button, input, select, .admin-tab-btn, .freeze-btn, .cleanup-btn {
     }
 
     .validate-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .alert-tx-actions {
         grid-template-columns: 1fr;
     }
 }

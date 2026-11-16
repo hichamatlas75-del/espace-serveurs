@@ -89,6 +89,7 @@ function loadPreOrdersCache() {
 let activePreOrdersList = loadPreOrdersCache();
 
 let alertTablesSet = new Set();
+let cachedLoyaltyAlerts = [];
 
 // ❄️ SYSTEM STATE
 let systemFrozen = false;
@@ -410,6 +411,19 @@ function mergeAndRenderActivityFeed() {
         });
     });
 
+    cachedLoyaltyAlerts.forEach(a => {
+        merged.push({
+            id: "alert_" + a.id,
+            table: a.tableNumber || "?",
+            status: "alert_loyalty",
+            createdAt: a.createdAt,
+            type: "loyalty_alert",
+            points: a.pointsDelta,
+            waiter: a.validatedBy,
+            phone: a.phone
+        });
+    });
+
     merged.sort((a, b) => {
         const da = a.createdAt ? new Date(a.createdAt) : new Date(0);
         const db = b.createdAt ? new Date(b.createdAt) : new Date(0);
@@ -439,6 +453,11 @@ function mergeAndRenderActivityFeed() {
             } else {
                 text = `Terminé Table ${evt.table}`;
             }
+        } else if (evt.type === "loyalty_alert") {
+            badge = "⚠️ >100 PTS";
+            text = `⚠️ Table ${evt.table} : +${evt.points} pts attribués par ${evt.waiter || "Serveur"} (Contrôle requis)`;
+            row.style.borderColor = "rgba(231, 76, 60, 0.55)";
+            row.style.background = "rgba(231, 76, 60, 0.08)";
         } else {
             badge = "order";
             if (evt.status === "pending") {
@@ -875,11 +894,150 @@ function initAdminLoyaltyDashboard() {
         });
     }
 
+    // ── GESTIONNAIRE DES ALERTES SERVEURS (> 100 PTS) ──
+    const alertsSection = document.getElementById("adminLoyaltyAlertsSection");
+    const alertsList = document.getElementById("adminLoyaltyAlertsList");
+    const alertsBadgeCount = document.getElementById("alertsBadgeCount");
+    const navAlertBadge = document.getElementById("navLoyaltyAlertBadge");
+
+    function loadLoyaltyAlerts() {
+        if (!dbService || !dbService.getLoyaltyAlerts) return;
+        dbService.getLoyaltyAlerts((alerts) => {
+            cachedLoyaltyAlerts = alerts || [];
+            renderLoyaltyAlerts();
+            renderLoyaltyMembersTable();
+            if (typeof mergeAndRenderActivityFeed === "function") {
+                mergeAndRenderActivityFeed();
+            }
+        });
+    }
+
+    function renderLoyaltyAlerts() {
+        const count = cachedLoyaltyAlerts.length;
+
+        // Badge dans la barre de navigation
+        if (navAlertBadge) {
+            if (count > 0) {
+                navAlertBadge.style.display = "inline-flex";
+                navAlertBadge.textContent = `⚠️ ${count}`;
+            } else {
+                navAlertBadge.style.display = "none";
+            }
+        }
+
+        // Section dédiée dans l'onglet Club Fidélité
+        if (alertsSection && alertsList) {
+            if (count === 0) {
+                alertsSection.style.display = "none";
+                return;
+            }
+
+            alertsSection.style.display = "block";
+            if (alertsBadgeCount) {
+                alertsBadgeCount.textContent = `${count} transaction${count > 1 ? "s" : ""} à contrôler`;
+            }
+
+            alertsList.innerHTML = "";
+            cachedLoyaltyAlerts.forEach(tx => {
+                const card = document.createElement("div");
+                card.className = "alert-tx-card";
+
+                const txDate = tx.createdAt ? new Date(tx.createdAt) : new Date();
+                const dateStr = isNaN(txDate.getTime()) ? "" : txDate.toLocaleString("fr-FR", {
+                    day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"
+                });
+
+                const memberName = tx.memberName || "Client";
+                const tableStr = tx.tableNumber ? `Table ${tx.tableNumber}` : "⚠️ Table non renseignée";
+
+                card.innerHTML = `
+                    <div class="alert-tx-header">
+                        <div class="alert-tx-pts">+${tx.pointsDelta} PTS</div>
+                        <div class="alert-tx-table">${tableStr}</div>
+                        <div class="alert-tx-date">${dateStr}</div>
+                    </div>
+                    <div class="alert-tx-details">
+                        <span>👤 <strong>${memberName}</strong> (<code style="color:var(--gold);">${tx.phone}</code>)</span>
+                        <span>🤵 Saisi par : <strong style="color:#e2c97e;">${tx.validatedBy || "Serveur"}</strong></span>
+                        <span>💵 Montant addition : <strong>${tx.amountDH} DH</strong></span>
+                    </div>
+                    <div class="alert-tx-actions">
+                        <button type="button" class="btn-alert-verify" data-id="${tx.id}">
+                            ✅ Marquer Contrôlé / Validé
+                        </button>
+                        <button type="button" class="btn-alert-rectify" data-phone="${tx.phone}" data-pts="${tx.pointsDelta}" data-name="${memberName}" data-table="${tx.tableNumber || ''}" data-id="${tx.id}">
+                            ✏️ Rectifier / Déduire Points
+                        </button>
+                    </div>
+                `;
+
+                // Action 1: Marquer comme vérifié par l'administrateur
+                const btnVerify = card.querySelector(".btn-alert-verify");
+                if (btnVerify) {
+                    btnVerify.addEventListener("click", () => {
+                        btnVerify.disabled = true;
+                        btnVerify.textContent = "Validation...";
+                        dbService.verifyLoyaltyAlert(tx.id, (ok) => {
+                            if (ok) {
+                                loadLoyaltyAlerts();
+                            } else {
+                                alert("Erreur lors de la validation.");
+                                btnVerify.disabled = false;
+                                btnVerify.textContent = "✅ Marquer Contrôlé / Validé";
+                            }
+                        });
+                    });
+                }
+
+                // Action 2: Rectifier / Déduire des points en cas d'erreur du serveur
+                const btnRectify = card.querySelector(".btn-alert-rectify");
+                if (btnRectify) {
+                    btnRectify.addEventListener("click", () => {
+                        const currentPts = tx.pointsDelta;
+                        const deductStr = prompt(
+                            `⚠️ RECTIFICATION ERREUR SERVEUR (${tx.validatedBy} - ${tableStr}) :\n\n` +
+                            `Le serveur a crédité +${currentPts} points à ${memberName} (${tx.phone}).\n\n` +
+                            `Combien de points souhaitez-vous DÉDUIRE pour corriger cette erreur ?\n` +
+                            `(Exemple: si l'addition réelle était de 50 DH au lieu de 500 DH, entrez 450 pour déduire 450 pts) :`,
+                            String(currentPts)
+                        );
+                        if (deductStr === null) return;
+                        const deductVal = parseInt(deductStr, 10);
+                        if (isNaN(deductVal) || deductVal <= 0) {
+                            alert("Montant de déduction invalide.");
+                            return;
+                        }
+
+                        const reason = `Correction erreur saisie serveur (${tx.validatedBy}) - ${tableStr}`;
+                        btnRectify.disabled = true;
+                        dbService.adjustLoyaltyPoints(tx.phone, -deductVal, reason, "admin", (ok, newTotal) => {
+                            if (ok) {
+                                dbService.verifyLoyaltyAlert(tx.id, () => {
+                                    alert(`✅ Rectification effectuée avec succès !\n-${deductVal} points déduits.\nNouveau solde de ${memberName} : ${newTotal} points.`);
+                                    loadLoyaltyAlerts();
+                                });
+                            } else {
+                                alert("❌ Erreur lors de la déduction des points.");
+                                btnRectify.disabled = false;
+                            }
+                        });
+                    });
+                }
+
+                alertsList.appendChild(card);
+            });
+        }
+    }
+
+    // Charger les alertes immédiatement
+    loadLoyaltyAlerts();
+
     // 3. Écoute temps réel des membres
     dbService.onAllLoyaltyMembersChange((members) => {
         cachedAdminLoyaltyMembers = members || [];
         updateLoyaltyKPIs(cachedAdminLoyaltyMembers);
         renderLoyaltyMembersTable();
+        loadLoyaltyAlerts();
     });
 
     function updateLoyaltyKPIs(members) {
@@ -937,6 +1095,12 @@ function initAdminLoyaltyDashboard() {
             const sourceClass = m.source === "qr_menu" ? "qr" : (m.source === "waiter_direct" ? "waiter" : "admin");
             const sourceLabel = m.source === "qr_menu" ? "Menu QR" : (m.source === "waiter_direct" ? "Serveur" : "Admin");
 
+            // Vérifier si ce membre a une alerte active > 100 pts
+            const hasAlert = cachedLoyaltyAlerts.filter(a => a.phone === m.phone);
+            const alertBadge = hasAlert.length > 0 
+                ? `<span class="badge-row-alert" title="Alerte : saisie serveur > 100 pts (${hasAlert[0].tableNumber ? 'Table ' + hasAlert[0].tableNumber : 'Table ?'})">⚠️ Contrôle requis</span>` 
+                : "";
+
             // Format WhatsApp Phone (+212)
             let waPhone = (m.phone || "").replace(/\D/g, "");
             if (waPhone.startsWith("0")) {
@@ -948,7 +1112,7 @@ function initAdminLoyaltyDashboard() {
             const waLink = `https://wa.me/${waPhone}?text=${waDefaultMsg}`;
 
             tr.innerHTML = `
-                <td><strong>${m.firstName || "Client"}</strong></td>
+                <td><strong>${m.firstName || "Client"}</strong> ${alertBadge}</td>
                 <td><code style="color:var(--gold);">${m.phone}</code></td>
                 <td>
                     <span style="font-weight:700; ${pts >= 500 ? "color:#2ecc71;" : ""}">${pts} / 500</span>
@@ -1046,11 +1210,15 @@ function initAdminLoyaltyDashboard() {
 
                         txListContainer.innerHTML = txs.map(tx => {
                             const isPos = tx.pointsDelta >= 0;
+                            const isAlert = tx.pointsDelta > 100 && tx.validatedBy && !tx.validatedBy.includes("admin") && !tx.validatedBy.includes("VÉRIFIÉ");
                             const d = tx.createdAt ? new Date(tx.createdAt).toLocaleString("fr-FR", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" }) : "";
                             return `
-                                <div class="tx-item-card">
+                                <div class="tx-item-card" ${isAlert ? 'style="border:1px solid #e74c3c; background:rgba(231,76,60,0.1);"' : ""}>
                                     <div>
-                                        <div style="font-weight:700; color:#ffffff;">${tx.note || tx.type}</div>
+                                        <div style="font-weight:700; color:#ffffff;">
+                                            ${tx.note || tx.type}
+                                            ${isAlert ? '<span style="color:#ff7675; font-size:0.75rem; margin-left:6px; font-weight:700;">⚠️ ALERTE >100 PTS</span>' : ''}
+                                        </div>
                                         <div style="font-size:0.75rem; color:var(--muted);">
                                             ${d} • Validé par : <strong>${tx.validatedBy || "Système"}</strong> ${tx.tableNumber ? `• Table ${tx.tableNumber}` : ""}
                                         </div>

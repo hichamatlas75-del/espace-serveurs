@@ -744,6 +744,26 @@
                 });
         },
 
+        getLoyaltyAlerts(callback) {
+            apiFetch("/loyalty/alerts", "GET")
+                .then(res => {
+                    if (callback) callback(res && res.alerts ? res.alerts : []);
+                })
+                .catch(() => {
+                    if (callback) callback([]);
+                });
+        },
+
+        verifyLoyaltyAlert(txId, callback) {
+            apiFetch("/loyalty/alerts", "POST", { txId, action: "verify" })
+                .then(res => {
+                    if (callback) callback(res && res.success);
+                })
+                .catch(() => {
+                    if (callback) callback(false);
+                });
+        },
+
         onLoyaltySettingsChange(callback) {
             if (callback) {
                 _loyaltyConfigListeners.add(callback);
