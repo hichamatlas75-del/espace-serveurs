@@ -1406,3 +1406,650 @@ button, input, select, .admin-tab-btn, .freeze-btn, .cleanup-btn {
     cursor: pointer;
 }
 
+/* ============================================================================
+   HEADER & TOOLBAR BASE CLASSES
+   ============================================================================ */
+.admin-header-brand-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.admin-header-actions-wrap {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.quick-validate-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.quick-validate-badge {
+    font-size: 0.75rem;
+    color: var(--gold);
+    background: rgba(201, 169, 110, 0.15);
+    border: 1px solid rgba(201, 169, 110, 0.3);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: 700;
+}
+
+.quick-validate-desc {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin: 6px 0 14px 0;
+    line-height: 1.4;
+}
+
+.table-card-title {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: #ffffff;
+}
+
+.table-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn-tool-action {
+    border: none;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: opacity 0.2s, transform 0.15s;
+    outline: none;
+}
+
+.btn-tool-action:hover {
+    filter: brightness(1.15);
+}
+
+.btn-tool-action:active {
+    transform: scale(0.97);
+}
+
+.btn-tool-csv {
+    background: #0284C7;
+    color: #ffffff;
+}
+
+.btn-tool-copy {
+    background: #475569;
+    color: #ffffff;
+}
+
+.btn-tool-wa {
+    background: #25D366;
+    color: #ffffff;
+}
+
+.table-scroll-hint-mobile {
+    display: none;
+}
+
+.admin-search-wrap {
+    margin: 12px 0;
+    width: 100%;
+}
+
+.wa-modal-actions-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.btn-wa-copy {
+    flex: 1;
+    min-height: 42px;
+    background: #475569;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: filter 0.2s;
+}
+
+.btn-wa-copy:hover {
+    filter: brightness(1.15);
+}
+
+.btn-wa-export {
+    flex: 1;
+    min-height: 42px;
+    background: #0284C7;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: filter 0.2s;
+}
+
+.btn-wa-export:hover {
+    filter: brightness(1.15);
+}
+
+/* ============================================================================
+   7. 100% RESPONSIVE MOBILE OPTIMIZATION (TABLETS & SMARTPHONES < 768px & < 480px)
+   ============================================================================ */
+@media (max-width: 768px) {
+    body {
+        padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+        font-size: 13px;
+        overflow-x: hidden;
+    }
+
+    .admin-container {
+        gap: 14px;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    /* Header Mobile */
+    .admin-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding-bottom: 12px;
+    }
+
+    .admin-header-brand-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .brand-title {
+        font-size: 1.3rem;
+        letter-spacing: 0.08em;
+    }
+
+    .admin-header-actions-wrap {
+        display: flex;
+        width: 100%;
+        gap: 6px;
+    }
+
+    .freeze-btn, .cleanup-btn, .logout-btn {
+        flex: 1;
+        min-height: 38px;
+        padding: 6px 4px;
+        font-size: 0.78rem;
+        text-align: center;
+        justify-content: center;
+        border-radius: 8px;
+        white-space: nowrap;
+    }
+
+    /* Top KPI Metrics - Clean 3-Column Compact Grid */
+    .metrics-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+    }
+
+    .metric-card {
+        padding: 10px 6px;
+        border-radius: 12px;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 4px;
+    }
+
+    .metric-label {
+        font-size: 8px;
+        letter-spacing: 0;
+        white-space: nowrap;
+    }
+
+    .metric-val {
+        font-size: 1.35rem;
+        line-height: 1;
+    }
+
+    /* Navigation Bar - 3 Tabs Segmented Control */
+    .admin-main-nav {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        margin: 10px 0;
+        padding-bottom: 0;
+        overflow-x: visible;
+    }
+
+    .admin-nav-btn {
+        min-width: 0;
+        padding: 10px 4px;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 3px;
+    }
+
+    .admin-nav-btn .nav-icon {
+        font-size: 1.15rem;
+        line-height: 1;
+    }
+
+    .admin-nav-btn .nav-text {
+        font-size: 0.74rem;
+        line-height: 1.1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+
+    /* Section 1: Dashboard */
+    .dashboard-split {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .split-left, .split-right {
+        padding: 14px 10px;
+        border-radius: 14px;
+    }
+
+    .admin-zones-wrapper {
+        gap: 14px;
+    }
+
+    .admin-zone-card {
+        padding: 12px 10px;
+        border-radius: 12px;
+    }
+
+    .table-matrix-grid {
+        grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+        gap: 8px;
+    }
+
+    .admin-table-card {
+        padding: 8px 4px;
+        border-radius: 10px;
+        min-height: 62px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .atc-number {
+        font-size: 1.25rem;
+        margin-bottom: 2px;
+    }
+
+    .atc-waiter-pill {
+        font-size: 7.5px;
+        padding: 2px 4px;
+        max-width: 70px;
+    }
+
+    .panel-header {
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+    }
+
+    .admin-tabs-nav {
+        gap: 14px;
+    }
+
+    .admin-tab-btn {
+        font-size: 1.05rem;
+    }
+
+    .live-activity-feed {
+        height: 280px;
+        gap: 6px;
+    }
+
+    .feed-log-row {
+        padding: 8px 10px;
+        font-size: 0.78rem;
+        gap: 8px;
+    }
+
+    /* Section 2: Club Fidélité */
+    .admin-loyalty-quick-validate-card {
+        padding: 14px 10px;
+        border-radius: 14px;
+        margin-bottom: 14px;
+    }
+
+    .quick-validate-header {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .quick-validate-header .settings-card-title {
+        font-size: 0.9rem;
+    }
+
+    .quick-validate-badge {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+    }
+
+    .quick-validate-desc {
+        font-size: 0.76rem;
+        margin: 6px 0 10px;
+    }
+
+    .quick-validate-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 10px;
+    }
+
+    .quick-validate-grid .field-phone,
+    .quick-validate-grid .field-note {
+        grid-column: 1 / -1;
+    }
+
+    .validate-field label {
+        font-size: 0.7rem;
+    }
+
+    .validate-field input {
+        height: 42px;
+        font-size: 16px !important; /* Prevents auto zoom on mobile browsers */
+        padding: 0 10px;
+        border-radius: 8px;
+    }
+
+    .validate-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 6px;
+        width: 100%;
+    }
+
+    .btn-validate-credit,
+    .btn-validate-redeem,
+    .btn-validate-deduct,
+    .btn-validate-create {
+        padding: 10px 4px;
+        min-height: 44px;
+        font-size: 0.76rem;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        line-height: 1.2;
+    }
+
+    /* Loyalty KPI Cards - 2x2 Grid */
+    .admin-loyalty-kpis {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+
+    .loyalty-kpi-card {
+        padding: 10px 8px;
+        border-radius: 10px;
+    }
+
+    .loyalty-kpi-card .kpi-label {
+        font-size: 0.68rem;
+    }
+
+    .loyalty-kpi-card .kpi-val {
+        font-size: 1.35rem;
+    }
+
+    .loyalty-kpi-card .kpi-subval {
+        font-size: 0.74rem;
+    }
+
+    /* Loyalty Settings Card */
+    .admin-loyalty-settings-card {
+        padding: 12px 10px;
+        border-radius: 12px;
+        margin-bottom: 14px;
+    }
+
+    .settings-inputs-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .settings-inputs-grid .setting-field:nth-child(3) {
+        grid-column: 1 / -1;
+    }
+
+    .settings-inputs-grid .btn-cell {
+        grid-column: 1 / -1;
+        margin-top: 2px;
+    }
+
+    .setting-field input {
+        height: 42px;
+        font-size: 16px !important;
+    }
+
+    .btn-save-settings {
+        width: 100%;
+        height: 42px;
+        font-size: 0.88rem;
+    }
+
+    /* Table Toolbar & Search */
+    .admin-loyalty-table-card {
+        padding: 12px 10px;
+        border-radius: 12px;
+    }
+
+    .table-card-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .table-card-title {
+        font-size: 0.95rem;
+    }
+
+    .table-card-actions {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        width: 100%;
+    }
+
+    .btn-tool-action {
+        padding: 8px 4px;
+        font-size: 0.72rem;
+        min-height: 38px;
+        text-align: center;
+        justify-content: center;
+        border-radius: 8px;
+        white-space: nowrap;
+    }
+
+    .admin-search-wrap {
+        margin: 8px 0;
+    }
+
+    .admin-search-input {
+        width: 100%;
+        min-width: 0;
+        height: 42px;
+        font-size: 16px !important;
+        border-radius: 8px;
+    }
+
+    .table-scroll-hint-mobile {
+        display: block;
+        font-size: 0.72rem;
+        color: var(--gold);
+        background: rgba(201, 169, 110, 0.1);
+        border: 1px dashed rgba(201, 169, 110, 0.3);
+        padding: 6px 8px;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        text-align: center;
+        font-weight: 500;
+    }
+
+    .admin-table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .admin-loyalty-table th {
+        padding: 8px 6px;
+        font-size: 0.68rem;
+        white-space: nowrap;
+    }
+
+    .admin-loyalty-table td {
+        padding: 8px 6px;
+        font-size: 0.76rem;
+        white-space: nowrap;
+    }
+
+    .table-btn-action {
+        padding: 5px 6px;
+        font-size: 0.7rem;
+        min-height: 32px;
+        border-radius: 6px;
+        margin: 1px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Section 3: Historique Full */
+    .admin-history-full-card {
+        padding: 14px 10px !important;
+        border-radius: 14px !important;
+    }
+
+    /* Modals Responsive */
+    .admin-tx-modal-overlay {
+        padding: 10px;
+    }
+
+    .admin-tx-modal-sheet {
+        width: 96vw !important;
+        max-width: 96vw !important;
+        max-height: 92vh !important;
+        border-radius: 14px;
+    }
+
+    .admin-tx-modal-header {
+        padding: 12px 14px;
+    }
+
+    .admin-tx-modal-body {
+        padding: 12px 10px;
+        gap: 12px;
+    }
+
+    #waTargetSelect,
+    #waMessageText {
+        font-size: 16px !important;
+    }
+
+    .wa-modal-actions-wrap {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 8px;
+    }
+
+    .btn-wa-copy,
+    .btn-wa-export {
+        width: 100%;
+        min-height: 44px;
+        font-size: 0.85rem;
+    }
+
+    /* Authentication Modal */
+    .admin-auth-overlay {
+        padding: 12px;
+    }
+
+    .admin-auth-card {
+        padding: 24px 16px;
+        border-radius: 16px;
+        width: 100%;
+        max-width: 360px;
+    }
+
+    .admin-auth-input {
+        height: 46px;
+        font-size: 16px !important;
+    }
+
+    .admin-auth-submit-btn {
+        height: 46px;
+        font-size: 0.95rem;
+    }
+}
+
+/* Very Small Mobile Screens (< 380px) */
+@media (max-width: 380px) {
+    .brand-title {
+        font-size: 1.15rem;
+    }
+
+    .admin-header-actions-wrap {
+        gap: 4px;
+    }
+
+    .freeze-btn, .cleanup-btn, .logout-btn {
+        font-size: 0.72rem;
+        padding: 6px 2px;
+    }
+
+    .admin-nav-btn .nav-text {
+        font-size: 0.68rem;
+    }
+
+    .table-card-actions {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+
+    .btn-tool-action {
+        width: 100%;
+    }
+
+    .validate-actions {
+        grid-template-columns: 1fr;
+    }
+}
+
+

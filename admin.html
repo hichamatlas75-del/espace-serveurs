@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
 <title>Grey Corner — Admin Console</title>
 
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#07060a"/>
 <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png"/>
 <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png"/>
-<link rel="stylesheet" href="admin.css?v=4.0"/>
+<link rel="stylesheet" href="admin.css?v=4.4"/>
 
 </head>
 
@@ -56,14 +56,14 @@
 
     <!-- HEADER -->
     <header class="admin-header">
-        <div>
+        <div class="admin-header-brand-wrap">
             <span class="brand-title">Grey Corner</span>
             <span class="admin-badge">Admin</span>
             <span id="connectionPill" class="connection-pill connected"></span>
             <span id="connectionLabel" class="connection-label">LIVE</span>
         </div>
 
-        <div style="display:flex; gap:12px; align-items:center;">
+        <div class="admin-header-actions-wrap">
             <button id="toggleFreezeBtn" class="freeze-btn">Freeze OFF</button>
             <button id="dbCleanupBtn" class="cleanup-btn">Purger</button>
             <button id="adminLogoutBtn" class="logout-btn" title="Verrouiller la console">🔒 Déconnexion</button>
@@ -99,13 +99,16 @@
     <!-- ── BARRE DE NAVIGATION PRINCIPALE ADMIN ──────────────────────── -->
     <nav class="admin-main-nav">
         <button type="button" class="admin-nav-btn active" data-section="sectionDashboard">
-            <span>📊 Tables & Direct</span>
+            <span class="nav-icon">📊</span>
+            <span class="nav-text">Tables & Direct</span>
         </button>
         <button type="button" class="admin-nav-btn" data-section="sectionLoyalty">
-            <span style="color:var(--gold,#C9A96E); font-weight:700;">👑 Club Fidélité (Valider & Gérer Points)</span>
+            <span class="nav-icon">👑</span>
+            <span class="nav-text" style="color:var(--gold,#C9A96E); font-weight:700;">Club Fidélité</span>
         </button>
         <button type="button" class="admin-nav-btn" data-section="sectionHistory">
-            <span>📜 Historique des Commandes</span>
+            <span class="nav-icon">📜</span>
+            <span class="nav-text">Historique</span>
         </button>
     </nav>
 
@@ -159,28 +162,28 @@
 
         <!-- 1. Validation Rapide des Points (Admin) -->
         <div class="admin-loyalty-quick-validate-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <div class="quick-validate-header">
                 <div class="settings-card-title" style="margin:0;">⚡ Validation Rapide des Points & Consommations</div>
-                <span style="font-size:0.75rem; color:var(--gold); background:rgba(201,169,110,0.15); border:1px solid rgba(201,169,110,0.3); padding:4px 10px; border-radius:12px; font-weight:700;">500 pts = 1 Conso Gratuite</span>
+                <span class="quick-validate-badge">500 pts = 1 Conso Offerte</span>
             </div>
-            <p style="font-size:0.82rem; color:var(--muted); margin:6px 0 14px 0;">
-                Créditez les points d'une addition client (1 DH = 1 pt), validez une consommation offerte (-500 pts) ou créez un compte.
+            <p class="quick-validate-desc">
+                Créditez les points d'une addition (1 DH = 1 pt), validez une consommation offerte (-500 pts) ou créez un compte.
             </p>
 
             <div class="quick-validate-grid">
-                <div class="validate-field">
+                <div class="validate-field field-phone">
                     <label>Numéro de Téléphone Client</label>
                     <input type="tel" id="adminQuickPhone" placeholder="Ex: 0612345678" autocomplete="off" />
                 </div>
-                <div class="validate-field">
+                <div class="validate-field field-amount">
                     <label>Montant Addition (DH)</label>
                     <input type="number" id="adminQuickAmount" placeholder="Ex: 120" min="1" step="1" />
                 </div>
-                <div class="validate-field">
+                <div class="validate-field field-table">
                     <label>Table (Optionnel)</label>
                     <input type="text" id="adminQuickTable" placeholder="Ex: 104" />
                 </div>
-                <div class="validate-field">
+                <div class="validate-field field-note">
                     <label>Motif / Note</label>
                     <input type="text" id="adminQuickNote" placeholder="Addition, geste commercial..." />
                 </div>
@@ -246,22 +249,25 @@
 
         <!-- 4. Recherche, Export & Tableau des Membres -->
         <div class="admin-loyalty-table-card">
-            <div class="table-card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-                <div style="font-weight:700; font-size:1.05rem; color:#ffffff;">👥 Base Clients & Club Fidélité</div>
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                    <button type="button" id="btnExportLoyaltyCSV" class="btn-tool-action" style="background:#0284C7; color:#fff; border:none; padding:7px 12px; border-radius:8px; font-weight:700; font-size:0.8rem; cursor:pointer;">
-                        📥 Exporter CSV (Excel)
+            <div class="table-card-header">
+                <div class="table-card-title">👥 Base Clients & Club Fidélité</div>
+                <div class="table-card-actions">
+                    <button type="button" id="btnExportLoyaltyCSV" class="btn-tool-action btn-tool-csv">
+                        📥 Exporter CSV
                     </button>
-                    <button type="button" id="btnCopyAllPhones" class="btn-tool-action" style="background:#475569; color:#fff; border:none; padding:7px 12px; border-radius:8px; font-weight:700; font-size:0.8rem; cursor:pointer;">
-                        📋 Copier les N° (1 clic)
+                    <button type="button" id="btnCopyAllPhones" class="btn-tool-action btn-tool-copy">
+                        📋 Copier les N°
                     </button>
-                    <button type="button" id="btnOpenWhatsAppCampaignModal" class="btn-tool-action" style="background:#25D366; color:#fff; border:none; padding:7px 12px; border-radius:8px; font-weight:700; font-size:0.8rem; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                    <button type="button" id="btnOpenWhatsAppCampaignModal" class="btn-tool-action btn-tool-wa">
                         <span>💬</span> Campagne WhatsApp
                     </button>
                 </div>
             </div>
-            <div style="margin: 12px 0;">
-                <input type="search" id="adminLoyaltySearchInput" class="admin-search-input" placeholder="Rechercher par prénom ou n° tél..." autocomplete="off" style="width:100%;" />
+            <div class="admin-search-wrap">
+                <input type="search" id="adminLoyaltySearchInput" class="admin-search-input" placeholder="Rechercher par prénom ou n° tél..." autocomplete="off" />
+            </div>
+            <div class="table-scroll-hint-mobile">
+                <span>↔️ Glissez horizontalement pour voir toutes les colonnes & actions</span>
             </div>
             <div class="admin-table-container">
                 <table class="admin-loyalty-table">
@@ -297,8 +303,6 @@
             </div>
             <div id="adminFullHistoryFeed" class="live-activity-feed"></div>
         </div>
-    </div>
-
     </div>
 
 </div>
@@ -351,11 +355,11 @@
                 <div style="font-size:0.75rem; color:var(--muted); margin-top:4px;">💡 Astuce : Vous pouvez utiliser <code>{prenom}</code> dans le texte.</div>
             </div>
 
-            <div style="display:flex; flex-wrap:wrap; gap:10px;">
-                <button type="button" id="btnCopyWaPhones" style="flex:1; min-height:42px; background:#475569; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer; font-size:0.85rem;">
+            <div class="wa-modal-actions-wrap">
+                <button type="button" id="btnCopyWaPhones" class="btn-wa-copy">
                     📋 Copier la liste des numéros
                 </button>
-                <button type="button" id="btnExportWaCSV" style="flex:1; min-height:42px; background:#0284C7; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer; font-size:0.85rem;">
+                <button type="button" id="btnExportWaCSV" class="btn-wa-export">
                     📥 Télécharger liste ciblée (CSV)
                 </button>
             </div>
