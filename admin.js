@@ -819,7 +819,7 @@ function initAdminLoyaltyDashboard() {
                 btnCreateMbr.disabled = false;
                 if (ok && mbr) {
                     if (isNew) {
-                        alert(`👑 Compte fidélité créé pour ${mbr.firstName} (${cleanPh}) !\n+50 points de bienvenue offerts (Solde: ${mbr.points} pts).`);
+                        alert(`👑 Compte fidélité créé pour ${mbr.firstName} (${cleanPh}) !\n+20 points de bienvenue offerts (Solde: ${mbr.points} pts).`);
                     } else {
                         alert(`ℹ️ Ce client existe déjà : ${mbr.firstName} (${cleanPh}) — Solde actuel: ${mbr.points} / 500 pts.`);
                     }
@@ -843,7 +843,7 @@ function initAdminLoyaltyDashboard() {
     if (btnSaveSettings) {
         btnSaveSettings.addEventListener("click", () => {
             const rewardThreshold = parseInt(inputRewardThreshold.value, 10) || 500;
-            const welcomeBonus = parseInt(inputWelcomeBonus.value, 10) || 50;
+            const welcomeBonus = parseInt(inputWelcomeBonus.value, 10) || 20;
             const pointsPerDH = parseFloat(inputPointsPerDH.value) || 1;
 
             btnSaveSettings.disabled = true;

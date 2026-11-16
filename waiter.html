@@ -18,7 +18,7 @@
     <meta name="theme-color" content="#FFFFFF">
     <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
-    <link rel="stylesheet" href="waiter.css?v=4.1">
+    <link rel="stylesheet" href="waiter.css?v=4.2">
 
     <style>
         /* ── Reset & Variables (THÈME CLAIR LUMINEUX & HAUTE LISIBILITÉ) ── */
@@ -367,20 +367,26 @@
         }
 
         .btn-quick-loyalty {
+            background: #FFFFFF !important;
             color: #0F172A !important;
             font-weight: 800 !important;
             border: 2px solid var(--gold) !important;
+            box-shadow: 0 2px 8px rgba(161, 116, 32, 0.15) !important;
         }
 
         .btn-quick-text {
             color: #0F172A !important;
             font-weight: 800 !important;
+            font-size: 0.92rem !important;
         }
 
         .btn-quick-badge {
             background: var(--gold) !important;
             color: #FFFFFF !important;
             font-weight: 800 !important;
+            font-size: 0.72rem !important;
+            padding: 4px 8px !important;
+            border-radius: 8px !important;
         }
 
         .waiter-member-card {
@@ -611,30 +617,32 @@
 
         /* ── Navigation Tabs ─────────────────────────────────────────────── */
         .hub-tabs {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            display: grid !important;
+            grid-template-columns: repeat(4, 1fr) !important;
             gap: 1px;
             background: var(--border);
             border-bottom: 1px solid var(--border);
+            width: 100%;
         }
 
         .tab-btn {
             background: #EDF1F7;
             border: none;
             font-family: var(--font-sans);
-            font-size: .78rem;
+            font-size: .74rem;
             font-weight: 700;
-            letter-spacing: .06em;
+            letter-spacing: .02em;
             text-transform: uppercase;
             color: #64748B;
-            padding: 14px 12px;
+            padding: 12px 4px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 4px;
             position: relative;
             transition: color .2s, background .2s;
+            white-space: nowrap;
         }
 
         .tab-btn::after {
@@ -965,6 +973,124 @@
             border: 1px dashed #CBD5E1;
             border-radius: var(--radius);
         }
+
+        /* ── Adaptations Mobiles (< 480px) ─────────────────────────────────── */
+        @media (max-width: 480px) {
+            .app-header {
+                padding: calc(8px + var(--safe-top)) 10px 8px !important;
+                gap: 6px !important;
+            }
+
+            .header-left {
+                gap: 6px !important;
+                flex-shrink: 0 !important;
+            }
+
+            .brand-title {
+                font-size: 1.12rem !important;
+                white-space: nowrap !important;
+                letter-spacing: .08em !important;
+            }
+
+            .hub-badge {
+                font-size: .58rem !important;
+                padding: 1px 6px !important;
+            }
+
+            .header-right {
+                gap: 4px !important;
+                flex-wrap: wrap !important;
+                justify-content: flex-end !important;
+            }
+
+            .update-pill,
+            .push-pill,
+            .connection-pill {
+                padding: 3px 7px !important;
+                font-size: .60rem !important;
+                gap: 4px !important;
+            }
+
+            .stats-bar {
+                grid-template-columns: repeat(3, 1fr) !important;
+            }
+
+            .stat-card {
+                padding: 8px 4px !important;
+            }
+
+            .stat-label {
+                font-size: .58rem !important;
+            }
+
+            .stat-value {
+                font-size: 1.35rem !important;
+            }
+
+            .waiter-loyalty-quick-bar {
+                padding: 8px 10px !important;
+            }
+
+            .btn-quick-loyalty {
+                min-height: 42px !important;
+                padding: 0 10px !important;
+            }
+
+            .btn-quick-text {
+                font-size: 0.82rem !important;
+            }
+
+            .btn-quick-badge {
+                font-size: 0.65rem !important;
+                padding: 3px 6px !important;
+            }
+
+            .hub-tabs {
+                grid-template-columns: repeat(4, 1fr) !important;
+            }
+
+            .tab-btn {
+                padding: 10px 2px !important;
+                font-size: .68rem !important;
+                gap: 3px !important;
+                letter-spacing: 0 !important;
+            }
+
+            .tab-btn span {
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+
+            .tab-badge {
+                min-width: 16px !important;
+                height: 16px !important;
+                font-size: .60rem !important;
+                padding: 0 4px !important;
+            }
+
+            .panel-section {
+                padding: 12px 10px calc(16px + var(--safe-bottom)) !important;
+            }
+
+            .waiter-search-box {
+                flex-direction: row !important;
+                gap: 6px !important;
+            }
+
+            .waiter-search-input {
+                font-size: 0.95rem !important;
+                padding: 0 10px !important;
+                height: 46px !important;
+            }
+
+            .btn-search-loyalty {
+                min-width: 85px !important;
+                height: 46px !important;
+                font-size: 0.85rem !important;
+                padding: 0 8px !important;
+            }
+        }
     </style>
 </head>
 
@@ -1004,7 +1130,7 @@
         <div id="waiterUpdateBanner" class="waiter-update-banner" style="display: none;">
             <div style="display:flex; align-items:center; gap:8px;">
                 <span style="font-size:1.1rem;">👑</span>
-                <span><strong>Mise à jour v4.0 disponible !</strong> Activez la validation des points & club fidélité.</span>
+                <span><strong>Mise à jour v4.2 disponible !</strong> Optimisation affichage mobile & validation points.</span>
             </div>
             <button type="button" id="btnApplyUpdateBanner" class="btn-banner-update">Mettre à jour</button>
         </div>
@@ -1040,11 +1166,11 @@
         <!-- ── Navigation Tabs ────────────────────────────────────────────── -->
         <nav class="hub-tabs">
             <button class="tab-btn active" data-tab="tabCalls">
-                <span>Appels clients</span>
+                <span>Appels</span>
                 <span class="tab-badge" id="badgeTabCalls" style="display:none;">0</span>
             </button>
             <button class="tab-btn" data-tab="tabOrders">
-                <span>Précommandes</span>
+                <span>Commandes</span>
                 <span class="tab-badge" id="badgeTabOrders" style="display:none;">0</span>
             </button>
             <button class="tab-btn" data-tab="tabHistory">
@@ -1091,8 +1217,8 @@
             <!-- 4. Fidélité Directe & Validation Points -->
             <section class="tab-panel" id="tabLoyalty">
                 <div class="panel-section">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-                        <h3 class="section-title" style="margin:0;">👑 Club Fidélité — Validation & Crédit</h3>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+                        <h3 class="section-title" style="margin:0; font-size:1.05rem;">👑 Club Fidélité — Validation & Crédit</h3>
                         <span style="font-size:0.75rem; color:var(--gold,#C9A96E); background:rgba(201,169,110,0.15); border:1px solid rgba(201,169,110,0.3); padding:4px 8px; border-radius:12px; font-weight:700;">500 pts = 1 Boisson Offerte</span>
                     </div>
 
@@ -1148,11 +1274,11 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js"></script>
-    <script src="firebase-config.js?v=4.1"></script>
-    <script type="module" src="js/config/firebase.js?v=4.1"></script>
+    <script src="firebase-config.js?v=4.2"></script>
+    <script type="module" src="js/config/firebase.js?v=4.2"></script>
 
     <!-- Waiter Logic -->
-    <script src="waiter.js?v=4.1"></script>
+    <script src="waiter.js?v=4.2"></script>
 </body>
 
 </html>

@@ -759,8 +759,8 @@ button, input, select, .hub-tab, .call-action-btn, .order-action-btn {
 .btn-quick-loyalty {
     width: 100%;
     min-height: 48px;
-    background: linear-gradient(135deg, rgba(161, 116, 32, 0.14) 0%, rgba(184, 134, 11, 0.08) 100%);
-    border: 1.5px solid var(--gold);
+    background: #FFFFFF;
+    border: 2px solid var(--gold);
     border-radius: 12px;
     color: #0F172A;
     font-family: var(--font-sans);
@@ -771,13 +771,13 @@ button, input, select, .hub-tab, .call-action-btn, .order-action-btn {
     justify-content: space-between;
     padding: 0 16px;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(161, 116, 32, 0.12);
+    box-shadow: 0 2px 8px rgba(161, 116, 32, 0.15);
     transition: transform 0.15s, background 0.15s;
 }
 
 .btn-quick-loyalty:active {
     transform: scale(0.98);
-    background: rgba(161, 116, 32, 0.22);
+    background: rgba(161, 116, 32, 0.08);
 }
 
 .btn-quick-icon {
@@ -1237,4 +1237,38 @@ button, input, select, .hub-tab, .call-action-btn, .order-action-btn {
     background: rgba(46, 204, 113, 0.2) !important;
     color: #2ecc71 !important;
     border: 1px solid rgba(46, 204, 113, 0.5) !important;
+}
+
+/* --- Mobile Optimizations (< 480px) --- */
+@media (max-width: 480px) {
+    .hub-tabs {
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 1px !important;
+    }
+
+    .tab-btn {
+        padding: 10px 2px !important;
+        font-size: 0.68rem !important;
+        gap: 3px !important;
+    }
+
+    .tab-btn span {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .waiter-loyalty-quick-bar {
+        padding: 8px 10px !important;
+    }
+
+    .btn-quick-text {
+        font-size: 0.82rem !important;
+    }
+
+    .btn-quick-badge {
+        font-size: 0.65rem !important;
+        padding: 3px 6px !important;
+    }
 }

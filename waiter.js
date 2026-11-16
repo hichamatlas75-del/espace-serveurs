@@ -106,7 +106,7 @@ async function syncNativeFcmToken() {
 
 function checkImmediatePushAndConnection() {
     if (isAndroidNativeApp()) {
-        updatePushUI("granted", "App Native (FCM OK)");
+        updatePushUI("granted", "FCM OK");
         const btn = document.getElementById("pushNotifBtn");
         if (btn) btn.title = "Application Android Native — FCM et Service de maintien en arrière-plan actifs.";
         syncNativeFcmToken();
@@ -200,7 +200,7 @@ window.addEventListener("offline", () => setConnectionStatus("offline"));
 
 async function initWaiterFcmPush(swReg) {
     if (isAndroidNativeApp()) {
-        updatePushUI("granted", "App Native (FCM OK)");
+        updatePushUI("granted", "FCM OK");
         syncNativeFcmToken();
         return;
     }
@@ -1571,7 +1571,7 @@ function initDirectLoyaltyModule() {
                 </div>
 
                 <button type="button" id="btnCreate_${suffix}" class="btn-credit-now" style="background: linear-gradient(135deg, #C9A96E 0%, #B8860B 100%); color: #000; font-weight: 700;">
-                    🎁 Créer le compte (+50 pts offerts) & Continuer
+                    🎁 Créer le compte (+20 pts offerts) & Continuer
                 </button>
             </div>
         `;
@@ -1598,12 +1598,12 @@ function initDirectLoyaltyModule() {
                     if (ok && member) {
                         playAlertSound();
                         triggerHapticVibrate();
-                        alert(`👑 Compte créé pour ${member.firstName} !\n+50 points de bienvenue offerts (Solde: ${member.points} pts).`);
+                        alert(`👑 Compte créé pour ${member.firstName} !\n+20 points de bienvenue offerts (Solde: ${member.points} pts).`);
                         renderMember(member, contentArea, suffix);
                     } else {
                         alert("❌ Erreur lors de la création du compte.");
                         btnCreate.disabled = false;
-                        btnCreate.textContent = "🎁 Créer le compte (+50 pts) & Continuer";
+                        btnCreate.textContent = "🎁 Créer le compte (+20 pts) & Continuer";
                     }
                 });
             });
@@ -1615,7 +1615,7 @@ function initDirectLoyaltyModule() {
 }
 
 // ── GESTION DE LA MISE À JOUR RAPIDE (PWA, Android WebView & Navigateurs) ────
-const CURRENT_APP_VERSION = "4.1.0";
+const CURRENT_APP_VERSION = "4.2.0";
 
 async function performHardAppUpdate() {
     console.log("🔄 Lancement de la mise à jour forcée de l'application serveur...");

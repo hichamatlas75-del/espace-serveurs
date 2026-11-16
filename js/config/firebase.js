@@ -194,7 +194,7 @@ let _cachedCalls = getLocalCollection("calls", []);
 let _cachedOrders = getLocalCollection("pre_orders", []);
 let _cachedTables = getLocalCollection("tables", DEFAULT_TABLES);
 let _cachedFrozen = false;
-let _cachedLoyaltyConfig = getLocalCollection("loyalty_settings", { rewardThreshold: 500, welcomeBonus: 50, pointsPerDH: 1 });
+let _cachedLoyaltyConfig = getLocalCollection("loyalty_settings", { rewardThreshold: 500, welcomeBonus: 20, pointsPerDH: 1 });
 let _cachedMembers = getLocalCollection("loyalty_members", []);
 
 const _callsListeners = new Set();
@@ -569,8 +569,8 @@ export const dbService = {
                 return {
                     phone: phone,
                     firstName: localStorage.getItem("gc_loyalty_name") || "Client",
-                    points: parseInt(localStorage.getItem("gc_loyalty_pts"), 10) || 50,
-                    totalEarned: 50,
+                    points: parseInt(localStorage.getItem("gc_loyalty_pts"), 10) || 20,
+                    totalEarned: 20,
                     rewardsClaimed: 0,
                     source: "qr_menu"
                 };
@@ -633,7 +633,7 @@ export const dbService = {
                         try {
                             localStorage.setItem("gc_loyalty_phone", res.member.phone);
                             localStorage.setItem("gc_loyalty_name", res.member.firstName);
-                            localStorage.setItem("gc_loyalty_pts", String(res.member.points || 50));
+                            localStorage.setItem("gc_loyalty_pts", String(res.member.points || 20));
                         } catch(e) {}
                     }
                     if (callback) callback(true, res.member, res.isNew !== false);

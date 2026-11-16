@@ -173,7 +173,7 @@ async function ensureDb(db) {
 
         // Configuration par défaut
         await db.prepare("INSERT OR IGNORE INTO system_config (key, value, updatedAt) VALUES (?, ?, ?)")
-            .bind("loyalty_config", JSON.stringify({ rewardThreshold: 500, welcomeBonus: 50, pointsPerDH: 1 }), new Date().toISOString())
+            .bind("loyalty_config", JSON.stringify({ rewardThreshold: 500, welcomeBonus: 20, pointsPerDH: 1 }), new Date().toISOString())
             .run();
         await db.prepare("INSERT OR IGNORE INTO system_config (key, value, updatedAt) VALUES (?, ?, ?)")
             .bind("system_frozen", "false", new Date().toISOString())
@@ -265,7 +265,7 @@ export async function onRequest(context) {
             }));
 
             let frozen = false;
-            let loyaltyConfig = { rewardThreshold: 500, welcomeBonus: 50, pointsPerDH: 1 };
+            let loyaltyConfig = { rewardThreshold: 500, welcomeBonus: 20, pointsPerDH: 1 };
             (configRes.results || []).forEach(c => {
                 if (c.key === "system_frozen") frozen = (c.value === "true");
                 if (c.key === "loyalty_config") {
@@ -486,7 +486,7 @@ export async function onRequest(context) {
 
                     const firstName = (body.firstName || body.name || "Client").trim();
                     const source = body.source || "qr_menu";
-                    const welcomeBonus = 50;
+                    const welcomeBonus = 20;
                     const now = new Date().toISOString();
 
                     const newMember = {
@@ -508,7 +508,7 @@ export async function onRequest(context) {
 
                     const insertTx = db.prepare(`
                         INSERT INTO loyalty_transactions (id, phone, type, pointsDelta, amountDH, tableNumber, orderId, validatedBy, note, createdAt)
-                        VALUES (?, ?, 'WELCOME', ?, 0, '', '', 'system', 'Cadeau de bienvenue (+50 pts)', ?)
+                        VALUES (?, ?, 'WELCOME', ?, 0, '', '', 'system', 'Cadeau de bienvenue (+20 pts)', ?)
                     `).bind(txId, phone, welcomeBonus, now);
 
                     await db.batch([insertMember, insertTx]);
@@ -645,7 +645,7 @@ export async function onRequest(context) {
             if (sub === "settings") {
                 if (request.method === "GET") {
                     const row = await db.prepare("SELECT value FROM system_config WHERE key = 'loyalty_config'").first();
-                    let settings = { rewardThreshold: 500, welcomeBonus: 50, pointsPerDH: 1 };
+                    let settings = { rewardThreshold: 500, welcomeBonus: 20, pointsPerDH: 1 };
                     if (row && row.value) {
                         try { settings = JSON.parse(row.value); } catch(e) {}
                     }
