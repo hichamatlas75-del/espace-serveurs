@@ -579,13 +579,13 @@
                         const idx = _cachedMembers.findIndex(m => m.phone === phone);
                         if (idx >= 0) _cachedMembers[idx] = res.member; else _cachedMembers.push(res.member);
                         setLocalCollection("loyalty_members", _cachedMembers);
-                        if (callback) callback(res.member);
+                        if (callback) callback(res.member, res.lockInfo);
                     } else {
-                        if (callback) callback(checkLocal());
+                        if (callback) callback(checkLocal(), null);
                     }
                 })
                 .catch(() => {
-                    if (callback) callback(checkLocal());
+                    if (callback) callback(checkLocal(), null);
                 });
         },
 
@@ -631,7 +631,7 @@
                                 localStorage.setItem("gc_loyalty_pts", String(res.member.points || 20));
                             } catch(e) {}
                         }
-                        if (callback) callback(true, res.member, res.isNew !== false);
+                        if (callback) callback(true, res.member, res.isNew !== false, res.lockInfo);
                     } else {
                         if (callback) callback(false, null, false);
                     }
@@ -641,10 +641,14 @@
                 });
         },
 
-        creditLoyaltyPoints(rawPhone, amountDH, tableNumber, validatedBy, orderId, callback) {
+        creditLoyaltyPoints(rawPhone, amountDH, tableNumber, validatedBy, orderId, forceAdmin, callback) {
             if (typeof orderId === "function") {
                 callback = orderId;
                 orderId = null;
+                forceAdmin = false;
+            } else if (typeof forceAdmin === "function") {
+                callback = forceAdmin;
+                forceAdmin = false;
             }
             const phone = normalizePhone(rawPhone);
             if (!phone) { if (callback) callback(false, "Numéro invalide"); return; }
@@ -655,7 +659,8 @@
                 amountDH: amount,
                 tableNumber: tableNumber ? String(tableNumber) : "",
                 orderId: orderId || "",
-                validatedBy: validatedBy || "waiter"
+                validatedBy: validatedBy || "waiter",
+                forceAdmin: forceAdmin === true
             }).then(res => {
                 if (res && res.success) {
                     const newTotal = res.newTotal;
@@ -669,7 +674,8 @@
                     syncMembersNow();
                     if (callback) callback(true, pointsAdded, newTotal, res.member);
                 } else {
-                    if (callback) callback(false, res ? res.error : "Erreur de crédit");
+                    const errMsg = res ? (res.message || res.error) : "Erreur de crédit";
+                    if (callback) callback(false, errMsg, null, res);
                 }
             }).catch(err => {
                 if (callback) callback(false, err.message || String(err));

@@ -1497,9 +1497,9 @@ function initDirectLoyaltyModule() {
             const cleanPhone = window.normalizePhone ? window.normalizePhone(query) : query.replace(/\D/g, "");
 
             if (cleanPhone.length >= 8) {
-                dbService.getLoyaltyMember(cleanPhone, (member) => {
+                dbService.getLoyaltyMember(cleanPhone, (member, lockInfo) => {
                     if (member) {
-                        renderMember(member, contentArea, suffix);
+                        renderMember(member, contentArea, suffix, lockInfo);
                     } else {
                         renderCreate(cleanPhone, contentArea, suffix);
                     }
@@ -1508,7 +1508,9 @@ function initDirectLoyaltyModule() {
                 dbService.onAllLoyaltyMembersChange((allMembers) => {
                     const match = (allMembers || []).find(m => m.phone.endsWith(query) || (m.firstName && m.firstName.toLowerCase().includes(query.toLowerCase())));
                     if (match) {
-                        renderMember(match, contentArea, suffix);
+                        dbService.getLoyaltyMember(match.phone, (fullMbr, lockInfo) => {
+                            renderMember(fullMbr || match, contentArea, suffix, lockInfo);
+                        });
                     } else {
                         renderCreate(query, contentArea, suffix);
                     }
@@ -1522,11 +1524,13 @@ function initDirectLoyaltyModule() {
         });
     }
 
-    function renderMember(member, contentArea, suffix) {
+    function renderMember(member, contentArea, suffix, lockInfo) {
         const pts = member.points || 0;
         const target = 500;
         const pct = Math.min(100, Math.round((pts / target) * 100));
         const canRedeem = pts >= target;
+        const isLocked2h = lockInfo && lockInfo.isLocked;
+        const remainMin = lockInfo ? lockInfo.remainingMinutes : 0;
 
         contentArea.innerHTML = `
             <div class="waiter-member-card">
@@ -1560,14 +1564,25 @@ function initDirectLoyaltyModule() {
                     </div>
                 ` : ""}
 
+                ${isLocked2h ? `
+                    <div class="waiter-lock-banner" style="background:rgba(231,76,60,0.15); border:1px solid #e74c3c; border-radius:10px; padding:10px 12px; margin-top:14px; display:flex; align-items:center; gap:8px;">
+                        <span style="font-size:1.3rem;">🔒</span>
+                        <div style="font-size:0.82rem; color:#ff7675; line-height:1.3;">
+                            <strong>Délai anti-fraude actif (Moins de 2h) :</strong><br>
+                            Ce numéro a déjà été crédité${lockInfo.tableNumber ? ' (Table ' + lockInfo.tableNumber + ')' : ''}.<br>
+                            Nouveau crédit autorisé dans <strong>${remainMin} minute(s)</strong>.
+                        </div>
+                    </div>
+                ` : ""}
+
                 <div class="direct-credit-section">
                     <div class="direct-credit-title">⚡ Encaissement Direct (Valider des points)</div>
                     <div class="direct-credit-inputs">
                         <input type="number" id="creditAmount_${suffix}" class="waiter-num-input" placeholder="Montant addition (DH)" min="1" step="1" />
-                        <input type="text" id="creditTable_${suffix}" class="waiter-num-input" placeholder="Table (optionnel)" style="max-width:120px;" />
+                        <input type="text" id="creditTable_${suffix}" class="waiter-num-input" placeholder="Table (obligatoire si >100 pts)" style="max-width:140px;" />
                     </div>
-                    <button type="button" class="btn-credit-now" id="btnCredit_${suffix}">
-                        ✅ Valider les points (1 DH = 1 pt)
+                    <button type="button" class="btn-credit-now" id="btnCredit_${suffix}" ${isLocked2h ? 'disabled style="background:#475569; opacity:0.65; cursor:not-allowed;"' : ""}>
+                        ${isLocked2h ? `🔒 Crédit bloqué (Reste ${remainMin} min)` : "✅ Valider les points (1 DH = 1 pt)"}
                     </button>
                 </div>
             </div>
@@ -1604,6 +1619,10 @@ function initDirectLoyaltyModule() {
 
         if (btnCreditNow && inputAmount) {
             btnCreditNow.addEventListener("click", () => {
+                if (isLocked2h) {
+                    alert(`⛔ BLOCAGE ANTIFRAUDE :\n\nCe numéro a déjà reçu des points il y a moins de 2 heures.\n\nNouveau crédit autorisé dans ${remainMin} minute(s).`);
+                    return;
+                }
                 const amount = parseFloat(inputAmount.value) || 0;
                 if (amount <= 0) {
                     alert("Veuillez saisir un montant d'addition valide.");
