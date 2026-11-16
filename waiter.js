@@ -546,6 +546,64 @@ function playAlertSound() {
     });
 }
 
+function stopAlertRinging(id) {
+    // 1. Stopper audio HTML5
+    try {
+        if (alertChime) {
+            alertChime.pause();
+            alertChime.currentTime = 0;
+        }
+    } catch(e) {}
+
+    // 2. Annulation vibration
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try { navigator.vibrate(0); } catch(e) {}
+    }
+
+    // 3. Passerelle Android Native
+    const ai = (typeof AndroidInterface !== "undefined")
+        ? AndroidInterface
+        : ((typeof window !== "undefined" && window.AndroidInterface) ? window.AndroidInterface : null);
+
+    if (ai) {
+        try {
+            if (id && typeof ai.cancelAlert === "function") {
+                ai.cancelAlert(id);
+            }
+            if (typeof ai.cancelAlert === "function") {
+                ai.cancelAlert("pending_reminder");
+            }
+            if (typeof ai.cancelAllAlerts === "function") {
+                ai.cancelAllAlerts();
+            }
+            if (typeof ai.stopRingtone === "function") {
+                ai.stopRingtone();
+            }
+            if (typeof ai.stopAlert === "function") {
+                ai.stopAlert();
+            }
+            if (typeof ai.stopSound === "function") {
+                ai.stopSound();
+            }
+        } catch(e) {
+            console.warn("⚠️ stopAlertRinging bridge warning:", e);
+        }
+    }
+
+    // 4. Fermeture des notifications Web
+    if (typeof Notification !== "undefined" && typeof navigator !== "undefined" && navigator.serviceWorker) {
+        navigator.serviceWorker.ready.then(reg => {
+            reg.getNotifications().then(notifications => {
+                notifications.forEach(n => {
+                    if (!id || n.tag === id || id === "all" || n.tag === "pending_reminder") {
+                        n.close();
+                    }
+                });
+            }).catch(() => {});
+        }).catch(() => {});
+    }
+}
+
 // ============================================================================
 // SCREEN WAKE LOCK API (Maintien de l'écran allumé)
 // ============================================================================
@@ -778,7 +836,10 @@ function processCallsFeed(calls) {
     let newPendingDetected = false;
 
     calls.forEach(call => {
-        if (call.status === "completed" || call.status === "ignored") return;
+        if (call.status === "completed" || call.status === "ignored") {
+            stopAlertRinging(call.id);
+            return;
+        }
 
         const isAccepted = call.status === "accepted";
         const isAcceptedByMe = isAccepted && call.assignedTo === activeWaiterId;
@@ -803,8 +864,7 @@ function processCallsFeed(calls) {
         } else {
             knownCallIds.add(call.id);
             if (isAcceptedByMe) myActiveCallsCount++;
-            const ai = (typeof AndroidInterface !== "undefined") ? AndroidInterface : (typeof window !== "undefined" ? window.AndroidInterface : null);
-            if (ai && typeof ai.cancelAlert === "function") ai.cancelAlert(call.id);
+            stopAlertRinging(call.id);
         }
 
         const card = document.createElement("div");
@@ -853,15 +913,13 @@ function processCallsFeed(calls) {
         if (btnAccept) {
             btnAccept.addEventListener("click", () => {
                 dbService.updateCallStatus(call.id, "accepted", activeWaiterId);
-                const ai = (typeof AndroidInterface !== "undefined") ? AndroidInterface : (typeof window !== "undefined" ? window.AndroidInterface : null);
-                if (ai && typeof ai.cancelAlert === "function") ai.cancelAlert(call.id);
+                stopAlertRinging(call.id);
             });
         }
         if (btnComplete) {
             btnComplete.addEventListener("click", () => {
                 dbService.updateCallStatus(call.id, "completed");
-                const ai = (typeof AndroidInterface !== "undefined") ? AndroidInterface : (typeof window !== "undefined" ? window.AndroidInterface : null);
-                if (ai && typeof ai.cancelAlert === "function") ai.cancelAlert(call.id);
+                stopAlertRinging(call.id);
             });
         }
 
@@ -910,6 +968,8 @@ function processCallsFeed(calls) {
     if (newPendingDetected) {
         triggerHapticVibrate();
         playAlertSound();
+    } else if (myActiveCallsCount === 0) {
+        stopAlertRinging("calls");
     }
 
     isCallsInitialLoad = false;
@@ -929,7 +989,10 @@ function processPreOrdersFeed(orders) {
     let newOrderDetected = false;
 
     orders.forEach(order => {
-        if (order.status === "completed" || order.status === "cancelled") return;
+        if (order.status === "completed" || order.status === "cancelled") {
+            stopAlertRinging(order.id);
+            return;
+        }
 
         const isAccepted = order.status === "accepted";
         const isAcceptedByMe = isAccepted && order.assignedTo === activeWaiterId;
@@ -952,8 +1015,7 @@ function processPreOrdersFeed(orders) {
         } else {
             knownOrderIds.add(order.id);
             if (isAcceptedByMe) myActiveOrdersCount++;
-            const ai = (typeof AndroidInterface !== "undefined") ? AndroidInterface : (typeof window !== "undefined" ? window.AndroidInterface : null);
-            if (ai && typeof ai.cancelAlert === "function") ai.cancelAlert(order.id);
+            stopAlertRinging(order.id);
         }
 
         const card = document.createElement("div");
@@ -1044,8 +1106,7 @@ function processPreOrdersFeed(orders) {
         if (btnAccept) {
             btnAccept.addEventListener("click", () => {
                 dbService.updatePreOrderStatus(order.id, "accepted", activeWaiterId);
-                const ai = (typeof AndroidInterface !== "undefined") ? AndroidInterface : (typeof window !== "undefined" ? window.AndroidInterface : null);
-                if (ai && typeof ai.cancelAlert === "function") ai.cancelAlert(order.id);
+                stopAlertRinging(order.id);
             });
         }
         if (btnComplete) {
@@ -1058,13 +1119,13 @@ function processPreOrdersFeed(orders) {
                                 order.loyaltyCredited = true;
                             }
                             dbService.updatePreOrderStatus(order.id, "completed");
+                            stopAlertRinging(order.id);
                         });
                         return;
                     }
                 }
                 dbService.updatePreOrderStatus(order.id, "completed");
-                const ai = (typeof AndroidInterface !== "undefined") ? AndroidInterface : (typeof window !== "undefined" ? window.AndroidInterface : null);
-                if (ai && typeof ai.cancelAlert === "function") ai.cancelAlert(order.id);
+                stopAlertRinging(order.id);
             });
         }
 
@@ -1154,6 +1215,14 @@ function processPreOrdersFeed(orders) {
     if (newOrderDetected) {
         triggerHapticVibrate();
         playAlertSound();
+    } else if (myActiveOrdersCount === 0) {
+        stopAlertRinging("orders");
+    }
+
+    // Si plus aucun appel ni commande en attente sur l'ensemble de l'établissement
+    const hasAnyPending = (activeCallsList || []).some(c => c.status === "pending") || (activePreOrdersList || []).some(o => o.status === "pending");
+    if (!hasAnyPending) {
+        stopAlertRinging("all");
     }
 
     isOrdersInitialLoad = false;
@@ -1362,6 +1431,9 @@ function startPendingAlertWatchdog() {
                 const label = hasPendingOrders ? "Commande(s) récente(s) en attente !" : "Appel(s) en attente !";
                 ai.triggerActionAlert("pending_reminder", "reminder", "⚠️ Attention : En attente", label);
             }
+        } else {
+            // Plus aucun appel ni commande en attente : couper tout son et alerte
+            stopAlertRinging("pending_reminder");
         }
     }, 20000); // Répète toutes les 20 secondes
 }
@@ -1615,7 +1687,7 @@ function initDirectLoyaltyModule() {
 }
 
 // ── GESTION DE LA MISE À JOUR RAPIDE (PWA, Android WebView & Navigateurs) ────
-const CURRENT_APP_VERSION = "4.2.0";
+const CURRENT_APP_VERSION = "4.3.0";
 
 async function performHardAppUpdate() {
     console.log("🔄 Lancement de la mise à jour forcée de l'application serveur...");

@@ -286,32 +286,43 @@ async function syncMembersNow() {
     } catch(e) {}
 }
 
+let _syncTimeoutId = null;
+
+function scheduleNextSync() {
+    if (_syncTimeoutId) clearTimeout(_syncTimeoutId);
+    if (typeof window === "undefined") return;
+
+    const hasPending = (_cachedCalls || []).some(c => c.status === "pending") || (_cachedOrders || []).some(o => o.status === "pending");
+    // Si un appel ou commande est en attente, rafraîchir à 1200ms pour couper immédiatement la sonnerie dès validation par un collègue
+    const delay = hasPending ? 1200 : 2500;
+
+    _syncTimeoutId = setTimeout(async () => {
+        if (!document.hidden) {
+            await syncNow();
+            if (_allMembersListeners.size > 0) await syncMembersNow();
+        }
+        scheduleNextSync();
+    }, delay);
+}
+
 function startSyncLoop() {
     if (typeof window === "undefined") return;
-    if (_syncIntervalId) clearInterval(_syncIntervalId);
-
-    // Synchronisation immédiate au chargement
     syncNow();
-
-    // Boucle de polling toutes les 2.5 secondes si la page est visible
-    _syncIntervalId = setInterval(() => {
-        if (!document.hidden) {
-            syncNow();
-            if (_allMembersListeners.size > 0) syncMembersNow();
-        }
-    }, 2500);
+    scheduleNextSync();
 
     // Réveil immédiat dès que l'utilisateur déverrouille son téléphone ou revient sur l'onglet
     document.addEventListener("visibilitychange", () => {
         if (!document.hidden) {
             syncNow();
             syncMembersNow();
+            scheduleNextSync();
         }
     });
 
     window.addEventListener("online", () => {
         syncNow();
         syncMembersNow();
+        scheduleNextSync();
     });
 }
 

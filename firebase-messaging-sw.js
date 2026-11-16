@@ -94,6 +94,18 @@ if (messaging) {
     messaging.onBackgroundMessage((payload) => {
         console.log(`[${SW_VERSION}] onBackgroundMessage FCM reçu:`, payload);
 
+        // Si c'est une demande d'annulation d'alerte (un serveur a validé)
+        if (payload.data && (payload.data.type === "CANCEL_ALERT" || payload.data.type === "DISMISS")) {
+            const targetId = payload.data.docId || payload.data.callId || payload.data.orderId;
+            return self.registration.getNotifications().then((notifications) => {
+                notifications.forEach((n) => {
+                    if (!targetId || n.tag === targetId || targetId === "all" || n.tag === "pending_reminder") {
+                        n.close();
+                    }
+                });
+            });
+        }
+
         const title = (payload.notification && payload.notification.title)
             || (payload.data && payload.data.title)
             || "🔔 Grey Corner — Appel Serveur";
@@ -138,6 +150,20 @@ self.addEventListener("push", (event) => {
     if (payload.fcmOptions || payload.from) {
         // Géré par Firebase Messaging
         return;
+    }
+
+    // Si annulation d'alerte
+    if (payload.type === "CANCEL_ALERT" || payload.type === "DISMISS") {
+        const targetId = payload.docId || payload.callId || payload.orderId;
+        return event.waitUntil(
+            self.registration.getNotifications().then((notifications) => {
+                notifications.forEach((n) => {
+                    if (!targetId || n.tag === targetId || targetId === "all" || n.tag === "pending_reminder") {
+                        n.close();
+                    }
+                });
+            })
+        );
     }
 
     const title = payload.title || "🔔 Grey Corner — Serveur";

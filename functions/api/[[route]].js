@@ -335,9 +335,11 @@ export async function onRequest(context) {
                 if (status === "accepted") {
                     await db.prepare("UPDATE waiters_calls SET status = ?, assignedTo = ?, acceptedAt = ? WHERE id = ?")
                         .bind(status, waiterId, now, callId).run();
+                    dispatchFcmNotification(env, "CANCEL_ALERT", "Appel pris en charge", "Pris en charge", 0, callId);
                 } else if (status === "completed") {
                     await db.prepare("UPDATE waiters_calls SET status = ?, completedAt = ? WHERE id = ?")
                         .bind(status, now, callId).run();
+                    dispatchFcmNotification(env, "CANCEL_ALERT", "Appel terminé", "Terminé", 0, callId);
                 } else {
                     await db.prepare("UPDATE waiters_calls SET status = ? WHERE id = ?")
                         .bind(status, callId).run();
@@ -414,9 +416,11 @@ export async function onRequest(context) {
                     if (body.status === "accepted") {
                         await db.prepare("UPDATE pre_orders SET status = ?, assignedTo = ?, acceptedAt = ? WHERE id = ?")
                             .bind(body.status, body.waiterId || "", now, orderId).run();
+                        dispatchFcmNotification(env, "CANCEL_ALERT", "Commande validée", "Validée", 0, orderId);
                     } else if (body.status === "completed") {
                         await db.prepare("UPDATE pre_orders SET status = ?, completedAt = ? WHERE id = ?")
                             .bind(body.status, now, orderId).run();
+                        dispatchFcmNotification(env, "CANCEL_ALERT", "Commande servie", "Servie", 0, orderId);
                     } else {
                         await db.prepare("UPDATE pre_orders SET status = ? WHERE id = ?")
                             .bind(body.status, orderId).run();
