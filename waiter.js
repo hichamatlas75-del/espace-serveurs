@@ -1112,28 +1112,26 @@ function processPreOrdersFeed(orders) {
         if (btnComplete) {
             btnComplete.addEventListener("click", () => {
                 if (order.loyaltyPhone && !order.loyaltyCredited) {
-                    if (confirm(`Valider également les ${ptsToAdd} points de fidélité pour ${order.loyaltyName || order.loyaltyPhone} ?`)) {
-                        let tableForControl = String(order.table || "").trim();
-                        if (ptsToAdd > 100 && !tableForControl) {
-                            tableForControl = (prompt("⚠️ Montant supérieur à 100 DH (> 100 points) :\nLe NUMÉRO DE TABLE est obligatoire pour le contrôle de la direction :\n\nVeuillez saisir le numéro de table :", "") || "").trim();
-                            if (!tableForControl) {
-                                alert("❌ Validation annulée : Le numéro de table est obligatoire pour tout crédit > 100 pts.");
-                                return;
+                    let tableForControl = String(order.table || "").trim();
+                    dbService.creditLoyaltyPoints(order.loyaltyPhone, order.totalPrice, tableForControl || order.table, activeWaiterId, order.id, (ok, added, newTotal, resObj) => {
+                        if (ok) {
+                            playAlertSound();
+                            order.loyaltyCredited = true;
+                            if (resObj && resObj.pendingAdminApproval) {
+                                window.showGreyCornerNotice(
+                                    "⏳ POINTS EN ATTENTE DE VALIDATION ADMIN",
+                                    `✅ Commande Table ${order.table} terminée (${order.totalPrice} DH) !\n\n⚠️ Montant supérieur à 100 DH :\nLes ${ptsToAdd} points ont été transmis à la direction et seront crédités au client après validation administrateur.`,
+                                    "warning"
+                                );
                             }
+                        } else {
+                            const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors du crédit des points.";
+                            window.showGreyCornerNotice("⛔ CRÉDIT REFUSÉ (Moins de 2h)", msg, "error");
                         }
-                        dbService.creditLoyaltyPoints(order.loyaltyPhone, order.totalPrice, tableForControl || order.table, activeWaiterId, order.id, (ok, added, newTotal, resObj) => {
-                            if (ok) {
-                                playAlertSound();
-                                order.loyaltyCredited = true;
-                            } else {
-                                const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors du crédit des points.";
-                                alert(msg);
-                            }
-                            dbService.updatePreOrderStatus(order.id, "completed");
-                            stopAlertRinging(order.id);
-                        });
-                        return;
-                    }
+                        dbService.updatePreOrderStatus(order.id, "completed");
+                        stopAlertRinging(order.id);
+                    });
+                    return;
                 }
                 dbService.updatePreOrderStatus(order.id, "completed");
                 stopAlertRinging(order.id);
@@ -1149,20 +1147,32 @@ function processPreOrdersFeed(orders) {
                 btnCreditLoyalty.textContent = "Validation...";
 
                 dbService.creditLoyaltyPoints(phone, amount, order.table, activeWaiterId, order.id, (ok, added, newTotal, resObj) => {
+                    btnCreditLoyalty.disabled = false;
+                    btnCreditLoyalty.textContent = "✅ Valider Points";
                     if (ok) {
                         playAlertSound();
                         triggerHapticVibrate();
                         order.loyaltyCredited = true;
                         const container = document.getElementById(`loyaltyPointsBadge_${order.id}`);
                         if (container) {
-                            container.innerHTML = `<span style="color:#2ecc71; font-weight:700; font-size:0.84rem;">✓ Points validés (+${added} pts)</span>`;
+                            container.innerHTML = `<span style="color:#2ecc71; font-weight:700; font-size:0.84rem;">✓ Points enregistrés (+${added} pts)</span>`;
                         }
-                        alert(`👑 ${added} points validés pour ${phone} !\nNouveau solde : ${newTotal} / 500 pts`);
+                        if (resObj && resObj.pendingAdminApproval) {
+                            window.showGreyCornerNotice(
+                                "⏳ POINTS EN ATTENTE DE VALIDATION ADMIN",
+                                `✅ Commande Table ${order.table} (${amount} DH) :\n\n⚠️ Montant supérieur à 100 DH :\nLes ${added} points ont été transmis à la direction et seront crédités au client après validation administrateur.`,
+                                "warning"
+                            );
+                        } else {
+                            window.showGreyCornerNotice(
+                                "👑 POINTS VALIDÉS",
+                                `${added} points validés pour ${phone} !\nNouveau solde : ${newTotal} / 500 pts`,
+                                "success"
+                            );
+                        }
                     } else {
                         const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors du crédit des points fidélité.";
-                        alert(msg);
-                        btnCreditLoyalty.disabled = false;
-                        btnCreditLoyalty.textContent = "Réessayer";
+                        window.showGreyCornerNotice("⛔ CRÉDIT REFUSÉ", msg, "error");
                     }
                 });
             });
@@ -1175,13 +1185,15 @@ function processPreOrdersFeed(orders) {
                 if (!phoneRaw) return;
                 const cleanPh = window.normalizePhone ? window.normalizePhone(phoneRaw) : phoneRaw.replace(/\D/g, "");
                 if (cleanPh.length < 8) {
-                    alert("Numéro de téléphone invalide.");
+                    window.showGreyCornerNotice("Numéro invalide", "Veuillez saisir un numéro de téléphone valide.", "warning");
                     return;
                 }
                 btnAssignLoyalty.disabled = true;
                 btnAssignLoyalty.textContent = "Validation...";
                 dbService.createOrGetLoyaltyMember(cleanPh, "Client Table " + order.table, "waiter_direct", (okGet, member) => {
                     dbService.creditLoyaltyPoints(cleanPh, order.totalPrice, order.table, activeWaiterId, order.id, (okCredit, added, newTotal, resObj) => {
+                        btnAssignLoyalty.disabled = false;
+                        btnAssignLoyalty.textContent = "➕ Valider Points";
                         if (okCredit) {
                             playAlertSound();
                             triggerHapticVibrate();
@@ -1189,14 +1201,24 @@ function processPreOrdersFeed(orders) {
                             order.loyaltyCredited = true;
                             const container = document.getElementById(`loyaltyPointsBadge_${order.id}`);
                             if (container) {
-                                container.innerHTML = `<span style="color:#2ecc71; font-weight:700; font-size:0.84rem;">✓ Points validés (+${added} pts)</span>`;
+                                container.innerHTML = `<span style="color:#2ecc71; font-weight:700; font-size:0.84rem;">✓ Points enregistrés (+${added} pts)</span>`;
                             }
-                            alert(`👑 +${added} points validés pour ${cleanPh} !\nNouveau solde : ${newTotal} / 500 pts`);
+                            if (resObj && resObj.pendingAdminApproval) {
+                                window.showGreyCornerNotice(
+                                    "⏳ POINTS EN ATTENTE DE VALIDATION ADMIN",
+                                    `✅ Commande Table ${order.table} (${order.totalPrice} DH) :\n\n⚠️ Montant supérieur à 100 DH :\nLes ${added} points ont été transmis à la direction et seront crédités après validation administrateur.`,
+                                    "warning"
+                                );
+                            } else {
+                                window.showGreyCornerNotice(
+                                    "👑 POINTS VALIDÉS",
+                                    `+${added} points validés pour ${cleanPh} !\nNouveau solde : ${newTotal} / 500 pts`,
+                                    "success"
+                                );
+                            }
                         } else {
                             const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors de la validation des points.";
-                            alert(msg);
-                            btnAssignLoyalty.disabled = false;
-                            btnAssignLoyalty.textContent = "Réessayer";
+                            window.showGreyCornerNotice("⛔ CRÉDIT REFUSÉ", msg, "error");
                         }
                     });
                 });
@@ -1586,7 +1608,7 @@ function initDirectLoyaltyModule() {
                         <input type="number" id="creditAmount_${suffix}" class="waiter-num-input" placeholder="Montant addition (DH)" min="1" step="1" />
                         <input type="text" id="creditTable_${suffix}" class="waiter-num-input" placeholder="Table (obligatoire si >100 pts)" style="max-width:140px;" />
                     </div>
-                    <button type="button" class="btn-credit-now" id="btnCredit_${suffix}" ${isLocked2h ? 'disabled style="background:#475569; opacity:0.65; cursor:not-allowed;"' : ""}>
+                    <button type="button" class="btn-credit-now" id="btnCredit_${suffix}" ${isLocked2h ? 'style="background:#475569; opacity:0.85; cursor:pointer;"' : ""}>
                         ${isLocked2h ? `🔒 Crédit bloqué (Reste ${remainMin} min)` : "✅ Valider les points (1 DH = 1 pt)"}
                     </button>
                 </div>
@@ -1604,11 +1626,15 @@ function initDirectLoyaltyModule() {
                             if (ok) {
                                 playAlertSound();
                                 triggerHapticVibrate();
-                                alert(`🎉 Consommation offerte accordée avec succès !\nNouveau solde : ${newTotal} pts`);
+                                window.showGreyCornerNotice(
+                                    "🎉 CONSOMMATION OFFERTE",
+                                    `Consommation offerte accordée avec succès à ${member.firstName || 'Client'} !\nNouveau solde : ${newTotal} pts.`,
+                                    "success"
+                                );
                                 member.points = newTotal;
                                 renderMember(member, contentArea, suffix);
                             } else {
-                                alert("❌ Solde insuffisant ou erreur.");
+                                window.showGreyCornerNotice("❌ Solde insuffisant", "Solde insuffisant pour offrir une consommation (500 pts requis).", "error");
                                 btnRedeem.disabled = false;
                                 btnRedeem.textContent = "🎁 OFFRIR LA CONSOMMATION (-500 pts)";
                             }
@@ -1625,48 +1651,48 @@ function initDirectLoyaltyModule() {
         if (btnCreditNow && inputAmount) {
             btnCreditNow.addEventListener("click", () => {
                 if (isLocked2h) {
-                    alert(`⛔ BLOCAGE ANTIFRAUDE :\n\nCe numéro a déjà reçu des points il y a moins de 2 heures.\n\nNouveau crédit autorisé dans ${remainMin} minute(s).`);
+                    window.showGreyCornerNotice(
+                        "⛔ BLOCAGE ANTIFRAUDE (Moins de 2h)",
+                        `Ce numéro a déjà été crédité il y a moins de 2 heures${lockInfo && lockInfo.tableNumber ? ' (Table ' + lockInfo.tableNumber + ')' : ''}.\n\nNouveau crédit autorisé dans ${remainMin} minute(s).`,
+                        "error"
+                    );
                     return;
                 }
                 const amount = parseFloat(inputAmount.value) || 0;
                 if (amount <= 0) {
-                    alert("Veuillez saisir un montant d'addition valide.");
+                    window.showGreyCornerNotice("Montant invalide", "Veuillez saisir un montant d'addition valide en DH.", "warning");
                     return;
                 }
                 const tableNum = (inputTable ? inputTable.value : "").trim();
-
-                // 🚨 RÈGLE DE SÉCURITÉ & CONTRÔLE DIRECTION :
-                // Pour tout crédit supérieur à 100 points, le NUMÉRO DE TABLE est OBLIGATOIRE !
-                if (amount > 100 && !tableNum) {
-                    alert("⚠️ CONTRÔLE DIRECTION OBLIGATOIRE :\n\nPour tout montant supérieur à 100 DH (> 100 points), le NUMÉRO DE TABLE est OBLIGATOIRE afin de permettre un contrôle par l'administrateur.\n\nVeuillez renseigner le champ Table.");
-                    if (inputTable) {
-                        inputTable.focus();
-                        inputTable.style.border = "2px solid #e74c3c";
-                        inputTable.scrollIntoView({ behavior: "smooth", block: "center" });
-                    }
-                    return;
-                }
-
-                if (amount > 100) {
-                    const confirmHigh = confirm(`⚠️ ATTENTION — CRÉDIT IMPORTANT (${amount} POINTS) :\n\nVous êtes sur le point d'attribuer ${amount} points au client pour la TABLE ${tableNum}.\n\nUn avertissement de contrôle sera transmis à l'administrateur.\n\nConfirmez-vous ce montant de ${amount} DH ?`);
-                    if (!confirmHigh) return;
-                }
 
                 btnCreditNow.disabled = true;
                 btnCreditNow.textContent = "Validation en cours...";
 
                 dbService.creditLoyaltyPoints(member.phone, amount, tableNum, activeWaiterId, null, (ok, added, newTotal, resObj) => {
+                    btnCreditNow.disabled = false;
+                    btnCreditNow.textContent = "✅ Valider les points (1 DH = 1 pt)";
+
                     if (ok) {
                         playAlertSound();
                         triggerHapticVibrate();
-                        alert(`✅ Addition de ${amount} DH encaissée !\n\n+${added} points crédités à ${member.firstName || "Client"} (Table ${tableNum || 'N/A'}).\nNouveau solde : ${newTotal} / 500 pts`);
+                        if (resObj && resObj.pendingAdminApproval) {
+                            window.showGreyCornerNotice(
+                                "⏳ POINTS EN ATTENTE DE VALIDATION ADMIN",
+                                `✅ Addition de ${amount} DH enregistrée pour la Table ${tableNum || 'N/A'} !\n\n⚠️ Montant supérieur à 100 DH :\nLes ${added} points ont été transmis à l'administrateur et seront crédités sur le compte client après validation de la direction.`,
+                                "warning"
+                            );
+                        } else {
+                            window.showGreyCornerNotice(
+                                "✅ POINTS VALIDÉS",
+                                `Addition de ${amount} DH encaissée !\n\n+${added} points crédités à ${member.firstName || "Client"} (Table ${tableNum || 'N/A'}).\nNouveau solde : ${newTotal} / 500 pts`,
+                                "success"
+                            );
+                        }
                         member.points = newTotal;
                         renderMember(member, contentArea, suffix);
                     } else {
                         const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors de l'attribution des points.";
-                        alert(msg);
-                        btnCreditNow.disabled = false;
-                        btnCreditNow.textContent = "✅ Valider les points (1 DH = 1 pt)";
+                        window.showGreyCornerNotice("⛔ CRÉDIT REFUSÉ", msg, "error");
                     }
                 });
             });

@@ -786,6 +786,16 @@
                 });
         },
 
+        rejectLoyaltyAlert(txId, callback) {
+            apiFetch("/loyalty/alerts", "POST", { txId, action: "reject" })
+                .then(res => {
+                    if (callback) callback(res && res.success);
+                })
+                .catch(() => {
+                    if (callback) callback(false);
+                });
+        },
+
         onLoyaltySettingsChange(callback) {
             if (callback) {
                 _loyaltyConfigListeners.add(callback);
@@ -823,6 +833,91 @@
 
     startSyncLoop();
 
+    // ── SYSTÈME DE MODAL VISUEL GREY CORNER (100% IMMUNISÉ CONTRE LES BLOCAGES ALERT DU NAVIGATEUR) ──
+    function showGreyCornerNotice(title, message, type = "info", onConfirm = null) {
+        if (typeof document === "undefined") return;
+        const existing = document.getElementById("gcNoticeModal");
+        if (existing) existing.remove();
+
+        const icons = {
+            error: "⛔",
+            warning: "⚠️",
+            success: "✅",
+            info: "ℹ️"
+        };
+        const icon = icons[type] || "ℹ️";
+        const accentColor = type === "error" ? "#e74c3c" : (type === "warning" ? "#e67e22" : (type === "success" ? "#2ecc71" : "#c9a96e"));
+
+        const modal = document.createElement("div");
+        modal.id = "gcNoticeModal";
+        modal.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 9999999; padding: 16px;
+            box-sizing: border-box;
+        `;
+
+        const card = document.createElement("div");
+        card.style.cssText = `
+            background: #111622;
+            border: 2px solid ${accentColor};
+            box-shadow: 0 16px 48px rgba(0,0,0,0.85), 0 0 28px ${type === "error" ? "rgba(231,76,60,0.35)" : "rgba(201,169,110,0.3)"};
+            border-radius: 18px;
+            max-width: 440px; width: 100%;
+            padding: 24px 20px;
+            color: #fff;
+            text-align: center;
+            box-sizing: border-box;
+        `;
+
+        const formattedMsg = String(message || "")
+            .replace(/\n\n/g, '<br><br>')
+            .replace(/\n/g, '<br>');
+
+        card.innerHTML = `
+            <div style="font-size: 2.8rem; line-height: 1; margin-bottom: 12px;">${icon}</div>
+            <div style="font-size: 1.15rem; font-weight: 800; color: ${accentColor}; margin-bottom: 14px; line-height: 1.35; letter-spacing: -0.2px;">
+                ${title}
+            </div>
+            <div style="font-size: 0.92rem; color: #cbd5e1; line-height: 1.55; margin-bottom: 22px; text-align: left; background: rgba(255,255,255,0.04); padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); word-break: break-word;">
+                ${formattedMsg}
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                ${onConfirm ? `
+                    <button type="button" id="gcNoticeCancel" style="flex:1; padding:12px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:10px; font-weight:700; cursor:pointer; font-size:0.9rem;">
+                        ❌ Annuler
+                    </button>
+                    <button type="button" id="gcNoticeConfirm" style="flex:1.4; padding:12px; background:linear-gradient(135deg, #e67e22, #d35400); border:none; color:#fff; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.9rem; box-shadow:0 4px 15px rgba(230,126,34,0.4);">
+                        ⚡ Confirmer / Forcer
+                    </button>
+                ` : `
+                    <button type="button" id="gcNoticeClose" style="width:100%; padding:13px; background:linear-gradient(135deg, #c9a96e, #9b7e43); border:none; color:#121722; border-radius:10px; font-weight:800; cursor:pointer; font-size:0.95rem; box-shadow:0 4px 15px rgba(201,169,110,0.4);">
+                        J'ai compris / Fermer
+                    </button>
+                `}
+            </div>
+        `;
+
+        modal.appendChild(card);
+        document.body.appendChild(modal);
+
+        if (onConfirm) {
+            card.querySelector("#gcNoticeCancel").addEventListener("click", () => modal.remove());
+            card.querySelector("#gcNoticeConfirm").addEventListener("click", () => {
+                modal.remove();
+                try { onConfirm(); } catch(e) { console.error(e); }
+            });
+        } else {
+            card.querySelector("#gcNoticeClose").addEventListener("click", () => modal.remove());
+        }
+
+        modal.addEventListener("click", (e) => {
+            if (e.target === modal && !onConfirm) modal.remove();
+        });
+    }
+
     // Exportation globale
     window.firebaseConfig = firebaseConfig;
     window.isFirebaseActive = isFirebaseActive;
@@ -832,5 +927,7 @@
     window.getTableZoneName = getTableZoneName;
     window.normalizePhone = normalizePhone;
     window.sendFcmToWaiters = sendFcmToWaiters;
+    window.showGreyCornerNotice = showGreyCornerNotice;
+    window.showNoticeModal = showGreyCornerNotice;
 
 })(typeof window !== "undefined" ? window : globalThis);

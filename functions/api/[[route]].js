@@ -606,7 +606,7 @@ export async function onRequest(context) {
                         const tableInfo = lastEarn.tableNumber ? ` (Table ${lastEarn.tableNumber})` : "";
                         const byInfo = lastEarn.validatedBy ? ` par ${lastEarn.validatedBy}` : "";
 
-                        // Serveurs (et QR clients) : BLOCAGE STRICT INFRANCHISSABLE (HTTP 429)
+                        // Serveurs (et QR clients) : BLOCAGE STRICT INFRANCHISSABLE
                         if (validatedBy !== "admin") {
                             return jsonResponse({
                                 success: false,
@@ -614,10 +614,10 @@ export async function onRequest(context) {
                                 remainingMinutes: remainingMin,
                                 error: `⛔ BLOCAGE ANTIFRAUDE (Moins de 2h) :\nCe numéro a déjà été crédité il y a moins de 2 heures${tableInfo}${byInfo}.\nNouveau crédit autorisé dans ${remainingMin} minute(s).`,
                                 message: `⛔ BLOCAGE ANTIFRAUDE (Moins de 2h) :\nCe numéro a déjà été crédité il y a moins de 2 heures${tableInfo}${byInfo}.\nNouveau crédit autorisé dans ${remainingMin} minute(s).`
-                            }, 429);
+                            }, 200);
                         }
 
-                        // Admin : avertissement bloquant avec possibilité de forcer via forceAdmin: true (HTTP 409)
+                        // Admin : avertissement bloquant avec possibilité de forcer via forceAdmin: true
                         if (validatedBy === "admin" && !body.forceAdmin) {
                             return jsonResponse({
                                 success: false,
@@ -626,15 +626,9 @@ export async function onRequest(context) {
                                 remainingMinutes: remainingMin,
                                 error: `⚠️ DÉLAI ANTIFRAUDE (Moins de 2h) :\nCe numéro a déjà reçu des points il y a moins de 2 heures${tableInfo}${byInfo} (${remainingMin} min restantes).`,
                                 message: `⚠️ DÉLAI ANTIFRAUDE (Moins de 2h) :\nCe numéro a déjà reçu des points il y a moins de 2 heures${tableInfo}${byInfo} (${remainingMin} min restantes).\n\nConfirmez pour forcer l'attribution exceptionnelle.`
-                            }, 409);
+                            }, 200);
                         }
                     }
-                }
-
-                // 🚨 2. RÈGLE DE SÉCURITÉ & CONTRÔLE DIRECTION :
-                // Si un serveur saisit un montant supérieur à 100 (> 100 pts), le NUMÉRO DE TABLE est OBLIGATOIRE !
-                if (pointsToAdd > 100 && validatedBy !== "admin" && !tableNumber) {
-                    return errorResponse("⚠️ RÈGLE DE CONTRÔLE DIRECTION : Pour toute attribution supérieure à 100 points, le NUMÉRO DE TABLE est obligatoire pour permettre un audit ultérieur.", 400);
                 }
 
                 // S'assurer que le membre existe
@@ -642,24 +636,49 @@ export async function onRequest(context) {
                 if (!member) {
                     await db.prepare(`
                         INSERT INTO loyalty_members (phone, firstName, points, totalEarned, rewardsClaimed, source, createdAt, updatedAt)
-                        VALUES (?, 'Client', ?, ?, 0, 'waiter_direct', ?, ?)
-                    `).bind(phone, pointsToAdd, pointsToAdd, now, now).run();
-                    member = { phone, firstName: "Client", points: pointsToAdd, totalEarned: pointsToAdd };
-                } else {
-                    await db.prepare(`
-                        UPDATE loyalty_members
-                        SET points = points + ?, totalEarned = totalEarned + ?, updatedAt = ?
-                        WHERE phone = ?
-                    `).bind(pointsToAdd, pointsToAdd, now, phone).run();
-                    member.points += pointsToAdd;
-                    member.totalEarned += pointsToAdd;
+                        VALUES (?, 'Client', 0, 0, 0, 'waiter_direct', ?, ?)
+                    `).bind(phone, now, now).run();
+                    member = { phone, firstName: "Client", points: 0, totalEarned: 0 };
                 }
 
-                // Note avec flag explicite pour contrôle admin si > 100 pts ou si forçage admin
-                let noteText = body.note ? String(body.note) : `Encaissement ${amountDH} DH (+${pointsToAdd} pts)`;
-                if (pointsToAdd > 100 && validatedBy !== "admin") {
-                    noteText = `⚠️ [CONTRÔLE >100 PTS] ${noteText} — Table ${tableNumber}`;
+                // 🚨 2. RÈGLE DE SÉCURITÉ DIRECTION : MONTANT > 100 DH (> 100 PTS) PAR UN SERVEUR
+                // LE MONTANT PASSE TOUJOURS (encaissement validé), mais les points sont mis en attente de validation par l'administrateur !
+                const isPendingAdmin = pointsToAdd > 100 && validatedBy !== "admin";
+
+                if (isPendingAdmin) {
+                    const noteText = `⏳ [EN ATTENTE VALIDATION ADMIN >100 PTS] Encaissement ${amountDH} DH (+${pointsToAdd} pts) — Table ${tableNumber || 'Non renseignée'}`;
+                    const txId = generateId("tx");
+                    await db.prepare(`
+                        INSERT INTO loyalty_transactions (id, phone, type, pointsDelta, amountDH, tableNumber, orderId, validatedBy, note, createdAt)
+                        VALUES (?, ?, 'EARN', ?, ?, ?, ?, ?, ?, ?)
+                    `).bind(txId, phone, pointsToAdd, amountDH, tableNumber, orderId, validatedBy, noteText, now).run();
+
+                    // Si lié à une commande, marquer comme crédité pour clore la commande
+                    if (orderId) {
+                        await db.prepare("UPDATE pre_orders SET loyaltyCredited = 1 WHERE id = ?").bind(orderId).run();
+                    }
+
+                    return jsonResponse({
+                        success: true,
+                        pendingAdminApproval: true,
+                        pointsAdded: pointsToAdd,
+                        newTotal: member.points,
+                        member,
+                        message: `✅ Encaissement de ${amountDH} DH validé pour la Table ${tableNumber || 'N/A'} !\n\n⚠️ Montant supérieur à 100 DH :\nLes ${pointsToAdd} points sont en attente de validation par la direction et seront crédités sur le compte client après validation de l'administrateur.`
+                    }, 200);
                 }
+
+                // Si <= 100 pts OU si c'est l'administrateur : CRÉDIT IMMÉDIAT
+                await db.prepare(`
+                    UPDATE loyalty_members
+                    SET points = points + ?, totalEarned = totalEarned + ?, updatedAt = ?
+                    WHERE phone = ?
+                `).bind(pointsToAdd, pointsToAdd, now, phone).run();
+                member.points += pointsToAdd;
+                member.totalEarned += pointsToAdd;
+
+                // Note avec flag explicite pour contrôle admin si forçage admin
+                let noteText = body.note ? String(body.note) : `Encaissement ${amountDH} DH (+${pointsToAdd} pts)`;
                 if (body.forceAdmin) {
                     noteText = `⚠️ [FORÇAGE ADMIN <2H] ${noteText}`;
                 }
@@ -678,11 +697,12 @@ export async function onRequest(context) {
 
                 return jsonResponse({
                     success: true,
+                    pendingAdminApproval: false,
                     pointsAdded: pointsToAdd,
                     newTotal: member.points,
                     member,
-                    flaggedReview: pointsToAdd > 100 && validatedBy !== "admin"
-                });
+                    message: `✅ +${pointsToAdd} points validés pour ${member.firstName || 'Client'} !\nNouveau solde : ${member.points} / 500 pts.`
+                }, 200);
             }
 
             // C. Déblocage récompense (/api/loyalty/redeem) — Déduire 500 points
@@ -799,12 +819,32 @@ export async function onRequest(context) {
                     const txId = body.txId;
                     const action = body.action || "verify";
                     if (txId && action === "verify") {
+                        const tx = await db.prepare("SELECT * FROM loyalty_transactions WHERE id = ?").bind(txId).first();
+                        if (tx) {
+                            if (tx.note && tx.note.includes("[EN ATTENTE VALIDATION ADMIN")) {
+                                await db.prepare(`
+                                    UPDATE loyalty_members
+                                    SET points = points + ?, totalEarned = totalEarned + ?, updatedAt = ?
+                                    WHERE phone = ?
+                                `).bind(tx.pointsDelta, tx.pointsDelta, new Date().toISOString(), tx.phone).run();
+                            }
+                            await db.prepare(`
+                                UPDATE loyalty_transactions 
+                                SET validatedBy = validatedBy || ' [VÉRIFIÉ & CRÉDITÉ ADMIN]',
+                                    note = REPLACE(note, '[EN ATTENTE VALIDATION ADMIN >100 PTS]', '[VALIDÉ & CRÉDITÉ ADMIN]')
+                                WHERE id = ?
+                            `).bind(txId).run();
+                            return jsonResponse({ success: true, message: "Transaction validée et points crédités au client." });
+                        }
+                    }
+                    if (txId && action === "reject") {
                         await db.prepare(`
                             UPDATE loyalty_transactions 
-                            SET validatedBy = validatedBy || ' [VÉRIFIÉ ADMIN]' 
+                            SET validatedBy = validatedBy || ' [REJETÉ ADMIN]',
+                                note = REPLACE(note, '[EN ATTENTE VALIDATION ADMIN >100 PTS]', '[REJETÉ ADMIN]')
                             WHERE id = ?
                         `).bind(txId).run();
-                        return jsonResponse({ success: true, message: "Alerte marquée comme vérifiée." });
+                        return jsonResponse({ success: true, message: "Transaction rejetée sans attribution de points." });
                     }
                     return errorResponse("Action ou ID de transaction manquant.");
                 }
