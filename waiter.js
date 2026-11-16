@@ -1614,7 +1614,72 @@ function initDirectLoyaltyModule() {
     setupController(tabSearchInput, tabSearchBtn, tabContentArea, "tab");
 }
 
+// ── GESTION DE LA MISE À JOUR RAPIDE (PWA, Android WebView & Navigateurs) ────
+const CURRENT_APP_VERSION = "4.0.0";
+
+async function performHardAppUpdate() {
+    console.log("🔄 Lancement de la mise à jour forcée de l'application serveur...");
+    const btn = document.getElementById("btnForceAppUpdate");
+    const label = document.getElementById("updateAppLabel");
+    if (label) label.textContent = "Purge...";
+    if (btn) btn.disabled = true;
+
+    try {
+        if ("serviceWorker" in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (const r of registrations) {
+                try { await r.unregister(); } catch(e) {}
+            }
+        }
+        if ("caches" in window) {
+            const keys = await caches.keys();
+            for (const k of keys) {
+                try { await caches.delete(k); } catch(e) {}
+            }
+        }
+        try { localStorage.setItem("gc_waiter_app_version", CURRENT_APP_VERSION); } catch(e) {}
+        try { sessionStorage.clear(); } catch(e) {}
+    } catch(err) {
+        console.warn("Update purge warning:", err);
+    }
+
+    const targetUrl = new URL(window.location.href);
+    targetUrl.searchParams.set("v", "4.0");
+    targetUrl.searchParams.set("t", Date.now().toString());
+    window.location.replace(targetUrl.toString());
+}
+
+function initAppUpdateHandlers() {
+    const btnUpdate = document.getElementById("btnForceAppUpdate");
+    if (btnUpdate) {
+        btnUpdate.addEventListener("click", () => {
+            performHardAppUpdate();
+        });
+    }
+
+    const btnBanner = document.getElementById("btnApplyUpdateBanner");
+    if (btnBanner) {
+        btnBanner.addEventListener("click", () => {
+            performHardAppUpdate();
+        });
+    }
+
+    const stored = localStorage.getItem("gc_waiter_app_version");
+    if (stored !== CURRENT_APP_VERSION) {
+        const banner = document.getElementById("waiterUpdateBanner");
+        if (banner) banner.style.display = "flex";
+    }
+
+    if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+            console.log("🔄 Service Worker actualisé — rechargement automatique...");
+            window.location.reload();
+        });
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+    initAppUpdateHandlers();
     initTabNavigation();
     initDirectLoyaltyModule();
     requestScreenWakeLock();

@@ -18,7 +18,7 @@
     <meta name="theme-color" content="#FFFFFF">
     <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
-    <link rel="stylesheet" href="waiter.css?v=3.0">
+    <link rel="stylesheet" href="waiter.css?v=4.0">
 
     <style>
         /* ── Reset & Variables (THÈME CLAIR LUMINEUX & HAUTE LISIBILITÉ) ── */
@@ -257,6 +257,69 @@
         @keyframes pulse-gold {
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.85; transform: scale(1.02); }
+        }
+
+        /* ── Bouton Actualiser & Bannière de mise à jour ── */
+        .update-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: .68rem;
+            font-weight: 700;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, rgba(161, 116, 32, .12), rgba(184, 134, 11, .2));
+            border: 1px solid var(--gold);
+            color: var(--gold);
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(161, 116, 32, 0.15);
+            transition: all 0.2s ease;
+            font-family: var(--font-sans);
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .update-pill:hover, .update-pill:active {
+            background: var(--gold);
+            color: #FFFFFF;
+            transform: scale(0.98);
+        }
+
+        .update-icon {
+            font-size: 0.8rem;
+            display: inline-block;
+        }
+
+        .waiter-update-banner {
+            background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+            border-bottom: 2px solid #F59E0B;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 0.84rem;
+            color: #92400E;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+        }
+
+        .btn-banner-update {
+            background: linear-gradient(135deg, #D97706 0%, #B45309 100%);
+            color: #FFFFFF;
+            border: none;
+            border-radius: 8px;
+            padding: 6px 14px;
+            font-weight: 700;
+            font-size: 0.78rem;
+            cursor: pointer;
+            white-space: nowrap;
+            box-shadow: 0 2px 6px rgba(180, 83, 9, 0.3);
+        }
+
+        .btn-banner-update:hover {
+            background: #B45309;
         }
 
         /* ── Stats bar ───────────────────────────────────────────────────── */
@@ -711,6 +774,12 @@
             </div>
 
             <div class="header-right">
+                <!-- Bouton Actualiser / Forcer mise à jour -->
+                <button id="btnForceAppUpdate" class="update-pill" type="button" title="Actualiser et forcer la mise à jour">
+                    <span class="update-icon">🔄</span>
+                    <span id="updateAppLabel">Actualiser</span>
+                </button>
+
                 <!-- Statut notifications Push FCM en arrière-plan -->
                 <button id="pushNotifBtn" class="push-pill push-prompt" type="button" title="Activer les notifications push en arrière-plan">
                     <span class="push-dot"></span>
@@ -724,6 +793,15 @@
                 </div>
             </div>
         </header>
+
+        <!-- ── Bannière de Notification de Mise à Jour Disponible ────────── -->
+        <div id="waiterUpdateBanner" class="waiter-update-banner" style="display: none;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:1.1rem;">👑</span>
+                <span><strong>Mise à jour v4.0 disponible !</strong> Activez la validation des points & club fidélité.</span>
+            </div>
+            <button type="button" id="btnApplyUpdateBanner" class="btn-banner-update">Mettre à jour</button>
+        </div>
 
         <!-- ── Stats Bar ──────────────────────────────────────────────────── -->
         <div class="stats-bar">
@@ -864,11 +942,11 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js"></script>
-    <script src="firebase-config.js"></script>
-    <script type="module" src="js/config/firebase.js"></script>
+    <script src="firebase-config.js?v=4.0"></script>
+    <script type="module" src="js/config/firebase.js?v=4.0"></script>
 
     <!-- Waiter Logic -->
-    <script src="waiter.js?v=3.0"></script>
+    <script src="waiter.js?v=4.0"></script>
 </body>
 
 </html>
