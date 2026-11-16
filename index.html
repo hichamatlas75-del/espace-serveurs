@@ -2,1283 +2,1003 @@
 <html lang="fr">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Grey Corner — Espace Serveurs</title>
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XD33HHNDHX"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-XD33HHNDHX');
+    </script>
 
-    <!-- Design system : Cormorant Garamond + DM Sans (aligné avec tout l'écosystème GC) -->
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Grey Corner Café — Menu | Fès, Maroc</title>
+    <meta name="description"
+        content="Découvrez le menu complet du Grey Corner Café à Fès : petits-déjeuners, plats, pizzas, burgers, pâtes, boissons et desserts. Menu trilingue FR/EN/DE." />
+    <meta name="keywords" content="Grey Corner, café, restaurant, Fès, Maroc, menu, brunch, pizza, burger, pasta" />
+    <meta name="author" content="Grey Corner Café" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://menugreycorner.pages.dev/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Grey Corner Café — Menu | Fès" />
+    <meta property="og:description"
+        content="Menu complet du Grey Corner Café à Fès. Petits-déjeuners, plats du jour, pizzas, burgers, boissons et desserts." />
+    <meta property="og:image" content="https://menugreycorner.pages.dev/images/og-preview.webp" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/webp" />
+    <meta property="og:url" content="https://menugreycorner.pages.dev/" />
+    <meta property="og:locale" content="fr_MA" />
+    <meta property="og:site_name" content="Grey Corner Café" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Grey Corner Café — Menu | Fès" />
+    <meta name="twitter:description" content="Menu complet du Grey Corner Café à Fès." />
+    <meta name="twitter:image" content="https://menugreycorner.pages.dev/images/og-preview.webp" />
+
+    <link rel="manifest" href="site.webmanifest" />
+    <meta name="theme-color" content="#07060a" />
+    <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png" />
+    <link rel="shortcut icon" href="images/favicon.ico" />
+
     <link
-        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@400;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap"
         rel="stylesheet">
-
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    <link rel="manifest" href="site.webmanifest">
-    <meta name="theme-color" content="#FFFFFF">
-    <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
-    <link rel="stylesheet" href="waiter.css?v=4.3">
-
-    <style>
-        /* ── Reset & Variables (THÈME CLAIR LUMINEUX & HAUTE LISIBILITÉ) ── */
-        *,
-        *::before,
-        *::after {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        :root {
-            --bg: #F4F6F9;
-            --surface: #FFFFFF;
-            --surface-2: #EAEFF5;
-            --border: #DDE3EA;
-            --border-hover: #CBD5E1;
-            --gold: #A17420;
-            --gold-light: #B8860B;
-            --gold-dim: rgba(161, 116, 32, .12);
-            --alert: #DC2626;
-            --alert-dim: rgba(220, 38, 38, .10);
-            --order: #0284C7;
-            --order-dim: rgba(2, 132, 199, .10);
-            --success: #16A34A;
-            --success-dim: rgba(22, 163, 74, .12);
-            --muted: #64748B;
-            --text: #0F172A;
-            --font-serif: 'Cormorant Garamond', Georgia, serif;
-            --font-sans: 'DM Sans', sans-serif;
-            --radius: 14px;
-            --radius-sm: 9px;
-
-            /* Safe area pour les appareils avec encoche / home bar */
-            --safe-top: env(safe-area-inset-top, 0px);
-            --safe-bottom: env(safe-area-inset-bottom, 0px);
-        }
-
-        html {
-            -webkit-text-size-adjust: 100%;
-        }
-
-        body {
-            background: var(--bg);
-            color: var(--text);
-            font-family: var(--font-sans);
-            font-size: 14px;
-            line-height: 1.6;
-            min-height: 100dvh;
-            overscroll-behavior: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        /* ── App container ───────────────────────────────────────────────── */
-        .app-container {
-            position: relative;
-            z-index: 1;
-            display: flex;
-            flex-direction: column;
-            min-height: 100dvh;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        /* ── Header ──────────────────────────────────────────────────────── */
-        .app-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: calc(14px + var(--safe-top)) 18px 14px;
-            border-bottom: 1px solid var(--border);
-            background: rgba(255, 255, 255, .97);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
-        }
-
-        .header-left {
-            display: flex;
-            align-items: baseline;
-            gap: 10px;
-        }
-
-        .brand-title {
-            font-family: var(--font-serif);
-            font-size: 1.35rem;
-            font-weight: 700;
-            letter-spacing: .12em;
-            color: #0F172A;
-        }
-
-        .hub-badge {
-            font-size: .65rem;
-            font-weight: 700;
-            letter-spacing: .14em;
-            text-transform: uppercase;
-            color: var(--gold);
-            background: rgba(161, 116, 32, .10);
-            border: 1px solid rgba(161, 116, 32, .25);
-            padding: 2px 8px;
-            border-radius: 6px;
-        }
-
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        /* Statut connexion pill */
-        .connection-pill {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: .68rem;
-            font-weight: 700;
-            letter-spacing: .06em;
-            text-transform: uppercase;
-            color: var(--muted);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 4px 11px;
-            background: #FFFFFF;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            transition: all .3s;
-        }
-
-        .connection-pill.connected {
-            color: #15803D;
-            background: #DCFCE7;
-            border-color: #86EFAC;
-        }
-
-        .connection-pill.disconnected {
-            color: #DC2626;
-            background: #FEE2E2;
-            border-color: #FCA5A5;
-        }
-
-        .conn-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: currentColor;
-            flex-shrink: 0;
-        }
-
-        .connection-pill.connected .conn-dot {
-            animation: pulse-dot 2s infinite;
-        }
-
-        @keyframes pulse-dot {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: .3;
-            }
-        }
-
-        /* ── Push Notification Pill ──────────────────────────────────────── */
-        .push-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: .68rem;
-            font-weight: 700;
-            letter-spacing: .06em;
-            text-transform: uppercase;
-            padding: 4px 11px;
-            border-radius: 20px;
-            background: #FFFFFF;
-            border: 1px solid var(--border);
-            color: var(--muted);
-            cursor: pointer;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            transition: all 0.2s ease;
-            font-family: var(--font-sans);
-            outline: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .push-pill:hover {
-            border-color: var(--border-hover);
-        }
-
-        .push-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: var(--muted);
-            flex-shrink: 0;
-            transition: background 0.3s ease;
-        }
-
-        .push-pill.push-granted {
-            background: #DCFCE7;
-            border-color: #86EFAC;
-            color: #15803D;
-        }
-
-        .push-pill.push-granted .push-dot {
-            background: #16A34A;
-            box-shadow: 0 0 6px rgba(22, 163, 74, .6);
-            animation: pulse-dot 2s infinite;
-        }
-
-        .push-pill.push-denied {
-            background: #FEE2E2;
-            border-color: #FCA5A5;
-            color: #B91C1C;
-        }
-
-        .push-pill.push-denied .push-dot {
-            background: #DC2626;
-        }
-
-        .push-pill.push-prompt {
-            background: #FEF3C7;
-            border-color: #FCD34D;
-            color: #B45309;
-            box-shadow: 0 0 10px rgba(245, 158, 11, .25);
-            animation: pulse-gold 2s infinite;
-        }
-
-        .push-pill.push-prompt .push-dot {
-            background: #D97706;
-        }
-
-        @keyframes pulse-gold {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.85; transform: scale(1.02); }
-        }
-
-        /* ── Bouton Actualiser & Bannière de mise à jour ── */
-        .update-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-size: .68rem;
-            font-weight: 700;
-            letter-spacing: .06em;
-            text-transform: uppercase;
-            padding: 4px 10px;
-            border-radius: 20px;
-            background: linear-gradient(135deg, rgba(161, 116, 32, .12), rgba(184, 134, 11, .2));
-            border: 1px solid var(--gold);
-            color: var(--gold);
-            cursor: pointer;
-            box-shadow: 0 1px 3px rgba(161, 116, 32, 0.15);
-            transition: all 0.2s ease;
-            font-family: var(--font-sans);
-            outline: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .update-pill:hover, .update-pill:active {
-            background: var(--gold);
-            color: #FFFFFF;
-            transform: scale(0.98);
-        }
-
-        .update-icon {
-            font-size: 0.8rem;
-            display: inline-block;
-        }
-
-        .waiter-update-banner {
-            background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
-            border-bottom: 2px solid #F59E0B;
-            padding: 10px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            font-size: 0.84rem;
-            color: #92400E;
-            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
-        }
-
-        .btn-banner-update {
-            background: linear-gradient(135deg, #D97706 0%, #B45309 100%);
-            color: #FFFFFF;
-            border: none;
-            border-radius: 8px;
-            padding: 6px 14px;
-            font-weight: 700;
-            font-size: 0.78rem;
-            cursor: pointer;
-            white-space: nowrap;
-            box-shadow: 0 2px 6px rgba(180, 83, 9, 0.3);
-        }
-
-        .btn-banner-update:hover {
-            background: #B45309;
-        }
-
-        /* ── BARRE DE RECHERCHE TÉLÉPHONE & FIDÉLITÉ (HAUTE VISIBILITÉ NOIRE) ── */
-        .waiter-search-input {
-            flex: 1;
-            height: 50px !important;
-            background: #FFFFFF !important;
-            border: 2px solid var(--gold) !important;
-            border-radius: 12px !important;
-            color: #0F172A !important; /* COULEUR NOIRE ULTRA LISIBLE */
-            font-family: var(--font-sans) !important;
-            font-size: 1.2rem !important;
-            font-weight: 800 !important;
-            letter-spacing: 0.05em !important;
-            padding: 0 16px !important;
-            outline: none !important;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
-        }
-
-        .waiter-search-input:focus {
-            border-color: #B8860B !important;
-            box-shadow: 0 0 0 3px rgba(161, 116, 32, 0.2) !important;
-        }
-
-        .waiter-search-input::placeholder {
-            color: #94A3B8 !important;
-            font-size: 0.95rem !important;
-            font-weight: 500 !important;
-            letter-spacing: normal !important;
-        }
-
-        .btn-search-loyalty {
-            min-width: 105px !important;
-            height: 50px !important;
-            background: linear-gradient(135deg, #A17420 0%, #B8860B 100%) !important;
-            color: #FFFFFF !important;
-            font-weight: 800 !important;
-            font-size: 0.95rem !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.04em !important;
-            border: none !important;
-            border-radius: 12px !important;
-            cursor: pointer !important;
-            box-shadow: 0 4px 12px rgba(161, 116, 32, 0.25) !important;
-        }
-
-        .btn-quick-loyalty {
-            background: #FFFFFF !important;
-            color: #0F172A !important;
-            font-weight: 800 !important;
-            border: 2px solid var(--gold) !important;
-            box-shadow: 0 2px 8px rgba(161, 116, 32, 0.15) !important;
-        }
-
-        .btn-quick-text {
-            color: #0F172A !important;
-            font-weight: 800 !important;
-            font-size: 0.92rem !important;
-        }
-
-        .btn-quick-badge {
-            background: var(--gold) !important;
-            color: #FFFFFF !important;
-            font-weight: 800 !important;
-            font-size: 0.72rem !important;
-            padding: 4px 8px !important;
-            border-radius: 8px !important;
-        }
-
-        .waiter-member-card {
-            background: #FFFFFF !important;
-            border: 1.5px solid var(--border) !important;
-            border-top: 4px solid var(--gold) !important;
-            border-radius: 16px !important;
-            padding: 20px !important;
-            margin-top: 14px !important;
-            box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08) !important;
-        }
-
-        .member-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 12px;
-        }
-
-        .member-name {
-            font-size: 1.25rem;
-            font-weight: 800;
-            color: #0F172A !important;
-        }
-
-        .member-phone {
-            font-size: 1.1rem;
-            font-weight: 800;
-            color: var(--gold) !important;
-            margin-top: 3px;
-            letter-spacing: 0.05em;
-        }
-
-        .member-score {
-            text-align: right;
-        }
-
-        .member-score-pts {
-            font-size: 1.8rem;
-            font-weight: 900;
-            color: var(--gold);
-            line-height: 1;
-        }
-
-        .member-score-sub {
-            font-size: 0.85rem;
-            font-weight: 700;
-            color: #64748B;
-        }
-
-        .member-progress-wrap {
-            width: 100%;
-            height: 12px;
-            background: #E2E8F0;
-            border-radius: 10px;
-            overflow: hidden;
-            margin: 12px 0 8px 0;
-        }
-
-        .member-progress-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #A17420 0%, #F59E0B 100%);
-            border-radius: 10px;
-        }
-
-        .member-status-lbl {
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: #475569;
-            margin-bottom: 14px;
-        }
-
-        .direct-credit-section {
-            background: #F8FAFC !important;
-            border: 1px solid #E2E8F0 !important;
-            border-radius: 12px !important;
-            padding: 16px !important;
-            margin-top: 14px !important;
-        }
-
-        .direct-credit-title {
-            font-size: 0.88rem !important;
-            font-weight: 800 !important;
-            color: #0F172A !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.05em !important;
-            margin-bottom: 10px !important;
-        }
-
-        .direct-credit-inputs {
-            display: flex !important;
-            gap: 10px !important;
-            margin-bottom: 10px !important;
-        }
-
-        .waiter-num-input {
-            flex: 1 !important;
-            height: 48px !important;
-            background: #FFFFFF !important;
-            border: 1.5px solid #CBD5E1 !important;
-            border-radius: 10px !important;
-            color: #0F172A !important;
-            font-family: var(--font-sans) !important;
-            font-size: 1.05rem !important;
-            font-weight: 700 !important;
-            padding: 0 14px !important;
-            outline: none !important;
-        }
-
-        .waiter-num-input:focus {
-            border-color: var(--gold) !important;
-            box-shadow: 0 0 0 3px rgba(161, 116, 32, 0.15) !important;
-        }
-
-        .waiter-num-input::placeholder {
-            color: #94A3B8 !important;
-            font-weight: 500 !important;
-            font-size: 0.88rem !important;
-        }
-
-        .btn-credit-now {
-            width: 100% !important;
-            height: 50px !important;
-            background: #16A34A !important;
-            color: #FFFFFF !important;
-            font-size: 1rem !important;
-            font-weight: 800 !important;
-            border: none !important;
-            border-radius: 10px !important;
-            cursor: pointer !important;
-            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25) !important;
-        }
-
-        .btn-redeem-free-drink {
-            width: 100% !important;
-            height: 50px !important;
-            background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important;
-            color: #FFFFFF !important;
-            font-size: 1rem !important;
-            font-weight: 800 !important;
-            border: none !important;
-            border-radius: 12px !important;
-            cursor: pointer !important;
-            box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35) !important;
-            margin-bottom: 14px !important;
-        }
-
-        /* ── Stats bar ───────────────────────────────────────────────────── */
-        .stats-bar {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1px;
-            background: var(--border);
-            border-bottom: 1px solid var(--border);
-        }
-
-        .stat-card {
-            background: #FFFFFF;
-            padding: 12px 14px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 2px;
-            text-align: center;
-            transition: background .2s;
-        }
-
-        .stat-label {
-            font-size: .65rem;
-            font-weight: 700;
-            letter-spacing: .08em;
-            text-transform: uppercase;
-            color: #64748B;
-        }
-
-        .stat-value {
-            font-size: 1.55rem;
-            font-weight: 800;
-            font-variant-numeric: tabular-nums;
-            color: #0F172A;
-            line-height: 1.1;
-        }
-
-        .stat-card.alert-state .stat-value {
-            color: #DC2626;
-        }
-
-        .stat-card.order-state .stat-value {
-            color: #0284C7;
-        }
-
-        .stat-card.tables-state .stat-value {
-            color: #A17420;
-        }
-
-        /* Pulse animation sur stat active */
-        .stat-card.pulse-active {
-            animation: pulse-card 2s infinite;
-        }
-
-        @keyframes pulse-card {
-
-            0%,
-            100% {
-                background: #FFFFFF;
-            }
-
-            50% {
-                background: #FEF2F2;
-            }
-        }
-
-        .stat-card.order-state.pulse-active {
-            animation-name: pulse-card-order;
-        }
-
-        @keyframes pulse-card-order {
-
-            0%,
-            100% {
-                background: #FFFFFF;
-            }
-
-            50% {
-                background: #F0F9FF;
-            }
-        }
-
-        /* ── Navigation Tabs ─────────────────────────────────────────────── */
-        .hub-tabs {
-            display: grid !important;
-            grid-template-columns: repeat(4, 1fr) !important;
-            gap: 1px;
-            background: var(--border);
-            border-bottom: 1px solid var(--border);
-            width: 100%;
-        }
-
-        .tab-btn {
-            background: #EDF1F7;
-            border: none;
-            font-family: var(--font-sans);
-            font-size: .74rem;
-            font-weight: 700;
-            letter-spacing: .02em;
-            text-transform: uppercase;
-            color: #64748B;
-            padding: 12px 4px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-            position: relative;
-            transition: color .2s, background .2s;
-            white-space: nowrap;
-        }
-
-        .tab-btn::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: var(--gold);
-            transform: scaleX(0);
-            transition: transform .25s ease;
-        }
-
-        .tab-btn.active {
-            color: var(--gold);
-            background: #FFFFFF;
-        }
-
-        .tab-btn.active::after {
-            transform: scaleX(1);
-        }
-
-        /* Badge notification tab */
-        .tab-badge {
-            background: var(--alert);
-            color: #fff;
-            font-size: .62rem;
-            font-weight: 700;
-            min-width: 18px;
-            height: 18px;
-            border-radius: 9px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 5px;
-            line-height: 1;
-            animation: pulse-dot 2s infinite;
-        }
-
-        /* ── Viewport & Panels ───────────────────────────────────────────── */
-        .hub-viewport {
-            flex: 1;
-            overflow: hidden;
-        }
-
-        .tab-panel {
-            display: none;
-            flex-direction: column;
-            height: 100%;
-        }
-
-        .tab-panel.active {
-            display: flex;
-        }
-
-        .panel-section {
-            flex: 1;
-            padding: 16px 14px calc(16px + var(--safe-bottom));
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .panel-section::-webkit-scrollbar {
-            display: none;
-        }
-
-        .section-title {
-            font-family: var(--font-serif);
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: #0F172A;
-            letter-spacing: .04em;
-            margin-bottom: 14px;
-        }
-
-        /* ── Feed grid ───────────────────────────────────────────────────── */
-        .feed-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        /* ── Alert Cards ─────────────────────────────────────────────────── */
-        .alert-card {
-            background: #FFFFFF;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 15px 16px;
-            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
-            transition: border-color .2s, box-shadow .2s;
-        }
-
-        .call-pending {
-            border-color: #F87171;
-            background: #FFF5F5;
-            box-shadow: 0 4px 16px rgba(220, 38, 38, 0.08);
-        }
-
-        .call-accepted {
-            border-color: #86EFAC;
-            background: #F0FDF4;
-        }
-
-        .unassigned-card {
-            opacity: .6;
-        }
-
-        .card-top {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-        }
-
-        .card-title-wrap {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        /* Zone/Table pill */
-        .table-circle {
-            background: #FEF3C7;
-            color: #92400E;
-            border: 1px solid #FCD34D;
-            font-family: var(--font-sans);
-            font-size: .82rem;
-            font-weight: 800;
-            letter-spacing: .04em;
-            padding: 4px 12px;
-            border-radius: 20px;
-            white-space: nowrap;
-        }
-
-        /* Type badges */
-        .request-badge {
-            font-size: .68rem;
-            font-weight: 800;
-            letter-spacing: .08em;
-            text-transform: uppercase;
-            padding: 3px 10px;
-            border-radius: 20px;
-        }
-
-        .badge-waiter {
-            background: #FEF3C7;
-            color: #92400E;
-            border: 1px solid #FCD34D;
-        }
-
-        .badge-water {
-            background: #E0F2FE;
-            color: #0369A1;
-            border: 1px solid #BAE6FD;
-        }
-
-        .badge-bill {
-            background: #DCFCE7;
-            color: #15803D;
-            border: 1px solid #BBF7D0;
-        }
-
-        .badge-order {
-            background: #E0F2FE;
-            color: #0369A1;
-            border: 1px solid #BAE6FD;
-        }
-
-        /* Elapsed time */
-        .time-elapsed {
-            font-size: .72rem;
-            font-weight: 600;
-            color: #64748B;
-            white-space: nowrap;
-            font-variant-numeric: tabular-nums;
-        }
-
-        /* ── Card Actions ────────────────────────────────────────────────── */
-        .card-actions {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            margin-top: 10px;
-            flex-wrap: wrap;
-        }
-
-        .action-btn-accept,
-        .action-btn-complete {
-            flex: 1;
-            font-family: var(--font-sans);
-            font-size: .82rem;
-            font-weight: 800;
-            letter-spacing: .06em;
-            text-transform: uppercase;
-            border: none;
-            border-radius: var(--radius-sm);
-            padding: 11px 16px;
-            cursor: pointer;
-            min-height: 44px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-            transition: opacity .15s, transform .1s;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .action-btn-accept:active,
-        .action-btn-complete:active {
-            transform: scale(.97);
-            opacity: .85;
-        }
-
-        .action-btn-accept {
-            background: #DC2626;
-            color: #fff;
-        }
-
-        .action-btn-accept:hover {
-            background: #B91C1C;
-        }
-
-        .action-btn-complete {
-            background: #16A34A;
-            color: #fff;
-        }
-
-        .action-btn-complete:hover {
-            background: #15803D;
-        }
-
-        /* Status badge */
-        .accepted-status-badge {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            font-size: .82rem;
-            font-weight: 700;
-            color: #16A34A;
-        }
-
-        .mini-pulse {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: #16A34A;
-            animation: pulse-dot 2s infinite;
-            flex-shrink: 0;
-        }
-
-        /* ── Order Items ─────────────────────────────────────────────────── */
-        .order-items-list {
-            background: #F8FAFC;
-            border: 1px solid #E2E8F0;
-            border-radius: var(--radius-sm);
-            padding: 10px 14px;
-            margin: 4px 0 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .order-item-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 8px;
-            font-size: .84rem;
-        }
-
-        .item-qty-lbl {
-            color: var(--gold);
-            font-weight: 800;
-            font-size: .82rem;
-            min-width: 24px;
-        }
-
-        .item-name-lbl {
-            color: #0F172A;
-            font-weight: 600;
-        }
-
-        .item-price-lbl {
-            color: #64748B;
-            font-size: .82rem;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-
-        .order-comments {
-            font-size: .78rem;
-            color: #475569;
-            border-top: 1px solid #E2E8F0;
-            padding-top: 6px;
-            margin-top: 2px;
-        }
-
-        .order-total-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-top: 1px solid #E2E8F0;
-            padding-top: 8px;
-            margin-top: 4px;
-            font-size: .85rem;
-            font-weight: 700;
-            color: #334155;
-        }
-
-        .order-total-price {
-            color: var(--gold);
-            font-size: 1rem;
-            font-weight: 800;
-            font-variant-numeric: tabular-nums;
-        }
-
-        /* ── Empty states ────────────────────────────────────────────────── */
-        .feed-empty-state {
-            text-align: center;
-            padding: 48px 24px;
-            font-size: .85rem;
-            color: #64748B;
-            font-style: italic;
-            letter-spacing: .03em;
-            background: #FFFFFF;
-            border: 1px dashed #CBD5E1;
-            border-radius: var(--radius);
-        }
-
-        /* ── Adaptations Mobiles (< 480px) ─────────────────────────────────── */
-        @media (max-width: 480px) {
-            .app-header {
-                padding: calc(8px + var(--safe-top)) 10px 8px !important;
-                gap: 6px !important;
-            }
-
-            .header-left {
-                gap: 6px !important;
-                flex-shrink: 0 !important;
-            }
-
-            .brand-title {
-                font-size: 1.12rem !important;
-                white-space: nowrap !important;
-                letter-spacing: .08em !important;
-            }
-
-            .hub-badge {
-                font-size: .58rem !important;
-                padding: 1px 6px !important;
-            }
-
-            .header-right {
-                gap: 4px !important;
-                flex-wrap: wrap !important;
-                justify-content: flex-end !important;
-            }
-
-            .update-pill,
-            .push-pill,
-            .connection-pill {
-                padding: 3px 7px !important;
-                font-size: .60rem !important;
-                gap: 4px !important;
-            }
-
-            .stats-bar {
-                grid-template-columns: repeat(3, 1fr) !important;
-            }
-
-            .stat-card {
-                padding: 8px 4px !important;
-            }
-
-            .stat-label {
-                font-size: .58rem !important;
-            }
-
-            .stat-value {
-                font-size: 1.35rem !important;
-            }
-
-            .waiter-loyalty-quick-bar {
-                padding: 8px 10px !important;
-            }
-
-            .btn-quick-loyalty {
-                min-height: 42px !important;
-                padding: 0 10px !important;
-            }
-
-            .btn-quick-text {
-                font-size: 0.82rem !important;
-            }
-
-            .btn-quick-badge {
-                font-size: 0.65rem !important;
-                padding: 3px 6px !important;
-            }
-
-            .hub-tabs {
-                grid-template-columns: repeat(4, 1fr) !important;
-            }
-
-            .tab-btn {
-                padding: 10px 2px !important;
-                font-size: .68rem !important;
-                gap: 3px !important;
-                letter-spacing: 0 !important;
-            }
-
-            .tab-btn span {
-                white-space: nowrap !important;
-                overflow: hidden !important;
-                text-overflow: ellipsis !important;
-            }
-
-            .tab-badge {
-                min-width: 16px !important;
-                height: 16px !important;
-                font-size: .60rem !important;
-                padding: 0 4px !important;
-            }
-
-            .panel-section {
-                padding: 12px 10px calc(16px + var(--safe-bottom)) !important;
-            }
-
-            .waiter-search-box {
-                flex-direction: row !important;
-                gap: 6px !important;
-            }
-
-            .waiter-search-input {
-                font-size: 0.95rem !important;
-                padding: 0 10px !important;
-                height: 46px !important;
-            }
-
-            .btn-search-loyalty {
-                min-width: 85px !important;
-                height: 46px !important;
-                font-size: 0.85rem !important;
-                padding: 0 8px !important;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-    <div class="app-container">
 
-        <!-- ── Header ─────────────────────────────────────────────────────── -->
-        <header class="app-header">
-            <div class="header-left">
-                <span class="brand-title">Grey Corner</span>
-                <span class="hub-badge">Serveur</span>
+    <div id="backToTop" class="back-to-top">⬆</div>
+    <button id="floatingCloseCategory" class="floating-close-category" style="display: none !important;">
+        <svg viewBox="0 0 24 24">
+            <path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"/>
+        </svg>
+        <span data-i18n data-fr="Fermer la catégorie" data-en="Close category" data-de="Kategorie schließen" data-es="Cerrar categoría" data-ar="إغلاق القسم">Fermer la catégorie</span>
+    </button>
+
+    <!-- Burger button (masqué pour libérer l'affichage des pastilles de catégories) -->
+    <button id="burger" class="burger-btn" aria-label="Menu" aria-expanded="false" style="display: none !important;">
+        <span class="burger-lines">
+            <span class="bl bl1"></span>
+            <span class="bl bl2"></span>
+            <span class="bl bl3"></span>
+        </span>
+        <span class="burger-label">Menu</span>
+    </button>
+
+    <!-- Floating GPS Status Badge -->
+    <div class="gps-status-badge gps-locating" id="gpsStatusBadge">
+        <span class="gps-dot"></span>
+        <span class="gps-text" id="gpsStatusText">Géolocalisation...</span>
+    </div>
+
+    <!-- Nav latéral -->
+    <nav id="burgerNav" class="burger-nav-hidden">
+        <a href="#petit-dejeuner" data-i18n data-fr="Petit Déj" data-en="Breakfast" data-de="Frühstück" data-es="Desayuno" data-ar="فطور الصباح">Petit Déj</a>
+        <a href="#entrees" data-i18n data-fr="Entrées" data-en="Starters" data-de="Vorspeisen" data-es="Entrantes" data-ar="المقبلات">Entrées</a>
+        <a href="#plats" data-i18n data-fr="Plats" data-en="Main Dishes" data-de="Hauptgerichte" data-es="Platos principales" data-ar="الأطباق الرئيسية">Plats</a>
+        <a href="#sandwichs" data-i18n data-fr="Sandwichs" data-en="Sandwiches" data-de="Sandwiches" data-es="Sándwiches" data-ar="السندويتشات">Sandwichs</a>
+        <a href="#burgers" data-i18n data-fr="Burgers" data-en="Burgers" data-de="Burger" data-es="Hamburguesas" data-ar="البرجر">Burgers</a>
+        <a href="#panini" data-i18n data-fr="Panini" data-en="Panini" data-de="Panini" data-es="Paninis" data-ar="البانيني">Panini</a>
+        <a href="#pizza" data-i18n data-fr="Pizza" data-en="Pizza" data-de="Pizza" data-es="Pizzas" data-ar="البيتزا">Pizza</a>
+        <a href="#pasta" data-i18n data-fr="Pasta" data-en="Pasta" data-de="Pasta" data-es="Pastas" data-ar="الباستا">Pasta</a>
+        <a href="#crepes" data-i18n data-fr="Crêpes" data-en="Crepes" data-de="Pfannkuchen" data-es="Crepes" data-ar="الكريب">Crêpes</a>
+        <a href="#gateaux" data-i18n data-fr="Gâteaux" data-en="Cakes" data-de="Kuchen" data-es="Tartas y Pasteles" data-ar="الحلويات">Gâteaux</a>
+        <a href="#boissons" data-i18n data-fr="Boissons" data-en="Drinks" data-de="Getränke" data-es="Bebidas" data-ar="المشروبات">Boissons</a>
+        <a href="#glace" data-i18n data-fr="Glace" data-en="Ice Cream" data-de="Eis" data-es="Helados" data-ar="المثلجات">Glace</a>
+    </nav>
+
+    <div id="burgerOverlay" class="burger-overlay"></div>
+
+    <!-- ================================
+         HEADER
+    ================================= -->
+    <header>
+        <div class="header-overlay"></div>
+
+        <!-- SÉLECTEUR DE LANGUE COMPACT HEADER (Single Active Flag + Dropdown) -->
+        <div class="header-lang-wrapper" id="headerLangWrapper">
+            <button class="header-lang-btn" id="headerLangBtn" type="button" aria-haspopup="true" aria-expanded="false" title="Changer de langue">
+                <span class="header-lang-flag" id="headerActiveFlag">🇫🇷</span>
+                <span class="header-lang-code" id="headerActiveCode">FR</span>
+                <svg class="header-lang-arrow" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+            <div class="header-lang-dropdown" id="headerLangDropdown" role="menu">
+                <button class="lang-button active" data-lang="fr" type="button" role="menuitem" title="Français">
+                    <span class="hl-flag">🇫🇷</span>
+                    <span class="hl-name">Français</span>
+                    <span class="hl-check">✓</span>
+                </button>
+                <button class="lang-button" data-lang="en" type="button" role="menuitem" title="English">
+                    <span class="hl-flag">🇬🇧</span>
+                    <span class="hl-name">English</span>
+                    <span class="hl-check">✓</span>
+                </button>
+                <button class="lang-button" data-lang="de" type="button" role="menuitem" title="Deutsch">
+                    <span class="hl-flag">🇩🇪</span>
+                    <span class="hl-name">Deutsch</span>
+                    <span class="hl-check">✓</span>
+                </button>
+                <button class="lang-button" data-lang="es" type="button" role="menuitem" title="Español">
+                    <span class="hl-flag">🇪🇸</span>
+                    <span class="hl-name">Español</span>
+                    <span class="hl-check">✓</span>
+                </button>
+                <button class="lang-button" data-lang="ar" type="button" role="menuitem" title="العربية">
+                    <span class="hl-flag">🇲🇦</span>
+                    <span class="hl-name">العربية</span>
+                    <span class="hl-check">✓</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="container header-center">
+            <img src="images/logo-gold.webp" class="logo-big" alt="Grey Corner Café">
+
+            <!-- BADGE HORAIRE DYNAMIQUE -->
+            <div class="header-status-badge status-open" id="headerStatusBadge">
+                <span class="status-pulse-dot"></span>
+                <span class="status-badge-text" id="headerStatusText" data-i18n
+                      data-fr="Ouvert actuellement jusqu'à 23h00"
+                      data-en="Open now until 23:00"
+                      data-de="Jetzt geöffnet bis 23:00"
+                      data-es="Abierto ahora hasta las 23:00"
+                      data-ar="مفتوح الآن حتى 23:00">Ouvert actuellement jusqu'à 23h00</span>
             </div>
 
-            <div class="header-right">
-                <!-- Bouton Actualiser / Forcer mise à jour -->
-                <button id="btnForceAppUpdate" class="update-pill" type="button" title="Actualiser et forcer la mise à jour">
-                    <span class="update-icon">🔄</span>
-                    <span id="updateAppLabel">Actualiser</span>
+            <!-- SHORTCUT ICONS — SVG INLINE PREMIUM -->
+            <div class="shortcut-icons">
+
+                <!-- Suivi Commande & Notifications -->
+                <button class="sc-btn" id="notificationBellBtn" aria-label="Suivi de commande & notifications">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                    <span class="bell-badge" id="bellBadge" style="display: none;"></span>
+                    <span class="sc-label" data-i18n data-fr="Suivi" data-en="Tracking" data-de="Status" data-es="Seguimiento" data-ar="متابعة">Suivi</span>
                 </button>
 
-                <!-- Statut notifications Push FCM en arrière-plan -->
-                <button id="pushNotifBtn" class="push-pill push-prompt" type="button" title="Activer les notifications push en arrière-plan">
-                    <span class="push-dot"></span>
-                    <span id="pushNotifLabel">Activer Push</span>
+                <!-- Téléphone -->
+                <a href="tel:+212535940168" class="sc-btn" aria-label="Appeler Grey Corner">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path
+                            d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C6.61 21 2 16.39 2 11c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+                    </svg>
+                    <span class="sc-label" data-i18n data-fr="Appeler" data-en="Call" data-de="Anrufen" data-es="Llamar" data-ar="اتصال">Appeler</span>
+                </a>
+
+                <!-- Instagram -->
+                <a href="https://www.instagram.com/greycornerfes/" target="_blank" rel="noopener" class="sc-btn"
+                    aria-label="Instagram Grey Corner">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                        <circle cx="12" cy="12" r="4" />
+                        <circle cx="17.5" cy="6.5" r="0.7" fill="currentColor" stroke="none" />
+                    </svg>
+                    <span class="sc-label">Instagram</span>
+                </a>
+
+                <!-- Google Maps -->
+                <a href="https://maps.app.goo.gl/8CH1GGAvo2no6zp27" target="_blank" rel="noopener" class="sc-btn"
+                    aria-label="Nous trouver sur Maps">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M12 2C8.686 2 6 4.686 6 8c0 5.25 6 14 6 14s6-8.75 6-14c0-3.314-2.686-6-6-6z" />
+                        <circle cx="12" cy="8" r="2.2" />
+                    </svg>
+                    <span class="sc-label" data-i18n data-fr="Maps" data-en="Maps" data-de="Karte" data-es="Mapa" data-ar="الخريطة">Maps</span>
+                </a>
+
+                <!-- Partager -->
+                <button class="sc-btn" id="shareMenu" aria-label="Partager le menu">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="18" cy="5" r="3" />
+                        <circle cx="6" cy="12" r="3" />
+                        <circle cx="18" cy="19" r="3" />
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                    </svg>
+                    <span class="sc-label" data-i18n data-fr="Partager" data-en="Share" data-de="Teilen" data-es="Compartir" data-ar="مشاركة">Partager</span>
                 </button>
 
-                <!-- Statut connexion Firebase (piloté depuis waiter.js) -->
-                <div class="connection-pill disconnected" id="connectionPill">
-                    <span class="conn-dot"></span>
-                    <span id="connectionLabel">Connexion...</span>
-                </div>
-            </div>
-        </header>
+                <!-- Son (Activer / Couper) -->
+                <button class="sc-btn gc-sound-toggle-btn" id="headerSoundToggle" aria-label="Activer ou couper le son" title="Effets sonores">
+                    <span class="gc-sound-icon" style="font-size:1.3rem; display:inline-block; line-height:1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));">🔊</span>
+                    <span class="sc-label" data-i18n data-fr="Son" data-en="Sound" data-de="Ton" data-es="Sonido" data-ar="الصوت">Son</span>
+                </button>
 
-        <!-- ── Bannière de Notification de Mise à Jour Disponible ────────── -->
-        <div id="waiterUpdateBanner" class="waiter-update-banner" style="display: none;">
-            <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-size:1.1rem;">👑</span>
-                <span><strong>Mise à jour v4.2 disponible !</strong> Optimisation affichage mobile & validation points.</span>
             </div>
-            <button type="button" id="btnApplyUpdateBanner" class="btn-banner-update">Mettre à jour</button>
+            <!-- /SHORTCUT ICONS -->
+
         </div>
+    </header>
 
-        <!-- ── Stats Bar ──────────────────────────────────────────────────── -->
-        <div class="stats-bar">
-            <div class="stat-card tables-state">
-                <span class="stat-label">Tables</span>
-                <span class="stat-value" id="statMyTables">0</span>
+    <!-- Toast partage -->
+    <div class="sc-toast" id="scToast">Lien copié ✓</div>
+
+    <!-- ======================================================================
+         BANDEAU CLUB FIDÉLITÉ (500 pts = 1 consommation offerte)
+    ======================================================================= -->
+    <section class="loyalty-banner-section" id="loyaltyBannerSection">
+        <div class="loyalty-card-banner" id="loyaltyCardBanner">
+            <!-- État 1 : Non connecté -->
+            <div id="loyaltyLoggedOutView" class="loyalty-view-box">
+                <div class="loyalty-header-row">
+                    <div class="loyalty-badge-tag">
+                        <span class="loyalty-crown-icon">👑</span>
+                        <span id="loyaltyBadgeText">Club Fidélité</span>
+                    </div>
+                    <span class="loyalty-tagline" id="loyaltyTaglineText">500 pts = 1 consommation offerte !</span>
+                </div>
+                <div class="loyalty-form-inline">
+                    <input type="text" id="loyaltyFirstNameInput" class="loyalty-input" placeholder="Votre prénom" autocomplete="given-name" />
+                    <input type="tel" id="loyaltyPhoneInput" class="loyalty-input" placeholder="N° de téléphone (ex: 06...)" autocomplete="tel" />
+                    <button type="button" id="loyaltyJoinBtn" class="loyalty-btn-cta">🎁 Rejoindre / Voir mes points (+20 pts offerts)</button>
+                </div>
             </div>
-            <div class="stat-card alert-state" id="statCardCalls">
-                <span class="stat-label">Appels</span>
-                <span class="stat-value" id="statActiveCalls">0</span>
-            </div>
-            <div class="stat-card order-state" id="statCardOrders">
-                <span class="stat-label">Commandes</span>
-                <span class="stat-value" id="statActiveOrders">0</span>
+
+            <!-- État 2 : Connecté -->
+            <div id="loyaltyLoggedInView" class="loyalty-view-box" style="display: none;">
+                <div class="loyalty-header-row">
+                    <div class="loyalty-user-greeting">
+                        <span class="loyalty-crown-icon">👑</span>
+                        <strong id="loyaltyMemberName">Bonjour Client</strong>
+                    </div>
+                    <div class="loyalty-score-badge">
+                        <span id="loyaltyPointsVal" class="pts-number">20</span>
+                        <span class="pts-target">/ 500 pts</span>
+                    </div>
+                </div>
+
+                <!-- Barre de progression -->
+                <div class="loyalty-progress-track">
+                    <div class="loyalty-progress-fill" id="loyaltyProgressFill" style="width: 4%;"></div>
+                </div>
+
+                <div class="loyalty-footer-row">
+                    <span class="loyalty-status-hint" id="loyaltyStatusText">Plus que 480 pts avant votre consommation offerte !</span>
+                    <button type="button" id="loyaltySwitchAccountBtn" class="loyalty-btn-switch">Changer de compte</button>
+                </div>
+
+                <!-- Box Alerte Éligibilité Récompense -->
+                <div id="loyaltyRewardEligibleBox" class="loyalty-reward-box" style="display: none;">
+                    <button type="button" id="loyaltyClaimBtn" class="loyalty-claim-reward-btn">🎁 Demander ma consommation gratuite (500 pts)</button>
+                </div>
             </div>
         </div>
+    </section>
 
 
-        <!-- ── Module Fidélité Directe (Client sans QR) ──────────────────── -->
-        <div class="waiter-loyalty-quick-bar">
-            <button id="btnOpenDirectLoyalty" class="btn-quick-loyalty" type="button">
-                <span style="display:flex; align-items:center; gap:8px;">
-                    <span class="btn-quick-icon">⚡</span>
-                    <span class="btn-quick-text">Fidélité Directe (Sans QR)</span>
-                </span>
-                <span class="btn-quick-badge">500 pts = 1 Gratuit</span>
-            </button>
+    <!-- ======================================================================
+         HUB TACTILE — GRANDES PASTILLES CATÉGORIES (MODÈLE HUB TACTILE)
+    ======================================================================= -->
+    <div class="hub-categories-wrap">
+        <div class="hub-categories" id="hubCategories"></div>
+    </div>
+
+    <!-- Carrousel Nouveautés -->
+    <div class="new-items-carousel" id="newItemsCarousel"></div>
+
+    <!-- ======================================================================
+         AVIS & SERVICE CLIENT — CARTE FLOTTANTE IMPOSANTE (Support Manager & Avis)
+    ======================================================================= -->
+    <div class="feedback-banner-wrap">
+        <button id="feedbackFab" class="feedback-card-banner" type="button" aria-label="Donnez votre avis">
+            <div class="fcb-left">
+                <div class="fcb-wa-badge">
+                    <svg class="fcb-wa-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2Z" fill="#25D366"/>
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M12.04 3.67C7.5 3.67 3.8 7.37 3.8 11.91C3.8 13.52 4.26 15.08 5.13 16.42L4.31 19.42L7.38 18.61C8.68 19.42 10.34 19.87 12.04 19.87C16.58 19.87 20.28 16.17 20.28 11.92C20.28 9.72 19.42 7.64 17.86 6.09C16.31 4.53 14.24 3.67 12.04 3.67ZM16.54 14.07C16.29 13.94 15.07 13.34 14.84 13.26C14.61 13.18 14.45 13.13 14.28 13.38C14.12 13.63 13.65 14.18 13.51 14.35C13.37 14.51 13.23 14.53 12.98 14.41C12.74 14.28 11.94 14.02 11 13.18C10.26 12.52 9.77 11.71 9.62 11.46C9.48 11.22 9.61 11.08 9.73 10.96C9.84 10.85 9.98 10.67 10.1 10.53C10.23 10.38 10.27 10.28 10.35 10.12C10.43 9.95 10.39 9.81 10.33 9.69C10.27 9.56 9.78 8.35 9.57 7.86C9.37 7.38 9.17 7.44 9.02 7.43C8.88 7.43 8.71 7.42 8.55 7.42C8.38 7.42 8.12 7.48 7.89 7.73C7.66 7.98 7.02 8.58 7.02 9.8C7.02 11.02 7.91 12.2 8.03 12.36C8.16 12.52 9.78 15.02 12.26 16.09C12.85 16.34 13.31 16.49 13.67 16.61C14.26 16.8 14.8 16.77 15.22 16.71C15.7 16.64 16.68 16.11 16.89 15.54C17.09 14.97 17.09 14.47 17.03 14.37C16.97 14.27 16.79 14.2 16.54 14.07Z" fill="#FFFFFF"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="fcb-center">
+                <div class="fcb-title-row">
+                    <span class="fcb-title fb-fab-label" data-i18n data-fr="Avis & Service Client" data-en="Review & Customer Service" data-de="Feedback & Service" data-es="Opinión y Servicio al Cliente" data-ar="رأيكم وخدمتكم">Avis & Service Client</span>
+                    <div class="fcb-stars">
+                        <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+                    </div>
+                </div>
+                <span class="fcb-subtitle" id="fcbSubText" data-i18n data-fr="Votre avis compte • Réponse immédiate du manager" data-en="Your feedback matters • Immediate manager support" data-de="Ihre Meinung zählt • Sofortige Manager-Antwort" data-es="Su opinión importa • Respuesta inmediata del gerente" data-ar="رأيكم يهمنا • تواصل مباشر مع الإدارة">Votre avis compte • Réponse immédiate du manager</span>
+            </div>
+            <div class="fcb-right">
+                <span class="fcb-cta-badge" id="fcbCtaText" data-i18n data-fr="Noter ➜" data-en="Rate ➜" data-de="Bewerten ➜" data-es="Calificar ➜" data-ar="تقييم ➜">Noter ➜</span>
+            </div>
+        </button>
+    </div>
+
+    <!-- Recherche -->
+    <div class="search-wrapper">
+        <div class="search-box-wrap">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input id="searchInput" type="search" placeholder="Rechercher un plat..." />
+            <button id="searchClearBtn" class="search-clear-btn" style="display: none;" aria-label="Effacer">&times;</button>
         </div>
+        <p id="prixInfo" class="prix-info">★ Tous les prix sont en dirhams marocains (MAD)</p>
+    </div>
 
-        <!-- ── Navigation Tabs ────────────────────────────────────────────── -->
-        <nav class="hub-tabs">
-            <button class="tab-btn active" data-tab="tabCalls">
-                <span>Appels</span>
-                <span class="tab-badge" id="badgeTabCalls" style="display:none;">0</span>
-            </button>
-            <button class="tab-btn" data-tab="tabOrders">
-                <span>Commandes</span>
-                <span class="tab-badge" id="badgeTabOrders" style="display:none;">0</span>
-            </button>
-            <button class="tab-btn" data-tab="tabHistory">
-                <span>Historique</span>
-            </button>
-            <button class="tab-btn" data-tab="tabLoyalty">
-                <span style="color:var(--gold,#C9A96E); font-weight:700;">👑 Fidélité</span>
-            </button>
-        </nav>
+    <!-- Grille menu -->
+    <main id="menu-grid"></main>
 
-        <!-- ── Tab Panels ─────────────────────────────────────────────────── -->
-        <main class="hub-viewport">
-
-            <!-- 1. Appels clients -->
-            <section class="tab-panel active" id="tabCalls">
-                <div class="panel-section">
-                    <h3 class="section-title">Demandes en Direct</h3>
-                    <div class="feed-grid" id="callsFeed">
-                        <div class="feed-empty-state">Chargement...</div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 2. Précommandes -->
-            <section class="tab-panel" id="tabOrders">
-                <div class="panel-section">
-                    <h3 class="section-title">Commandes en attente de validation</h3>
-                    <div class="feed-grid" id="ordersFeed">
-                        <div class="feed-empty-state">Chargement...</div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 3. Historique -->
-            <section class="tab-panel" id="tabHistory">
-                <div class="panel-section">
-                    <h3 class="section-title">Historique de la journée</h3>
-                    <div class="feed-grid" id="historyFeed">
-                        <div class="feed-empty-state">Aucun historique pour le moment.</div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 4. Fidélité Directe & Validation Points -->
-            <section class="tab-panel" id="tabLoyalty">
-                <div class="panel-section">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
-                        <h3 class="section-title" style="margin:0; font-size:1.05rem;">👑 Club Fidélité — Validation & Crédit</h3>
-                        <span style="font-size:0.75rem; color:var(--gold,#C9A96E); background:rgba(201,169,110,0.15); border:1px solid rgba(201,169,110,0.3); padding:4px 8px; border-radius:12px; font-weight:700;">500 pts = 1 Boisson Offerte</span>
-                    </div>
-
-                    <!-- Recherche Rapide Client -->
-                    <div class="waiter-search-box" style="margin-bottom:14px;">
-                        <input type="tel" id="tabLoyaltySearchInput" class="waiter-search-input" placeholder="Taper n° tél client (ex: 0612345678)..." autocomplete="off" />
-                        <button type="button" id="tabLoyaltySearchBtn" class="btn-search-loyalty">Chercher</button>
-                    </div>
-
-                    <!-- Zone dynamique de validation & crédit -->
-                    <div id="tabLoyaltyContentArea">
-                        <div style="text-align: center; color: var(--muted); padding: 24px 10px; font-size: 0.9rem;">
-                            💡 Saisissez le numéro de téléphone pour valider les points d'une addition ou offrir la boisson gratuite.
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-        </main>
+    <!-- Lightbox protégée -->
+    <div id="secureLightbox" class="secure-lightbox">
+        <div class="secure-lightbox-content">
+            <button class="close-btn">×</button>
+        </div>
+        <div id="secureLightboxCaption" class="secure-lightbox-caption"></div>
+        <button id="secureLightboxAddBtn" class="secure-lightbox-add-btn" style="display: none;"></button>
     </div>
 
 
-    <!-- ── MODAL FIDÉLITÉ DIRECTE (SERVEUR — SCÉNARIO B) ───────────────── -->
-    <div id="directLoyaltyModal" class="waiter-modal-overlay" style="display: none;">
-        <div class="waiter-modal-sheet">
-            <div class="waiter-modal-header">
-                <div class="modal-title-row">
-                    <span style="font-size: 1.3rem;">👑</span>
-                    <h3 class="modal-title">Fidélité Directe (Sans QR)</h3>
-                </div>
-                <button type="button" id="btnCloseDirectLoyalty" class="modal-close-btn">&times;</button>
-            </div>
-
-            <div class="waiter-modal-body">
-                <!-- Recherche par téléphone -->
-                <div class="waiter-search-box">
-                    <input type="tel" id="directLoyaltySearchInput" class="waiter-search-input" placeholder="Taper n° tél ou 4 derniers chiffres..." autocomplete="off" />
-                    <button type="button" id="directLoyaltySearchBtn" class="btn-search-loyalty">Chercher</button>
-                </div>
-
-                <!-- Zone dynamique des résultats -->
-                <div id="directLoyaltyContentArea">
-                    <div style="text-align: center; color: var(--muted); padding: 24px 10px; font-size: 0.9rem;">
-                        💡 Entrez le numéro de téléphone pour créditer les points de l'addition ou offrir la boisson gratuite.
-                    </div>
-                </div>
-            </div>
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            © 2025 Grey Corner Café — Menu multilingue.
+            <br>
+            📞 <a href="tel:+212535940168">+212 535 940 168</a> • 💬 WhatsApp : <a href="https://wa.me/212666265160" target="_blank" rel="noopener">+212 666 265 160</a>
         </div>
-    </div>
+    </footer>
 
-    <!-- ── Firebase SDK ────────────────────────────────────────────────────── -->
+
+
+
+
+
+    <!-- Firebase SDK (Compat Mode for smooth global script tag inclusion) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js"></script>
-    <script src="firebase-config.js?v=4.3"></script>
-    <script type="module" src="js/config/firebase.js?v=4.3"></script>
 
-    <!-- Waiter Logic -->
-    <script src="waiter.js?v=4.3"></script>
+    <!-- ======================================================================
+         CLIENT INTERACTIVE QUICK ACTION BAR
+    ======================================================================= -->
+    <div class="client-action-bar" id="clientActionBar" style="display: none;">
+        <div class="cab-container">
+            <!-- Call Waiter -->
+            <button class="cab-btn" id="cabCallWaiter">
+                <div class="cab-icon-wrap" style="position: relative;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                    <span class="cab-badge" id="cabCallBadge" style="display: none; background: #2ecc71;"></span>
+                </div>
+                <span class="cab-label" data-i18n data-fr="Appeler" data-en="Call Waiter" data-de="Rufen" data-es="Llamar" data-ar="اتصال">Appeler</span>
+            </button>
+            
+            <!-- Request Water -->
+            <button class="cab-btn" id="cabRequestWater">
+                <div class="cab-icon-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+                    </svg>
+                </div>
+                <span class="cab-label" data-i18n data-fr="Eau" data-en="Water" data-de="Wasser" data-es="Agua" data-ar="ماء">Eau</span>
+            </button>
+
+            <!-- Request Bill -->
+            <button class="cab-btn" id="cabRequestBill">
+                <div class="cab-icon-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                        <line x1="12" y1="4" x2="12" y2="20"></line>
+                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                    </svg>
+                </div>
+                <span class="cab-label" data-i18n data-fr="Addition" data-en="Bill" data-de="Rechnung" data-es="Cuenta" data-ar="الحساب">Addition</span>
+            </button>
+
+            <!-- View Cart -->
+            <button class="cab-btn" id="cabOpenCart">
+                <div class="cab-icon-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="9" cy="21" r="1"></circle>
+                        <circle cx="20" cy="21" r="1"></circle>
+                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                    </svg>
+                    <span class="cab-cart-badge" id="cabCartBadge" style="display: none;">0</span>
+                </div>
+                <span class="cab-label" data-i18n data-fr="Panier" data-en="Basket" data-de="Korb" data-es="Cesta" data-ar="السلة">Panier</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Notification History Drawer Overlay & Container -->
+    <div id="notificationDrawerOverlay" class="nd-overlay">
+        <div class="nd-container">
+            <div class="nd-header">
+                <div class="nd-title-wrap">
+                    <h3 class="nd-title" data-i18n data-fr="Notifications" data-en="Notifications" data-de="Benachrichtigungen" data-es="Notificaciones" data-ar="الإشعارات">Notifications</h3>
+                    <span class="nd-table-badge" id="ndTableBadge">Table</span>
+                </div>
+                <button class="nd-close-btn" id="ndCloseBtn">&times;</button>
+            </div>
+            <div class="nd-content" id="ndContentFeed">
+                <!-- Dynamically populated via script.js -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================================
+         PRE-ORDER CART DRAWER (SLIDE-UP)
+    ======================================================================= -->
+    <div class="cart-drawer-overlay" id="cartDrawerOverlay"></div>
+    <div class="cart-drawer" id="cartDrawer">
+        <div class="cd-header">
+            <div class="cd-title-wrap">
+                <h3 class="cd-title" data-i18n data-fr="Mon Panier" data-en="My Cart" data-de="Mein Korb" data-es="Mi Cesta" data-ar="سلتي">Mon Panier</h3>
+                <span class="cd-table-badge" id="cdTableBadge">Table</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <button class="gc-sound-toggle-btn" id="cartSoundToggle" aria-label="Activer ou couper le son" title="Effets sonores" style="background:none;border:none;font-size:1.15rem;cursor:pointer;padding:4px;line-height:1;-webkit-tap-highlight-color:transparent;opacity:0.85;transition:opacity 0.2s;">🔊</button>
+                <button class="cd-close-btn" id="cdCloseBtn">&times;</button>
+            </div>
+        </div>
+        
+        <div class="cd-body">
+            <!-- Cart Items List -->
+            <div class="cd-items" id="cdItemsList">
+                <!-- Dynamic Cart Items injected here -->
+            </div>
+            
+            <!-- Empty State -->
+            <div class="cd-empty-state" id="cdEmptyState">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                    <circle cx="9" cy="21" r="1"></circle>
+                    <circle cx="20" cy="21" r="1"></circle>
+                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                </svg>
+                <p data-i18n data-fr="Votre panier est vide." data-en="Your basket is empty." data-de="Ihr Korb ist leer." data-es="Su cesta está vacía." data-ar="سلتك فارغة.">Votre panier est vide.</p>
+            </div>
+            
+            <!-- Pre-order Note / Allergy Field -->
+            <div class="cd-notes-section" id="cdNotesSection" style="display: none;">
+                <label for="cdSpecialNote" data-i18n data-fr="Notes ou Allergies :" data-en="Notes or Allergies:" data-de="Notizen oder Allergien:" data-es="Notas o Alergias :" data-ar="ملاحظات أو حساسية :">Notes ou Allergies :</label>
+                <textarea id="cdSpecialNote" placeholder="Ex: Pas d'oignon, sauce à part..."></textarea>
+            </div>
+        </div>
+
+        <div class="cd-footer" id="cdFooter" style="display: none;">
+            <div class="cd-total-line">
+                <span data-i18n data-fr="Total :" data-en="Total:" data-de="Gesamt:" data-es="Total :" data-ar="المجموع :">Total :</span>
+                <span class="cd-total-price" id="cdTotalPrice">0 MAD</span>
+            </div>
+            <button class="cd-submit-btn" id="cdSubmitBtn">
+                <span data-i18n data-fr="Envoyer la Précommande" data-en="Send Pre-Order" data-de="Vorbestellung Senden" data-es="Enviar el Pedido Anticipado" data-ar="إرسال الطلب المسبق">Envoyer la Précommande</span>
+                <div class="cd-loading-spinner" id="cdSubmitSpinner" style="display: none;"></div>
+            </button>
+            <p class="cd-warning-text" data-i18n 
+               data-fr="* Le serveur confirmera cette précommande à votre table avant de l'envoyer en cuisine." 
+               data-en="* The waiter will confirm this pre-order at your table before sending it to the kitchen." 
+               data-de="* Der Kellner wird diese Vorbestellung an Ihrem Tisch bestätigen, bevor er sie in die Küche schickt." 
+               data-es="* El camarero confirmará este pedido anticipado en su mesa antes de enviarlo a cocina." data-ar="* سيقوم النادل بتأكيد هذا الطلب على طاولتك قبل إرساله إلى المطبخ.">
+                * Le serveur confirmera cette précommande à votre table avant de l'envoyer en cuisine.
+            </p>
+        </div>
+    </div>
+
+    <!-- ======================================================================
+         TABLE SELECTOR FALLBACK MODAL (FOR TESTING & NO-QR ENTRY)
+    ======================================================================= -->
+    <div class="table-modal-overlay" id="tableModalOverlay" style="display: none;">
+        <div class="table-modal">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 data-i18n data-fr="Sélectionnez votre Table" data-en="Select Your Table" data-de="Wählen Sie Ihren Tisch" data-es="Seleccione su Mesa" data-ar="اختر طاولتك" style="margin: 0; text-align: left;">Sélectionnez votre Table</h3>
+                <button id="tableModalCloseBtn" style="background: none; border: none; color: var(--muted, rgba(255,255,255,0.6)); font-size: 24px; cursor: pointer; outline: none; line-height: 1; padding: 4px;" aria-label="Fermer">&times;</button>
+            </div>
+            <p data-i18n data-fr="Pour activer le service digital, veuillez choisir votre numéro de table :" data-en="To activate the digital service, please select your table number:" data-de="Um den digitalen Service zu aktivieren, wählen Sie bitte Ihre Tischnummer:" data-es="Para activar el servicio digital, elija su número de mesa:" data-ar="لتفعيل الخدمة الرقمية، يرجى اختيار رقم طاولتك :">Pour activer le service digital, veuillez choisir votre numéro de table :</p>
+            <div class="table-grid-select" id="tableGridSelect">
+                <!-- Generated tables 1 to 24 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================================
+         HOT DRINK SELECTOR MODAL (FOR BREAKFAST ITEMS)
+    ======================================================================= -->
+    <div class="table-modal-overlay" id="hotDrinkModalOverlay" style="display: none; z-index: 10003;">
+        <div class="table-modal" style="max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 id="hotDrinkModalTitle" style="margin: 0; text-align: left; font-size: 1.25rem; font-family: 'Playfair Display', serif; color: var(--primary);">Choisissez votre Boisson</h3>
+                <button id="hotDrinkCloseBtn" style="background: none; border: none; color: var(--muted); font-size: 24px; cursor: pointer; outline: none; line-height: 1;">&times;</button>
+            </div>
+            <p id="hotDrinkModalSubtitle" style="text-align: left; margin: 0 0 16px; font-size: 0.82rem; color: var(--muted); font-family: 'Poppins', sans-serif;">
+                Veuillez sélectionner votre boisson chaude incluse.
+            </p>
+            
+            <div class="hot-drink-counter" id="hotDrinkCounter" style="font-family: 'DM Sans', sans-serif; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; color: var(--primary); text-transform: uppercase; text-align: left; margin-bottom: 8px; border-bottom: 1px solid rgba(45,35,33,0.08); padding-bottom: 4px;">
+                Sélection : 0 / 1
+            </div>
+            
+            <div id="hotDrinksList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; max-height: 280px; margin-bottom: 16px;">
+                <!-- Dynamic scrolling list of drinks -->
+            </div>
+            
+            <button class="cd-submit-btn" id="hotDrinkConfirmBtn" disabled style="margin-top: auto;">
+                Confirmer
+            </button>
+        </div>
+    </div>
+
+    <!-- ======================================================================
+         SIDES / ACCOMPANIMENTS SELECTOR MODAL (FOR DISHES)
+    ======================================================================= -->
+    <div class="table-modal-overlay" id="sidesModalOverlay" style="display: none; z-index: 10004;">
+        <div class="table-modal" style="max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 id="sidesModalTitle" style="margin: 0; text-align: left; font-size: 1.25rem; font-family: 'Playfair Display', serif; color: var(--primary);" data-i18n data-fr="Accompagnements" data-en="Accompaniments" data-de="Beilagen" data-es="Guarniciones" data-ar="المقبلات المرافقة">Accompagnements</h3>
+                <button id="sidesCloseBtn" style="background: none; border: none; color: var(--muted); font-size: 24px; cursor: pointer; outline: none; line-height: 1;">&times;</button>
+            </div>
+            <p id="sidesModalSubtitle" style="text-align: left; margin: 0 0 16px; font-size: 0.82rem; color: var(--muted); font-family: 'Poppins', sans-serif;" data-i18n data-fr="Veuillez sélectionner 2 accompagnements de votre choix (Inclus)." data-en="Please select 2 accompaniments of your choice (Included)." data-de="Bitte wählen Sie 2 Beilagen Ihrer Wahl (Inklusive)." data-es="Seleccione 2 guarniciones a su elección (Incluidas)." data-ar="يرجى اختيار مرافقتين من اختيارك (مشمولة).">
+                Veuillez sélectionner 2 accompagnements de votre choix (Inclus).
+            </p>
+            
+            <div class="hot-drink-counter" id="sidesCounter" style="font-family: 'DM Sans', sans-serif; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; color: var(--primary); text-transform: uppercase; text-align: left; margin-bottom: 8px; border-bottom: 1px solid rgba(45,35,33,0.08); padding-bottom: 4px;">
+                Sélection : 0 / 2
+            </div>
+            
+            <div id="sidesList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; max-height: 280px; margin-bottom: 16px;">
+                <!-- Dynamic scrolling list of accompaniments -->
+            </div>
+            
+            <button class="cd-submit-btn" id="sidesConfirmBtn" disabled style="margin-top: auto;" data-i18n data-fr="Confirmer" data-en="Confirm" data-de="Bestätigen" data-es="Confirmar" data-ar="تأكيد">
+                Confirmer
+            </button>
+        </div>
+    </div>
+
+    <!-- ======================================================================
+         PASTA TYPE SELECTOR MODAL (FOR PASTA ITEMS EXCLUDING LASAGNES)
+    ======================================================================= -->
+    <div class="table-modal-overlay" id="pastaModalOverlay" style="display: none; z-index: 10005;">
+        <div class="table-modal" style="max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 id="pastaModalTitle" style="margin: 0; text-align: left; font-size: 1.25rem; font-family: 'Playfair Display', serif; color: var(--primary);" data-i18n data-fr="Choix des Pâtes" data-en="Choice of Pasta" data-de="Nudelauswahl" data-es="Elección de Pasta" data-ar="اختيار المعكرونة">Choix des Pâtes</h3>
+                <button id="pastaCloseBtn" style="background: none; border: none; color: var(--muted); font-size: 24px; cursor: pointer; outline: none; line-height: 1;">&times;</button>
+            </div>
+            <p id="pastaModalSubtitle" style="text-align: left; margin: 0 0 16px; font-size: 0.82rem; color: var(--muted); font-family: 'Poppins', sans-serif;" data-i18n data-fr="Veuillez sélectionner le type de pâtes de votre choix :" data-en="Please select the pasta type of your choice:" data-de="Bitte wählen Sie die Nudelsorte Ihrer Wahl:" data-es="Seleccione el tipo de pasta que prefiera:" data-ar="يرجى اختيار نوع المعكرونة المفضل لديك :">
+                Veuillez sélectionner le type de pâtes de votre choix :
+            </p>
+            
+            <div class="hot-drink-counter" id="pastaCounter" style="font-family: 'DM Sans', sans-serif; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; color: var(--primary); text-transform: uppercase; text-align: left; margin-bottom: 8px; border-bottom: 1px solid rgba(45,35,33,0.08); padding-bottom: 4px;">
+                Sélection : 0 / 1
+            </div>
+            
+            <div id="pastaList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; max-height: 280px; margin-bottom: 16px;">
+                <!-- Dynamic scrolling list of pasta types -->
+            </div>
+            
+            <button class="cd-submit-btn" id="pastaConfirmBtn" disabled style="margin-top: auto;" data-i18n data-fr="Confirmer" data-en="Confirm" data-de="Bestätigen" data-es="Confirmar" data-ar="تأكيد">
+                Confirmer
+            </button>
+        </div>
+    </div>
+
+    <!-- ======================================================================
+         SAN SEBASTIEN FLAVOR SELECTOR MODAL (PARFUMS : PISTACHE, FRUITS ROUGES, CARAMEL)
+    ======================================================================= -->
+    <div class="table-modal-overlay" id="sanSebastienModalOverlay" style="display: none; z-index: 10006;">
+        <div class="table-modal" style="max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 id="sanSebastienModalTitle" style="margin: 0; text-align: left; font-size: 1.25rem; font-family: 'Playfair Display', serif; color: var(--primary);" data-i18n data-fr="Choix du Parfum" data-en="Choice of Flavor" data-de="Geschmackswahl" data-es="Elección de Sabor" data-ar="اختيار النكهة">Choix du Parfum</h3>
+                <button id="sanSebastienCloseBtn" style="background: none; border: none; color: var(--muted); font-size: 24px; cursor: pointer; outline: none; line-height: 1;">&times;</button>
+            </div>
+            <p id="sanSebastienModalSubtitle" style="text-align: left; margin: 0 0 16px; font-size: 0.82rem; color: var(--muted); font-family: 'Poppins', sans-serif;" data-i18n data-fr="Choisissez le parfum pour votre San Sébastien :" data-en="Choose the flavor for your San Sebastian:" data-de="Wählen Sie den Geschmack für Ihren San Sebastian:" data-es="Elija el sabor para su San Sebastián:" data-ar="اختر النكهة لتشيز كيك سان سيباستيان الخاص بك :">
+                Choisissez le parfum pour votre San Sébastien :
+            </p>
+            
+            <div class="hot-drink-counter" id="sanSebastienCounter" style="font-family: 'DM Sans', sans-serif; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; color: var(--primary); text-transform: uppercase; text-align: left; margin-bottom: 8px; border-bottom: 1px solid rgba(45,35,33,0.08); padding-bottom: 4px;">
+                Sélection : 0 / 1
+            </div>
+            
+            <div id="sanSebastienList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; max-height: 280px; margin-bottom: 16px;">
+                <!-- Dynamic scrolling list of flavors -->
+            </div>
+            
+            <button class="cd-submit-btn" id="sanSebastienConfirmBtn" disabled style="margin-top: auto;" data-i18n data-fr="Confirmer" data-en="Confirm" data-de="Bestätigen" data-es="Confirmar" data-ar="تأكيد">
+                Confirmer
+            </button>
+        </div>
+    </div>
+
+    <!-- ======================================================================
+         ICE CREAM FLAVOR SELECTOR MODAL (PARFUMS GLACE : YAOURT, VANILLE, PISTACHE, CHOCOLAT, FRAISE, NOUGAT)
+    ======================================================================= -->
+    <div class="table-modal-overlay" id="glaceModalOverlay" style="display: none; z-index: 10007;">
+        <div class="table-modal" style="max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 id="glaceModalTitle" style="margin: 0; text-align: left; font-size: 1.25rem; font-family: 'Playfair Display', serif; color: var(--primary);" data-i18n data-fr="Choix des Parfums" data-en="Choice of Flavors" data-de="Geschmackswahl" data-es="Elección de Sabores" data-ar="اختيار النكهات">Choix des Parfums</h3>
+                <button id="glaceCloseBtn" style="background: none; border: none; color: var(--muted); font-size: 24px; cursor: pointer; outline: none; line-height: 1;">&times;</button>
+            </div>
+            <p id="glaceModalSubtitle" style="text-align: left; margin: 0 0 16px; font-size: 0.82rem; color: var(--muted); font-family: 'Poppins', sans-serif;" data-i18n data-fr="Veuillez sélectionner vos parfums de glace :" data-en="Please select your ice cream flavors:" data-de="Bitte wählen Sie Ihre Eissorten:" data-es="Seleccione sus sabores de helado:" data-ar="يرجى اختيار نكهات الآيس كريم المفضلة لديك :">
+                Veuillez sélectionner vos parfums de glace :
+            </p>
+            
+            <div class="hot-drink-counter" id="glaceCounter" style="font-family: 'DM Sans', sans-serif; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; color: var(--primary); text-transform: uppercase; text-align: left; margin-bottom: 8px; border-bottom: 1px solid rgba(45,35,33,0.08); padding-bottom: 4px;">
+                Sélection : 0 / 1
+            </div>
+            
+            <div id="glaceList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; max-height: 280px; margin-bottom: 16px;">
+                <!-- Dynamic scrolling list of ice cream flavors -->
+            </div>
+            
+            <button class="cd-submit-btn" id="glaceConfirmBtn" disabled style="margin-top: auto;" data-i18n data-fr="Confirmer" data-en="Confirm" data-de="Bestätigen" data-es="Confirmar" data-ar="تأكيد">
+                Confirmer
+            </button>
+        </div>
+    </div>
+
+    <!-- ======================================================================
+         SMART FEEDBACK & WHATSAPP MODAL
+    ======================================================================= -->
+    <div class="feedback-modal-overlay" id="feedbackModal" aria-hidden="true" role="dialog" aria-labelledby="fbModalTitle">
+        <div class="fb-modal-backdrop"></div>
+        <div class="feedback-modal-sheet">
+            <!-- Close Button -->
+            <button class="fb-close-btn" id="fbCloseModalBtn" aria-label="Fermer">&times;</button>
+            
+            <!-- STEP 1: Quick Rating (1 to 5) -->
+            <div class="fb-step" id="fbStepRating">
+                <div class="fb-modal-header">
+                    <div class="fb-badge-icon">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#C9A84C"/>
+                        </svg>
+                    </div>
+                    <h3 id="fbModalTitle" class="fb-modal-title">Votre avis compte pour nous</h3>
+                    <p id="fbModalSubtitle" class="fb-modal-subtitle">Comment s'est passée votre expérience chez Grey Corner ?</p>
+                </div>
+                
+                <div class="fb-ratings-grid">
+                    <button type="button" class="fb-rate-btn fb-rate-1" data-rating="1">
+                        <span class="fb-rate-emoji">😡</span>
+                        <div class="fb-rate-meta">
+                            <span class="fb-rate-stars">★☆☆☆☆</span>
+                            <span class="fb-rate-name" id="fbRateLabel1">Décevant</span>
+                        </div>
+                    </button>
+                    <button type="button" class="fb-rate-btn fb-rate-2" data-rating="2">
+                        <span class="fb-rate-emoji">🙁</span>
+                        <div class="fb-rate-meta">
+                            <span class="fb-rate-stars">★★☆☆☆</span>
+                            <span class="fb-rate-name" id="fbRateLabel2">Passable</span>
+                        </div>
+                    </button>
+                    <button type="button" class="fb-rate-btn fb-rate-3" data-rating="3">
+                        <span class="fb-rate-emoji">😐</span>
+                        <div class="fb-rate-meta">
+                            <span class="fb-rate-stars">★★★☆☆</span>
+                            <span class="fb-rate-name" id="fbRateLabel3">Moyen</span>
+                        </div>
+                    </button>
+                    <button type="button" class="fb-rate-btn fb-rate-4" data-rating="4">
+                        <span class="fb-rate-emoji">🙂</span>
+                        <div class="fb-rate-meta">
+                            <span class="fb-rate-stars">★★★★☆</span>
+                            <span class="fb-rate-name" id="fbRateLabel4">Très bien</span>
+                        </div>
+                    </button>
+                    <button type="button" class="fb-rate-btn fb-rate-5" data-rating="5">
+                        <span class="fb-rate-emoji">😍</span>
+                        <div class="fb-rate-meta">
+                            <span class="fb-rate-stars">★★★★★</span>
+                            <span class="fb-rate-name" id="fbRateLabel5">Excellent !</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- STEP 2A: Unhappy / Average (1 to 3 stars) -> Direct WhatsApp to Manager -->
+            <div class="fb-step" id="fbStepUnhappy" style="display: none;">
+                <div class="fb-state-icon fb-state-wa">
+                    <svg viewBox="0 0 24 24" width="44" height="44" fill="none">
+                        <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2Z" fill="#25D366"/>
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M12.04 3.67C7.5 3.67 3.8 7.37 3.8 11.91C3.8 13.52 4.26 15.08 5.13 16.42L4.31 19.42L7.38 18.61C8.68 19.42 10.34 19.87 12.04 19.87C16.58 19.87 20.28 16.17 20.28 11.92C20.28 9.72 19.42 7.64 17.86 6.09C16.31 4.53 14.24 3.67 12.04 3.67ZM16.54 14.07C16.29 13.94 15.07 13.34 14.84 13.26C14.61 13.18 14.45 13.13 14.28 13.38C14.12 13.63 13.65 14.18 13.51 14.35C13.37 14.51 13.23 14.53 12.98 14.41C12.74 14.28 11.94 14.02 11 13.18C10.26 12.52 9.77 11.71 9.62 11.46C9.48 11.22 9.61 11.08 9.73 10.96C9.84 10.85 9.98 10.67 10.1 10.53C10.23 10.38 10.27 10.28 10.35 10.12C10.43 9.95 10.39 9.81 10.33 9.69C10.27 9.56 9.78 8.35 9.57 7.86C9.37 7.38 9.17 7.44 9.02 7.43C8.88 7.43 8.71 7.42 8.55 7.42C8.38 7.42 8.12 7.48 7.89 7.73C7.66 7.98 7.02 8.58 7.02 9.8C7.02 11.02 7.91 12.2 8.03 12.36C8.16 12.52 9.78 15.02 12.26 16.09C12.85 16.34 13.31 16.49 13.67 16.61C14.26 16.8 14.8 16.77 15.22 16.71C15.7 16.64 16.68 16.11 16.89 15.54C17.09 14.97 17.09 14.47 17.03 14.37C16.97 14.27 16.79 14.2 16.54 14.07Z" fill="#FFFFFF"/>
+                    </svg>
+                </div>
+                <h3 id="fbUnhappyTitle" class="fb-modal-title">Prise en charge immédiate</h3>
+                <p id="fbUnhappyText" class="fb-modal-subtitle">Nous sommes sincèrement désolés. Notre manager prend personnellement en charge votre message sur WhatsApp pour vous répondre dans la minute.</p>
+                <div class="fb-manager-pill">
+                    <span class="fb-manager-dot"></span>
+                    <span>Manager direct : +212 666 265 160</span>
+                </div>
+                <button type="button" class="fb-btn-action fb-btn-wa" id="fbOpenWhatsAppBtn">
+                    Contacter le Manager sur WhatsApp 💬
+                </button>
+            </div>
+
+            <!-- STEP 2B: Happy (4 or 5 stars) -> Google Reviews + Option WhatsApp -->
+            <div class="fb-step" id="fbStepHappy" style="display: none;">
+                <div class="fb-state-icon fb-state-gold">
+                    <span class="fb-happy-stars">⭐⭐⭐⭐⭐</span>
+                </div>
+                <h3 id="fbHappyTitle" class="fb-modal-title">Merci infiniment ! 😍</h3>
+                <p id="fbHappyText" class="fb-modal-subtitle">Votre satisfaction est notre plus belle récompense. Soutenez notre équipe en publiant votre avis 5 étoiles sur Google !</p>
+                <button type="button" class="fb-btn-action fb-btn-google" id="fbGoogleReviewBtn">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" style="flex-shrink:0;">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                    <span>Publier mon avis sur Google ⭐</span>
+                </button>
+                <button type="button" class="fb-btn-secondary" id="fbWhatsAppHappyBtn">
+                    Envoyer un message au Manager 💬
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================================
+         GPS BLOCKED MODAL — Guide activation Multi-Mobile (Android & iPhone)
+    ======================================================================= -->
+    <div id="gpsBlockedOverlay" class="gps-blocked-overlay">
+        <div id="gpsBlockedSheet" class="gps-blocked-sheet">
+            <div class="gps-sheet-handle"></div>
+
+            <!-- En-tête -->
+            <div class="gps-header-row">
+                <div class="gps-header-icon">📍</div>
+                <div style="flex:1;">
+                    <h3 class="gps-header-title" data-i18n data-fr="Localisation requise" data-en="Location required" data-de="Standort erforderlich" data-es="Ubicación requerida" data-ar="تحديد الموقع مطلوب">Localisation requise</h3>
+                    <p class="gps-header-subtitle" data-i18n data-fr="Activez-la pour commander directement depuis votre table" data-en="Enable it to order directly from your table" data-de="Aktivieren Sie ihn, um direkt von Ihrem Tisch zu bestellen" data-es="Actívela para pedir directamente desde su mesa" data-ar="قم بتفعيلها للطلب مباشرة من طاولتك">Activez-la pour commander directement depuis votre table</p>
+                    <div id="gpsBlockedHint" class="gps-blocked-hint">⚠️ Suivez les 3 étapes ci-dessous pour débloquer l'accès</div>
+                </div>
+            </div>
+
+            <div class="gps-divider"></div>
+
+            <!-- Sélecteur OS Mobile (iPhone / Android) -->
+            <p class="gps-os-switcher-label" data-i18n data-fr="Comment activer sur votre mobile :" data-en="How to enable on your phone:" data-de="So aktivieren Sie es auf Ihrem Telefon:" data-es="Cómo activar en su móvil :" data-ar="طريقة التفعيل على هاتفك :">Comment activer sur votre mobile :</p>
+            <div class="gps-os-tabs">
+                <button id="gpsTabIos" onclick="GC_switchGpsTab('ios')" class="gps-tab-btn active">
+                    📱 iPhone (Safari)
+                </button>
+                <button id="gpsTabAndroid" onclick="GC_switchGpsTab('android')" class="gps-tab-btn">
+                    🤖 Android (Chrome)
+                </button>
+            </div>
+
+            <!-- ==========================================================
+                 GUIDE iPHONE (SAFARI) — MÉTHODE ULTRA-RAPIDE EN 3 SECONDES
+            =========================================================== -->
+            <div id="gpsGuideIos" style="display:flex; flex-direction:column; margin-bottom:14px;">
+                <div id="gpsSafariQuickCard" class="gps-guide-card">
+                    
+                    <!-- Badge rapidité -->
+                    <div class="gps-quick-badge">
+                        <span data-i18n data-fr="⚡ En 3 secondes directement dans Safari :" data-en="⚡ In 3 seconds directly in Safari:" data-de="⚡ In 3 Sekunden direkt in Safari:" data-es="⚡ En 3 segundos directamente en Safari:" data-ar="⚡ في 3 ثوانٍ مباشرة داخل Safari :">⚡ En 3 secondes directement dans Safari :</span>
+                    </div>
+
+                    <!-- Mockup visuel barre d'adresse iOS Safari -->
+                    <div class="safari-mockup-bar" title="Barre d'adresse Safari">
+                        <div class="safari-mockup-aa">aA</div>
+                        <div class="safari-mockup-url">
+                            <span class="lock">🔒</span>
+                            <span>greycorner.ma</span>
+                        </div>
+                        <div class="safari-mockup-action">↻</div>
+                    </div>
+
+                    <!-- 3 Étapes Ultra-Rapides dans Safari -->
+                    <div class="gps-steps-list">
+                        <!-- Étape 1 -->
+                        <div class="gps-step-item">
+                            <div class="gps-step-number">1</div>
+                            <div class="gps-step-content">
+                                <p class="gps-step-title" data-i18n data-fr="Touchez « aA » dans la barre d'adresse" data-en="Tap 'aA' in the address bar" data-de="Tippen Sie auf 'aA' in der Adressleiste" data-es="Toque 'aA' en la barra de direcciones" data-ar="اضغط على « aA » في شريط العناوين">Touchez « aA » dans la barre d'adresse</p>
+                                <p class="gps-step-desc" data-i18n data-fr="L'icône située à gauche dans la barre d'URL (en haut ou en bas)" data-en="The icon located on the left of the URL bar (top or bottom)" data-de="Das Symbol links in der URL-Leiste (oben oder unten)" data-es="El icono a la izquierda de la barra de direcciones (arriba o abajo)" data-ar="الأيقونة الموجودة على يسار شريط الروابط (أعلى أو أسفل)">L'icône située à gauche dans la barre d'URL (en haut ou en bas)</p>
+                            </div>
+                        </div>
+
+                        <!-- Étape 2 -->
+                        <div class="gps-step-item">
+                            <div class="gps-step-number">2</div>
+                            <div class="gps-step-content">
+                                <p class="gps-step-title" data-i18n data-fr="Sélectionnez « Réglages du site web »" data-en="Select 'Website Settings'" data-de="Wählen Sie 'Website-Einstellungen'" data-es="Seleccione 'Ajustes del sitio web'" data-ar="اختر « إعدادات موقع الويب »">Sélectionnez « Réglages du site web »</p>
+                                <p class="gps-step-desc" data-i18n data-fr="Dans le menu contextuel qui s'ouvre sur Safari" data-en="In the popup menu that appears on Safari" data-de="Im Popup-Menü, das in Safari geöffnet wird" data-es="En el menú emergente de Safari" data-ar="في القائمة المنبثقة على Safari">Dans le menu contextuel qui s'ouvre sur Safari</p>
+                            </div>
+                        </div>
+
+                        <!-- Étape 3 -->
+                        <div class="gps-step-item">
+                            <div class="gps-step-number">3</div>
+                            <div class="gps-step-content">
+                                <p class="gps-step-title" data-i18n data-fr="Réglez Emplacement sur « Autoriser »" data-en="Set Location to 'Allow'" data-de="Standort auf 'Erlauben' setzen" data-es="Defina Ubicación en 'Permitir'" data-ar="اضبط الموقع على « السماح »">Réglez Emplacement sur « Autoriser »</p>
+                                <p class="gps-step-desc" data-i18n data-fr="Ou sur « Demander » pour débloquer immédiatement votre table" data-en="Or 'Ask' to immediately unblock your table" data-de="Oder 'Fragen', um Ihren Tisch sofort freizuschalten" data-es="O 'Preguntar' para desbloquear inmediatamente su mesa" data-ar="أو « السؤال » لتفعيل طاولتك فوراً">Ou sur « Demander » pour débloquer immédiatement votre table</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Accordéon repliable : Réglages Système iPhone -->
+                    <details class="gps-system-accordion">
+                        <summary class="gps-system-summary">
+                            <span data-i18n data-fr="Localisation désactivée au niveau de l'iPhone ? Voir la procédure" data-en="Location disabled in iPhone settings? View steps" data-de="Standort in iPhone-Einstellungen deaktiviert? Schritte anzeigen" data-es="¿Ubicación desactivada en los ajustes del iPhone? Ver pasos" data-ar="خدمة الموقع معطلة في إعدادات الآيفون؟ عرض الخطوات">Localisation désactivée au niveau de l'iPhone ? Voir la procédure</span>
+                            <svg class="gps-accordion-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </summary>
+                        <div class="gps-system-content">
+                            <div class="gps-substep">
+                                <span class="gps-substep-bullet">1.</span>
+                                <div><span data-i18n data-fr="Ouvrez l'application ⚙️ Réglages de votre iPhone" data-en="Open ⚙️ Settings on your iPhone" data-de="Öffnen Sie ⚙️ Einstellungen auf Ihrem iPhone" data-es="Abra los ⚙️ Ajustes de su iPhone" data-ar="افتح تطبيق ⚙️ الإعدادات على الآيفون">Ouvrez l'application ⚙️ Réglages de votre iPhone</span></div>
+                            </div>
+                            <div class="gps-substep">
+                                <span class="gps-substep-bullet">2.</span>
+                                <div><span data-i18n data-fr="Allez dans Confidentialité et sécurité → Service de localisation (activer le bouton vert)" data-en="Go to Privacy & Security → Location Services (turn green switch on)" data-de="Gehen Sie zu Datenschutz & Sicherheit → Ortungsdienste (grünen Schalter aktivieren)" data-es="Vaya a Privacidad y seguridad → Localización (active el botón verde)" data-ar="انتقل إلى الخصوصية والأمان ← خدمات الموقع (تفعيل المفتاح الأخضر)">Allez dans Confidentialité et sécurité → Service de localisation (activer le bouton vert)</span></div>
+                            </div>
+                            <div class="gps-substep">
+                                <span class="gps-substep-bullet">3.</span>
+                                <div><span data-i18n data-fr="Faites défiler jusqu'à Safari → choisissez « Lorsque l'app est active »" data-en="Scroll down to Safari → choose 'While Using the App'" data-de="Scrollen Sie zu Safari → wählen Sie 'Beim Verwenden der App'" data-es="Desplácese hasta Safari → elija 'Cuando se use la app'" data-ar="انزل لأسفل حتى Safari ← اختر « أثناء استخدام التطبيق »">Faites défiler jusqu'à Safari → choisissez « Lorsque l'app est active »</span></div>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            </div>
+
+            <!-- ==========================================================
+                 GUIDE ANDROID (CHROME)
+            =========================================================== -->
+            <div id="gpsGuideAndroid" style="display:none; flex-direction:column; margin-bottom:14px;">
+                <div id="gpsAndroidQuickCard" class="gps-guide-card">
+                    <!-- Badge rapidité -->
+                    <div class="gps-quick-badge">
+                        <span data-i18n data-fr="⚡ En 3 secondes directement dans Chrome :" data-en="⚡ In 3 seconds directly in Chrome:" data-de="⚡ In 3 Sekunden direkt in Chrome:" data-es="⚡ En 3 segundos directamente en Chrome:" data-ar="⚡ في 3 ثوانٍ مباشرة داخل Chrome :">⚡ En 3 secondes directement dans Chrome :</span>
+                    </div>
+
+                    <!-- Mockup barre Chrome -->
+                    <div class="safari-mockup-bar" title="Barre d'adresse Chrome">
+                        <div class="safari-mockup-aa" style="padding:2px 6px;">🔒</div>
+                        <div class="safari-mockup-url">
+                            <span>greycorner.ma</span>
+                        </div>
+                        <div class="safari-mockup-action">⋮</div>
+                    </div>
+
+                    <!-- Étapes Android Chrome -->
+                    <div class="gps-steps-list">
+                        <div class="gps-step-item">
+                            <div class="gps-step-number">1</div>
+                            <div class="gps-step-content">
+                                <p class="gps-step-title" data-i18n data-fr="Touchez l'icône 🔒 à gauche du lien" data-en="Tap the 🔒 icon on the left of URL" data-de="Tippen Sie auf das 🔒-Symbol links neben der URL" data-es="Toque el icono 🔒 a la izquierda del enlace" data-ar="اضغط على أيقونة 🔒 على يسار الرابط">Touchez l'icône 🔒 à gauche du lien</p>
+                                <p class="gps-step-desc" data-i18n data-fr="Appuyez sur le cadenas ou les réglages dans la barre d'adresse" data-en="Tap padlock or settings in the address bar" data-de="Tippen Sie auf das Schloss oder die Einstellungen in der Adressleiste" data-es="Pulse en el candado o ajustes en la barra de direcciones" data-ar="اضغط على القفل أو الإعدادات في شريط العناوين">Appuyez sur le cadenas ou les réglages dans la barre d'adresse</p>
+                            </div>
+                        </div>
+
+                        <div class="gps-step-item">
+                            <div class="gps-step-number">2</div>
+                            <div class="gps-step-content">
+                                <p class="gps-step-title" data-i18n data-fr="Autorisez la localisation du site" data-en="Allow site location" data-de="Standort für die Website erlauben" data-es="Permita la ubicación del sitio" data-ar="اسمح بتحديد موقع الموقع">Autorisez la localisation du site</p>
+                                <p class="gps-step-desc" data-i18n data-fr="Touchez Autorisations → Position → Autoriser" data-en="Tap Permissions → Location → Allow" data-de="Tippen Sie auf Berechtigungen → Standort → Erlauben" data-es="Toque Permisos → Ubicación → Permitir" data-ar="اضغط على الأذونات ← الموقع ← السماح">Touchez Autorisations → Position → Autoriser</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Accordéon Réglages Généraux Android -->
+                    <details class="gps-system-accordion">
+                        <summary class="gps-system-summary">
+                            <span data-i18n data-fr="Localisation désactivée sur Android ? Voir la procédure" data-en="Location disabled on Android? View steps" data-de="Standort auf Android deaktiviert? Schritte anzeigen" data-es="¿Ubicación desactivada en Android? Ver pasos" data-ar="خدمة الموقع معطلة في أندرويد؟ عرض الخطوات">Localisation désactivée sur Android ? Voir la procédure</span>
+                            <svg class="gps-accordion-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </summary>
+                        <div class="gps-system-content">
+                            <div class="gps-substep">
+                                <span class="gps-substep-bullet">1.</span>
+                                <div><span data-i18n data-fr="Ouvrez Paramètres Android → Applications → Chrome" data-en="Open Android Settings → Apps → Chrome" data-de="Öffnen Sie Android-Einstellungen → Apps → Chrome" data-es="Abra Ajustes de Android → Aplicaciones → Chrome" data-ar="افتح إعدادات أندرويد ← التطبيقات ← Chrome">Ouvrez Paramètres Android → Applications → Chrome</span></div>
+                            </div>
+                            <div class="gps-substep">
+                                <span class="gps-substep-bullet">2.</span>
+                                <div><span data-i18n data-fr="Touchez Autorisations → Position → « Toujours autoriser »" data-en="Tap Permissions → Location → 'Allow while using the app'" data-de="Tippen Sie auf Berechtigungen → Standort → 'Zugriff immer zulassen'" data-es="Toque Permisos → Ubicación → 'Permitir siempre'" data-ar="اضغط على الأذونات ← الموقع ← « السماح عند استخدام التطبيق »">Touchez Autorisations → Position → « Toujours autoriser »</span></div>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            </div>
+
+            <!-- ==========================================================
+                 ACTIONS DU BAS (AVEC PORTE DE SORTIE SAISIE DE TABLE)
+            =========================================================== -->
+            <div class="gps-actions-stack">
+                <!-- Action 1 (Primaire) : Activer la localisation -->
+                <button id="gpsBtnActivate" onclick="GC_requestGpsAgain()" class="gps-btn-primary">
+                    <span style="font-size:1.15rem;">📍</span>
+                    <span id="gpsBtnActivateLabel" data-i18n data-fr="Activer la localisation" data-en="Enable location" data-de="Standort aktivieren" data-es="Activar la ubicación" data-ar="تفعيل الموقع">Activer la localisation</span>
+                    <span id="gpsBtnSpinner" class="gps-btn-spinner" style="display:none;"></span>
+                </button>
+
+                <!-- Action 2 (Secondaire - Porte de Sortie) : Saisie manuelle de table sans GPS -->
+                <button id="gpsBtnTableFallback" onclick="GC_chooseTableFallback()" class="gps-btn-table-fallback">
+                    <span style="font-size:1.1rem;">🔢</span>
+                    <span data-i18n data-fr="Saisir mon numéro de table" data-en="Enter my table number" data-de="Tischnummer eingeben" data-es="Introducir mi número de mesa" data-ar="إدخال رقم طاولتي">Saisir mon numéro de table</span>
+                </button>
+
+                <!-- Action 3 (Tertiaire) : Continuer en mode consultation -->
+                <button onclick="GC_dismissGpsBlocked()" class="gps-btn-view-only">
+                    <span>📖</span>
+                    <span data-i18n data-fr="Continuer en mode consultation" data-en="Continue in view-only mode" data-de="Weiter im Nur-Lese-Modus" data-es="Continuar en modo consulta" data-ar="المتابعة في وضع التصفح فقط">Continuer en mode consultation</span>
+                </button>
+
+                <!-- Action 4 (Lien discret) : Recharger la page -->
+                <button onclick="location.reload()" class="gps-btn-reload">
+                    <span data-i18n data-fr="↩️ Recharger la page" data-en="↩️ Reload page" data-de="↩️ Seite neu laden" data-es="↩️ Recargar la página" data-ar="↩️ إعادة تحميل الصفحة">↩️ Recharger la page</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================================
+         PREORDER MODE MODAL (hors café — slide-up)
+    ======================================================================= -->
+    <div id="preorderModeOverlay" style="
+        display:none; position:fixed; inset:0; z-index:99990;
+        background:rgba(7,6,10,0.82); backdrop-filter:blur(8px);
+        -webkit-backdrop-filter:blur(8px); align-items:flex-end; justify-content:center;">
+        <div id="preorderModeSheet" style="
+            width:100%; max-width:480px; margin:0 auto;
+            background:#0f0e13; border-top:1px solid rgba(201,168,76,0.2);
+            border-radius:20px 20px 0 0; padding:28px 24px 36px;
+            font-family:'DM Sans',sans-serif;
+            transform:translateY(100%); transition:transform 0.38s cubic-bezier(.22,1,.36,1);">
+            <div style="width:36px;height:3px;background:rgba(255,255,255,0.12);border-radius:2px;margin:0 auto 22px;"></div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                <div style="background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);border-radius:20px;padding:3px 12px;">
+                    <span style="color:#C9A84C;font-size:0.66rem;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;" data-i18n data-fr="🛒 Précommande" data-en="🛒 Pre-order" data-de="🛒 Vorbestellung" data-es="🛒 Pedido anticipado" data-ar="🛒 طلب مسبق">🛒 Précommande</span>
+                </div>
+            </div>
+            <h3 style="font-family:'Playfair Display',serif;color:#f0ead8;font-size:1.25rem;margin:0 0 6px;font-weight:600;" data-i18n data-fr="Vous êtes hors du café" data-en="You are outside the café" data-de="Sie sind außerhalb des Cafés" data-es="Está fuera del café" data-ar="أنت خارج المقهى">Vous êtes hors du café</h3>
+            <p style="color:rgba(240,234,216,0.48);font-size:0.8rem;margin:0 0 22px;line-height:1.65;" data-i18n data-fr="Composez votre commande et envoyez-la via WhatsApp. Elle sera prête à votre arrivée." data-en="Prepare your order and send it via WhatsApp. It will be ready upon your arrival." data-de="Stellen Sie Ihre Bestellung zusammen und senden Sie sie per WhatsApp. Sie ist bei Ihrer Ankunft bereit." data-es="Prepare su pedido y envíelo por WhatsApp. Estará listo a su llegada." data-ar="جهز طلبك وأرسله عبر واتساب. سيكون جاهزاً عند وصولك.">
+                Composez votre commande et envoyez-la via WhatsApp.<br>Elle sera prête à votre arrivée.
+            </p>
+            <p style="color:rgba(240,234,216,0.35);font-size:0.65rem;letter-spacing:0.14em;text-transform:uppercase;margin:0 0 10px;" data-i18n data-fr="Mode de réception" data-en="Pickup method" data-de="Abholart" data-es="Modo de recepción" data-ar="طريقة الاستلام">Mode de réception</p>
+            <div style="display:flex;gap:10px;margin-bottom:18px;">
+                <button id="pmPickup" onclick="GC_selectMode('pickup')" style="flex:1;padding:14px 8px;border-radius:12px;cursor:pointer;background:rgba(201,168,76,0.07);border:1px solid rgba(201,168,76,0.2);font-family:'DM Sans',sans-serif;display:flex;flex-direction:column;align-items:center;gap:7px;transition:all 0.2s;-webkit-tap-highlight-color:transparent;">
+                    <span style="font-size:1.5rem;">🥡</span>
+                    <span style="font-weight:600;color:#f0ead8;font-size:0.82rem;" data-i18n data-fr="À emporter" data-en="Takeaway" data-de="Zum Mitnehmen" data-es="Para llevar" data-ar="سفري (أخذ الطلب)">À emporter</span>
+                    <span style="font-size:0.65rem;color:rgba(240,234,216,0.35);" data-i18n data-fr="Comptoir" data-en="Counter" data-de="Theke" data-es="Mostrador" data-ar="من الكاونتر">Comptoir</span>
+                </button>
+                <button id="pmTable" onclick="GC_selectMode('table')" style="flex:1;padding:14px 8px;border-radius:12px;cursor:pointer;background:rgba(201,168,76,0.07);border:1.5px solid rgba(201,168,76,0.2);font-family:'DM Sans',sans-serif;display:flex;flex-direction:column;align-items:center;gap:7px;transition:all 0.2s;-webkit-tap-highlight-color:transparent;">
+                    <span style="font-size:1.5rem;">🪑</span>
+                    <span style="font-weight:600;color:#f0ead8;font-size:0.82rem;" data-i18n data-fr="À table" data-en="Dine-in" data-de="Im Café" data-es="En mesa" data-ar="على الطاولة">À table</span>
+                    <span style="font-size:0.65rem;color:rgba(240,234,216,0.35);" data-i18n data-fr="À l'arrivée" data-en="Upon arrival" data-de="Bei Ankunft" data-es="A la llegada" data-ar="عند الوصول">À l'arrivée</span>
+                </button>
+            </div>
+            <div id="pmTableNumWrap" style="display:none;margin-bottom:16px;">
+                <input id="pmTableNumInput" type="number" data-i18n-placeholder data-placeholder-fr="Numéro de table (optionnel)" data-placeholder-en="Table number (optional)" data-placeholder-de="Tischnummer (optional)" data-placeholder-es="Número de mesa (opcional)" data-placeholder-ar="رقم الطاولة (اختياري)" placeholder="Numéro de table (optionnel)"
+                    style="width:100%;padding:11px 14px;box-sizing:border-box;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.18);border-radius:8px;color:#f0ead8;font-family:'DM Sans',sans-serif;font-size:0.88rem;outline:none;-webkit-appearance:none;">
+            </div>
+            <button id="pmConfirm" onclick="GC_confirmMode()" disabled style="width:100%;padding:13px;border-radius:10px;background:rgba(201,168,76,0.06);border:1px solid rgba(201,168,76,0.15);color:rgba(240,234,216,0.25);font-family:'DM Sans',sans-serif;font-size:0.84rem;font-weight:600;letter-spacing:0.06em;cursor:not-allowed;transition:all 0.3s;-webkit-tap-highlight-color:transparent;" data-i18n data-fr="Continuer →" data-en="Continue →" data-de="Weiter →" data-es="Continuar →" data-ar="متابعة ←">
+                Continuer →
+            </button>
+            <p style="text-align:center;margin:14px 0 0;">
+                <button onclick="GC_dismissModal()" style="width:100%;padding:13px;border-radius:10px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.35);color:#E2C97E;font-family:'DM Sans',sans-serif;font-size:0.84rem;font-weight:600;letter-spacing:0.06em;cursor:pointer;transition:all 0.3s;-webkit-tap-highlight-color:transparent;"
+                    onmouseover="this.style.background='rgba(201,168,76,0.2)'"
+                    onmouseout="this.style.background='rgba(201,168,76,0.12)'"
+                    onmousedown="this.style.transform='scale(0.98)'"
+                    onmouseup="this.style.transform='scale(1)'" data-i18n data-fr="Juste consulter le menu" data-en="Just browse the menu" data-de="Nur Speisekarte ansehen" data-es="Solo consultar la carta" data-ar="تصفح القائمة فقط">
+                    Juste consulter le menu
+                </button>
+            </p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script defer src="js/bundle.js"></script>
 </body>
-
-</html>
