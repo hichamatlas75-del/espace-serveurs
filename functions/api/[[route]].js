@@ -70,78 +70,83 @@ function dispatchFcmNotification(env, type, title, body, tableId, docId) {
 
 // Initialisation automatique et résiliente des tables D1
 let isDbInitialized = false;
+
+const DB_SCHEMA_STATEMENTS = [
+    `CREATE TABLE IF NOT EXISTS tables (
+        id INTEGER PRIMARY KEY,
+        zone TEXT NOT NULL,
+        assignedTo TEXT DEFAULT '',
+        status TEXT DEFAULT 'libre',
+        active INTEGER DEFAULT 1,
+        updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS waiters_calls (
+        id TEXT PRIMARY KEY,
+        tableNum INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        assignedTo TEXT DEFAULT '',
+        loyaltyPhone TEXT DEFAULT '',
+        loyaltyName TEXT DEFAULT '',
+        note TEXT DEFAULT '',
+        createdAt TEXT NOT NULL,
+        acceptedAt TEXT,
+        completedAt TEXT
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_calls_status ON waiters_calls(status, createdAt)`,
+    `CREATE TABLE IF NOT EXISTS pre_orders (
+        id TEXT PRIMARY KEY,
+        tableNum INTEGER NOT NULL,
+        items TEXT NOT NULL,
+        note TEXT DEFAULT '',
+        totalPrice REAL NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'pending',
+        assignedTo TEXT DEFAULT '',
+        loyaltyPhone TEXT DEFAULT '',
+        loyaltyName TEXT DEFAULT '',
+        loyaltyPoints INTEGER DEFAULT NULL,
+        loyaltyCredited INTEGER DEFAULT 0,
+        createdAt TEXT NOT NULL,
+        acceptedAt TEXT,
+        completedAt TEXT
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_orders_status ON pre_orders(status, createdAt)`,
+    `CREATE TABLE IF NOT EXISTS loyalty_members (
+        phone TEXT PRIMARY KEY,
+        firstName TEXT NOT NULL,
+        points INTEGER DEFAULT 50,
+        totalEarned INTEGER DEFAULT 50,
+        rewardsClaimed INTEGER DEFAULT 0,
+        source TEXT DEFAULT 'qr_menu',
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS loyalty_transactions (
+        id TEXT PRIMARY KEY,
+        phone TEXT NOT NULL,
+        type TEXT NOT NULL,
+        pointsDelta INTEGER NOT NULL,
+        amountDH REAL DEFAULT 0,
+        tableNumber TEXT DEFAULT '',
+        orderId TEXT DEFAULT '',
+        validatedBy TEXT DEFAULT 'waiter',
+        note TEXT DEFAULT '',
+        createdAt TEXT NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_tx_phone ON loyalty_transactions(phone, createdAt)`,
+    `CREATE TABLE IF NOT EXISTS system_config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+    )`
+];
+
 async function ensureDb(db) {
     if (isDbInitialized) return;
     try {
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS tables (
-                id INTEGER PRIMARY KEY,
-                zone TEXT NOT NULL,
-                assignedTo TEXT DEFAULT '',
-                status TEXT DEFAULT 'libre',
-                active INTEGER DEFAULT 1,
-                updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS waiters_calls (
-                id TEXT PRIMARY KEY,
-                tableNum INTEGER NOT NULL,
-                type TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'pending',
-                assignedTo TEXT DEFAULT '',
-                loyaltyPhone TEXT DEFAULT '',
-                loyaltyName TEXT DEFAULT '',
-                note TEXT DEFAULT '',
-                createdAt TEXT NOT NULL,
-                acceptedAt TEXT,
-                completedAt TEXT
-            );
-            CREATE INDEX IF NOT EXISTS idx_calls_status ON waiters_calls(status, createdAt);
-            CREATE TABLE IF NOT EXISTS pre_orders (
-                id TEXT PRIMARY KEY,
-                tableNum INTEGER NOT NULL,
-                items TEXT NOT NULL,
-                note TEXT DEFAULT '',
-                totalPrice REAL NOT NULL DEFAULT 0,
-                status TEXT NOT NULL DEFAULT 'pending',
-                assignedTo TEXT DEFAULT '',
-                loyaltyPhone TEXT DEFAULT '',
-                loyaltyName TEXT DEFAULT '',
-                loyaltyPoints INTEGER DEFAULT NULL,
-                loyaltyCredited INTEGER DEFAULT 0,
-                createdAt TEXT NOT NULL,
-                acceptedAt TEXT,
-                completedAt TEXT
-            );
-            CREATE INDEX IF NOT EXISTS idx_orders_status ON pre_orders(status, createdAt);
-            CREATE TABLE IF NOT EXISTS loyalty_members (
-                phone TEXT PRIMARY KEY,
-                firstName TEXT NOT NULL,
-                points INTEGER DEFAULT 50,
-                totalEarned INTEGER DEFAULT 50,
-                rewardsClaimed INTEGER DEFAULT 0,
-                source TEXT DEFAULT 'qr_menu',
-                createdAt TEXT NOT NULL,
-                updatedAt TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS loyalty_transactions (
-                id TEXT PRIMARY KEY,
-                phone TEXT NOT NULL,
-                type TEXT NOT NULL,
-                pointsDelta INTEGER NOT NULL,
-                amountDH REAL DEFAULT 0,
-                tableNumber TEXT DEFAULT '',
-                orderId TEXT DEFAULT '',
-                validatedBy TEXT DEFAULT 'waiter',
-                note TEXT DEFAULT '',
-                createdAt TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_tx_phone ON loyalty_transactions(phone, createdAt);
-            CREATE TABLE IF NOT EXISTS system_config (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL,
-                updatedAt TEXT NOT NULL
-            );
-        `);
+        for (const sql of DB_SCHEMA_STATEMENTS) {
+            await db.prepare(sql).run();
+        }
 
         // Peupler les 24 tables par défaut si la table est vide
         const countRes = await db.prepare("SELECT COUNT(*) as count FROM tables").first();
@@ -216,8 +221,18 @@ export async function onRequest(context) {
         // ── 0. Initialisation explicite de la base ────────────────────────────
         if (path === "init-db") {
             isDbInitialized = false;
+            const log = [];
+            for (let i = 0; i < DB_SCHEMA_STATEMENTS.length; i++) {
+                const sql = DB_SCHEMA_STATEMENTS[i];
+                try {
+                    await db.prepare(sql).run();
+                    log.push({ step: i + 1, status: "OK" });
+                } catch (e) {
+                    log.push({ step: i + 1, status: "ERROR", error: e.message, sql: sql.substring(0, 50) });
+                }
+            }
             await ensureDb(db);
-            return jsonResponse({ success: true, message: "Base D1 initialisée avec succès." });
+            return jsonResponse({ success: true, message: "Exécution du schéma D1 terminée.", log });
         }
 
         // ── 1. SYNCHRONISATION TEMPS RÉEL (Pour serveurs & admin) ────────────
