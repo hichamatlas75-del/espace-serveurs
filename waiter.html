@@ -766,6 +766,9 @@
             <button class="tab-btn" data-tab="tabHistory">
                 <span>Historique</span>
             </button>
+            <button class="tab-btn" data-tab="tabLoyalty">
+                <span style="color:var(--gold,#C9A96E); font-weight:700;">👑 Fidélité</span>
+            </button>
         </nav>
 
         <!-- ── Tab Panels ─────────────────────────────────────────────────── -->
@@ -797,6 +800,29 @@
                     <h3 class="section-title">Historique de la journée</h3>
                     <div class="feed-grid" id="historyFeed">
                         <div class="feed-empty-state">Aucun historique pour le moment.</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. Fidélité Directe & Validation Points -->
+            <section class="tab-panel" id="tabLoyalty">
+                <div class="panel-section">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                        <h3 class="section-title" style="margin:0;">👑 Club Fidélité — Validation & Crédit</h3>
+                        <span style="font-size:0.75rem; color:var(--gold,#C9A96E); background:rgba(201,169,110,0.15); border:1px solid rgba(201,169,110,0.3); padding:4px 8px; border-radius:12px; font-weight:700;">500 pts = 1 Boisson Offerte</span>
+                    </div>
+
+                    <!-- Recherche Rapide Client -->
+                    <div class="waiter-search-box" style="margin-bottom:14px;">
+                        <input type="tel" id="tabLoyaltySearchInput" class="waiter-search-input" placeholder="Taper n° tél client (ex: 0612345678)..." autocomplete="off" />
+                        <button type="button" id="tabLoyaltySearchBtn" class="btn-search-loyalty">Chercher</button>
+                    </div>
+
+                    <!-- Zone dynamique de validation & crédit -->
+                    <div id="tabLoyaltyContentArea">
+                        <div style="text-align: center; color: var(--muted); padding: 24px 10px; font-size: 0.9rem;">
+                            💡 Saisissez le numéro de téléphone pour valider les points d'une addition ou offrir la boisson gratuite.
+                        </div>
                     </div>
                 </div>
             </section>
@@ -838,7 +864,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js"></script>
-    <script src="firebase-config.js"></script>
+    <script type="module" src="js/config/firebase.js"></script>
 
     <!-- Waiter Logic -->
     <script src="waiter.js?v=3.0"></script>

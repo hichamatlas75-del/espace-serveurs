@@ -96,122 +96,195 @@
 
     </div>
 
-    <!-- TABLES -->
-    <div class="dashboard-split">
+    <!-- ── BARRE DE NAVIGATION PRINCIPALE ADMIN ──────────────────────── -->
+    <nav class="admin-main-nav">
+        <button type="button" class="admin-nav-btn active" data-section="sectionDashboard">
+            <span>📊 Tables & Direct</span>
+        </button>
+        <button type="button" class="admin-nav-btn" data-section="sectionLoyalty">
+            <span style="color:var(--gold,#C9A96E); font-weight:700;">👑 Club Fidélité (Valider & Gérer Points)</span>
+        </button>
+        <button type="button" class="admin-nav-btn" data-section="sectionHistory">
+            <span>📜 Historique des Commandes</span>
+        </button>
+    </nav>
 
-        <div class="split-left">
+    <!-- ── SECTION 1 : DASHBOARD TABLES & LIVE FEED ────────────────────── -->
+    <div id="sectionDashboard" class="admin-section active">
+        <div class="dashboard-split">
 
-            <div class="admin-zones-wrapper">
-                <div class="admin-zone-card">
-                    <div class="admin-zone-header">Salon</div>
-                    <div id="gridSalon" class="table-matrix-grid"></div>
+            <div class="split-left">
+
+                <div class="admin-zones-wrapper">
+                    <div class="admin-zone-card">
+                        <div class="admin-zone-header">Salon</div>
+                        <div id="gridSalon" class="table-matrix-grid"></div>
+                    </div>
+
+                    <div class="admin-zone-card">
+                        <div class="admin-zone-header">Loge</div>
+                        <div id="gridLoge" class="table-matrix-grid"></div>
+                    </div>
+
+                    <div class="admin-zone-card">
+                        <div class="admin-zone-header">Terrasse</div>
+                        <div id="gridTerrasse" class="table-matrix-grid"></div>
+                    </div>
                 </div>
 
-                <div class="admin-zone-card">
-                    <div class="admin-zone-header">Loge</div>
-                    <div id="gridLoge" class="table-matrix-grid"></div>
-                </div>
+            </div>
 
-                <div class="admin-zone-card">
-                    <div class="admin-zone-header">Terrasse</div>
-                    <div id="gridTerrasse" class="table-matrix-grid"></div>
+            <div class="split-right">
+                <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
+                    <div class="admin-tabs-nav">
+                        <h2 class="admin-tab-btn active" data-tab="adminLiveTab">Live Feed</h2>
+                        <h2 class="admin-tab-btn" data-tab="adminHistoryTab">Historique</h2>
+                    </div>
+                </div>
+                
+                <div id="adminLiveTab" class="admin-tab-panel active">
+                    <div id="adminLiveActivityFeed" class="live-activity-feed"></div>
+                </div>
+                
+                <div id="adminHistoryTab" class="admin-tab-panel" style="display:none;">
+                    <div id="adminHistoryFeed" class="live-activity-feed"></div>
                 </div>
             </div>
 
         </div>
+    </div>
 
-        <div class="split-right">
-            <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
-                <div class="admin-tabs-nav">
-                    <h2 class="admin-tab-btn active" data-tab="adminLiveTab">Live Feed</h2>
-                    <h2 class="admin-tab-btn" data-tab="adminHistoryTab">Historique</h2>
-                    <h2 class="admin-tab-btn" data-tab="adminLoyaltyTab">👑 Fidélité (500 pts)</h2>
+    <!-- ── SECTION 2 : CLUB FIDÉLITÉ (ADMIN) ────────────────────────── -->
+    <div id="sectionLoyalty" class="admin-section">
+
+        <!-- 1. Validation Rapide des Points (Admin) -->
+        <div class="admin-loyalty-quick-validate-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <div class="settings-card-title" style="margin:0;">⚡ Validation Rapide des Points & Consommations</div>
+                <span style="font-size:0.75rem; color:var(--gold); background:rgba(201,169,110,0.15); border:1px solid rgba(201,169,110,0.3); padding:4px 10px; border-radius:12px; font-weight:700;">500 pts = 1 Conso Gratuite</span>
+            </div>
+            <p style="font-size:0.82rem; color:var(--muted); margin:6px 0 14px 0;">
+                Créditez les points d'une addition client (1 DH = 1 pt), validez une consommation offerte (-500 pts) ou créez un compte.
+            </p>
+
+            <div class="quick-validate-grid">
+                <div class="validate-field">
+                    <label>Numéro de Téléphone Client</label>
+                    <input type="tel" id="adminQuickPhone" placeholder="Ex: 0612345678" autocomplete="off" />
                 </div>
-            </div>
-            
-            <div id="adminLiveTab" class="admin-tab-panel active">
-                <div id="adminLiveActivityFeed" class="live-activity-feed"></div>
-            </div>
-            
-            <div id="adminHistoryTab" class="admin-tab-panel" style="display:none;">
-                <div id="adminHistoryFeed" class="live-activity-feed"></div>
-            </div>
-
-            <!-- 👑 NOUVEL ONGLET FIDÉLITÉ (CLUB 500 PTS) -->
-            <div id="adminLoyaltyTab" class="admin-tab-panel" style="display:none;">
-                <!-- 1. KPIs Fidélité -->
-                <div class="admin-loyalty-kpis">
-                    <div class="loyalty-kpi-card">
-                        <span class="kpi-label">Total Membres</span>
-                        <span class="kpi-val" id="kpiLoyaltyTotalMembers">0</span>
-                    </div>
-                    <div class="loyalty-kpi-card">
-                        <span class="kpi-label">Origine Inscription</span>
-                        <span class="kpi-subval" id="kpiLoyaltySourceRatio">QR: 0 • Serveur: 0</span>
-                    </div>
-                    <div class="loyalty-kpi-card">
-                        <span class="kpi-label">Points en Circulation</span>
-                        <span class="kpi-val" id="kpiLoyaltyTotalPoints" style="color:var(--gold,#C9A96E);">0</span>
-                    </div>
-                    <div class="loyalty-kpi-card">
-                        <span class="kpi-label">Conso. Offertes (-500)</span>
-                        <span class="kpi-val" id="kpiLoyaltyRewardsClaimed" style="color:#2ecc71;">0</span>
-                    </div>
+                <div class="validate-field">
+                    <label>Montant Addition (DH)</label>
+                    <input type="number" id="adminQuickAmount" placeholder="Ex: 120" min="1" step="1" />
+                </div>
+                <div class="validate-field">
+                    <label>Table (Optionnel)</label>
+                    <input type="text" id="adminQuickTable" placeholder="Ex: 104" />
+                </div>
+                <div class="validate-field">
+                    <label>Motif / Note</label>
+                    <input type="text" id="adminQuickNote" placeholder="Addition, geste commercial..." />
                 </div>
 
-                <!-- 2. Paramètres Modifiables -->
-                <div class="admin-loyalty-settings-card">
-                    <div class="settings-card-title">⚙️ Paramètres du Club Fidélité</div>
-                    <div class="settings-inputs-grid">
-                        <div class="setting-field">
-                            <label>Seuil Récompense (pts)</label>
-                            <input type="number" id="settingRewardThreshold" value="500" min="50" step="10" />
-                        </div>
-                        <div class="setting-field">
-                            <label>Bonus Bienvenue (pts)</label>
-                            <input type="number" id="settingWelcomeBonus" value="50" min="0" step="5" />
-                        </div>
-                        <div class="setting-field">
-                            <label>Ratio Points / DH</label>
-                            <input type="number" id="settingPointsPerDH" value="1" min="0.1" step="0.1" />
-                        </div>
-                        <div class="setting-field btn-cell">
-                            <button type="button" id="btnSaveLoyaltySettings" class="btn-save-settings">Enregistrer</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 3. Recherche & Tableau des Membres -->
-                <div class="admin-loyalty-table-card">
-                    <div class="table-card-header">
-                        <div style="font-weight:700; font-size:1.05rem; color:#ffffff;">👥 Membres Inscrits</div>
-                        <input type="search" id="adminLoyaltySearchInput" class="admin-search-input" placeholder="Rechercher par prénom ou n° tél..." autocomplete="off" />
-                    </div>
-                    <div class="admin-table-container">
-                        <table class="admin-loyalty-table">
-                            <thead>
-                                <tr>
-                                    <th>Prénom</th>
-                                    <th>Téléphone</th>
-                                    <th>Points (X / 500)</th>
-                                    <th>Cumul Gagné</th>
-                                    <th>Conso. Offertes</th>
-                                    <th>Source</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="adminLoyaltyTableBody">
-                                <tr>
-                                    <td colspan="7" style="text-align:center; padding:20px; color:rgba(255,255,255,0.4);">
-                                        Chargement des membres...
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="validate-actions">
+                    <button type="button" id="btnAdminCreditPoints" class="btn-validate-credit">
+                        ✅ Valider les Points (+1 DH = 1 pt)
+                    </button>
+                    <button type="button" id="btnAdminRedeemReward" class="btn-validate-redeem">
+                        🎁 Valider Conso Offerte (-500 pts)
+                    </button>
+                    <button type="button" id="btnAdminDeductPoints" class="btn-validate-deduct">
+                        ➖ Déduire des Points
+                    </button>
+                    <button type="button" id="btnAdminCreateMember" class="btn-validate-create">
+                        👤 Créer Membre (+50 pts)
+                    </button>
                 </div>
             </div>
         </div>
+
+        <!-- 2. KPIs Fidélité -->
+        <div class="admin-loyalty-kpis">
+            <div class="loyalty-kpi-card">
+                <span class="kpi-label">Total Membres</span>
+                <span class="kpi-val" id="kpiLoyaltyTotalMembers">0</span>
+            </div>
+            <div class="loyalty-kpi-card">
+                <span class="kpi-label">Origine Inscription</span>
+                <span class="kpi-subval" id="kpiLoyaltySourceRatio">QR: 0 • Serveur: 0</span>
+            </div>
+            <div class="loyalty-kpi-card">
+                <span class="kpi-label">Points en Circulation</span>
+                <span class="kpi-val" id="kpiLoyaltyTotalPoints" style="color:var(--gold,#C9A96E);">0</span>
+            </div>
+            <div class="loyalty-kpi-card">
+                <span class="kpi-label">Conso. Offertes (-500)</span>
+                <span class="kpi-val" id="kpiLoyaltyRewardsClaimed" style="color:#2ecc71;">0</span>
+            </div>
+        </div>
+
+        <!-- 3. Paramètres Modifiables -->
+        <div class="admin-loyalty-settings-card">
+            <div class="settings-card-title">⚙️ Paramètres du Club Fidélité</div>
+            <div class="settings-inputs-grid">
+                <div class="setting-field">
+                    <label>Seuil Récompense (pts)</label>
+                    <input type="number" id="settingRewardThreshold" value="500" min="50" step="10" />
+                </div>
+                <div class="setting-field">
+                    <label>Bonus Bienvenue (pts)</label>
+                    <input type="number" id="settingWelcomeBonus" value="50" min="0" step="5" />
+                </div>
+                <div class="setting-field">
+                    <label>Ratio Points / DH</label>
+                    <input type="number" id="settingPointsPerDH" value="1" min="0.1" step="0.1" />
+                </div>
+                <div class="setting-field btn-cell">
+                    <button type="button" id="btnSaveLoyaltySettings" class="btn-save-settings">Enregistrer</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Recherche & Tableau des Membres -->
+        <div class="admin-loyalty-table-card">
+            <div class="table-card-header">
+                <div style="font-weight:700; font-size:1.05rem; color:#ffffff;">👥 Membres Inscrits</div>
+                <input type="search" id="adminLoyaltySearchInput" class="admin-search-input" placeholder="Rechercher par prénom ou n° tél..." autocomplete="off" />
+            </div>
+            <div class="admin-table-container">
+                <table class="admin-loyalty-table">
+                    <thead>
+                        <tr>
+                            <th>Prénom</th>
+                            <th>Téléphone</th>
+                            <th>Points (X / 500)</th>
+                            <th>Cumul Gagné</th>
+                            <th>Conso. Offertes</th>
+                            <th>Source</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminLoyaltyTableBody">
+                        <tr>
+                            <td colspan="7" style="text-align:center; padding:20px; color:rgba(255,255,255,0.4);">
+                                Chargement des membres...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ── SECTION 3 : HISTORIQUE DES COMMANDES (ADMIN) ────────────────── -->
+    <div id="sectionHistory" class="admin-section">
+        <div class="admin-history-full-card" style="background:var(--card); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px;">
+            <div style="font-weight:700; font-size:1.1rem; color:#ffffff; margin-bottom:14px;">
+                📜 Historique Complet des Commandes & Validation des Points
+            </div>
+            <div id="adminFullHistoryFeed" class="live-activity-feed"></div>
+        </div>
+    </div>
 
     </div>
 
@@ -236,7 +309,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-<script type="module" src="firebase-config.js"></script>
+<script type="module" src="js/config/firebase.js"></script>
 <script src="admin.js?v=1.1"></script>
 
 </body>

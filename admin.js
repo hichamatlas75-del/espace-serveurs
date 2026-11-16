@@ -466,9 +466,38 @@ function mergeAndRenderActivityFeed() {
 }
 
 // ============================================================================
-// 8. ADMIN TABS & HISTORY RENDER
+// 8. ADMIN NAVIGATION & HISTORY RENDER
 // ============================================================================
+function initAdminNavigation() {
+    const navBtns = document.querySelectorAll(".admin-nav-btn");
+    const sections = document.querySelectorAll(".admin-section");
+
+    navBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const secId = btn.getAttribute("data-section");
+            navBtns.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+
+            sections.forEach(s => {
+                if (s.id === secId) {
+                    s.classList.add("active");
+                    s.style.display = "block";
+                } else {
+                    s.classList.remove("active");
+                    s.style.display = "none";
+                }
+            });
+
+            if (secId === "sectionHistory") {
+                renderAdminHistoryFeed();
+            }
+        });
+    });
+}
+
 function initAdminTabs() {
+    initAdminNavigation();
+
     const tabs = document.querySelectorAll(".admin-tab-btn");
     const panels = document.querySelectorAll(".admin-tab-panel");
     
@@ -492,10 +521,12 @@ function initAdminTabs() {
 }
 
 function renderAdminHistoryFeed() {
-    const feed = document.getElementById("adminHistoryFeed");
-    if (!feed) return;
+    const feeds = [
+        document.getElementById("adminHistoryFeed"),
+        document.getElementById("adminFullHistoryFeed")
+    ].filter(Boolean);
 
-    feed.innerHTML = "";
+    if (feeds.length === 0) return;
 
     // Trier toutes les précommandes du jour J par date de création décroissante
     const sortedOrders = [...activePreOrdersList].sort((a, b) => {
@@ -504,68 +535,156 @@ function renderAdminHistoryFeed() {
         return db - da;
     });
 
-    if (sortedOrders.length === 0) {
-        feed.innerHTML = '<div class="feed-log-empty">Aucune précommande aujourd\'hui</div>';
-        return;
-    }
+    feeds.forEach(feed => {
+        feed.innerHTML = "";
 
-    sortedOrders.forEach(order => {
-        let itemsHtml = "";
-        order.items.forEach(it => {
-            const catBadge = it.category ? ` <span style="font-size: 0.72rem; color: var(--gold); margin-left: 6px; font-weight: 500;">(${it.category})</span>` : "";
-            itemsHtml += `
-                <div class="admin-history-row">
-                    <div>
-                        <span style="color: var(--gold); font-weight: 600; margin-right: 6px;">${it.qty}x</span>
-                        <span style="color: #FFFFFF;">${it.name_lang}${catBadge}</span>
-                    </div>
-                    <span style="color: var(--muted); font-size: 0.78rem;">${it.price} MAD</span>
-                </div>
-            `;
-        });
-
-        let statusText = "En attente";
-        let statusStyle = "";
-
-        if (order.status === "pending") {
-            statusText = "En attente";
-            statusStyle = "color: #f39c12; background: rgba(243, 156, 18, 0.12); border: 1px solid rgba(243, 156, 18, 0.25);";
-        } else if (order.status === "accepted") {
-            statusText = "Validée";
-            statusStyle = "color: var(--sc-gold-light); background: rgba(201, 168, 76, 0.12); border: 1px solid rgba(201, 168, 76, 0.3);";
-        } else if (order.status === "completed") {
-            statusText = "Servie";
-            statusStyle = "color: var(--success); background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25);";
-        } else if (order.status === "cancelled") {
-            statusText = "Annulée";
-            statusStyle = "color: var(--alert); background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25);";
+        if (sortedOrders.length === 0) {
+            feed.innerHTML = '<div class="feed-log-empty">Aucune précommande aujourd\'hui</div>';
+            return;
         }
 
-        const itemDate = order.createdAt ? new Date(order.createdAt) : new Date();
-        const timeStr = isNaN(itemDate.getTime()) ? "--:--:--" : itemDate.toLocaleTimeString("fr-FR");
+        sortedOrders.forEach(order => {
+            let itemsHtml = "";
+            (order.items || []).forEach(it => {
+                const catBadge = it.category ? ` <span style="font-size: 0.72rem; color: var(--gold); margin-left: 6px; font-weight: 500;">(${it.category})</span>` : "";
+                itemsHtml += `
+                    <div class="admin-history-row">
+                        <div>
+                            <span style="color: var(--gold); font-weight: 600; margin-right: 6px;">${it.qty || 1}x</span>
+                            <span style="color: #FFFFFF;">${it.name_lang || it.name || "Article"}${catBadge}</span>
+                        </div>
+                        <span style="color: var(--muted); font-size: 0.78rem;">${it.price || 0} MAD</span>
+                    </div>
+                `;
+            });
 
-        const row = document.createElement("div");
-        row.className = "admin-history-item";
+            let statusText = "En attente";
+            let statusStyle = "";
 
-        row.innerHTML = `
-            <div class="admin-history-item-top">
-                <div>
-                    <span class="admin-history-item-table">${getTableZoneName(order.table)} ${order.table}</span>
-                    <span style="font-size: 0.72rem; color: var(--muted); margin-left: 8px;">${timeStr}</span>
+            if (order.status === "pending") {
+                statusText = "En attente";
+                statusStyle = "color: #f39c12; background: rgba(243, 156, 18, 0.12); border: 1px solid rgba(243, 156, 18, 0.25);";
+            } else if (order.status === "accepted") {
+                statusText = "Validée";
+                statusStyle = "color: var(--sc-gold-light); background: rgba(201, 168, 76, 0.12); border: 1px solid rgba(201, 168, 76, 0.3);";
+            } else if (order.status === "completed") {
+                statusText = "Servie";
+                statusStyle = "color: var(--success); background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25);";
+            } else if (order.status === "cancelled") {
+                statusText = "Annulée";
+                statusStyle = "color: var(--alert); background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25);";
+            }
+
+            const itemDate = order.createdAt ? new Date(order.createdAt) : new Date();
+            const timeStr = isNaN(itemDate.getTime()) ? "--:--:--" : itemDate.toLocaleTimeString("fr-FR");
+            const ptsToAdd = Math.max(1, Math.round(order.totalPrice || 0));
+
+            let loyaltyHtml = "";
+            if (order.loyaltyPhone) {
+                loyaltyHtml = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(201,169,110,0.08); border:1px solid rgba(201,169,110,0.25); border-radius:6px; padding:6px 10px; margin-top:8px;">
+                        <div style="font-size:0.78rem;">
+                            <span style="color:var(--gold); font-weight:700;">👑 ${order.loyaltyName || "Client"}</span>
+                            <span style="color:var(--muted); margin-left:4px;">(${order.loyaltyPhone})</span>
+                        </div>
+                        <div id="adminOrderLoyaltyBadge_${order.id}">
+                            ${order.loyaltyCredited 
+                                ? `<span style="color:#2ecc71; font-weight:700; font-size:0.8rem;">✓ Points validés (+${ptsToAdd} pts)</span>`
+                                : `<button type="button" class="admin-btn-credit-order" data-order-id="${order.id}" data-phone="${order.loyaltyPhone}" data-amount="${order.totalPrice}" style="background:#27ae60; color:#fff; border:none; border-radius:6px; padding:5px 10px; font-size:0.75rem; font-weight:700; cursor:pointer;">✅ Valider Points (+${ptsToAdd} pts)</button>`
+                            }
+                        </div>
+                    </div>
+                `;
+            } else {
+                loyaltyHtml = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px dashed rgba(255,255,255,0.1); border-radius:6px; padding:6px 10px; margin-top:8px;">
+                        <span style="font-size:0.75rem; color:var(--muted);">Fidélité non renseignée</span>
+                        <div id="adminOrderLoyaltyBadge_${order.id}">
+                            ${order.loyaltyCredited
+                                ? `<span style="color:#2ecc71; font-weight:700; font-size:0.8rem;">✓ Points validés (+${ptsToAdd} pts)</span>`
+                                : `<button type="button" class="admin-btn-assign-order" data-order-id="${order.id}" data-amount="${order.totalPrice}" data-table="${order.table}" style="background:rgba(201,169,110,0.15); border:1px solid var(--gold); color:var(--gold); border-radius:6px; padding:5px 10px; font-size:0.75rem; font-weight:700; cursor:pointer;">➕ Valider points (+${ptsToAdd} pts)</button>`
+                            }
+                        </div>
+                    </div>
+                `;
+            }
+
+            const row = document.createElement("div");
+            row.className = "admin-history-item";
+
+            row.innerHTML = `
+                <div class="admin-history-item-top">
+                    <div>
+                        <span class="admin-history-item-table">${getTableZoneName(order.table)} ${order.table}</span>
+                        <span style="font-size: 0.72rem; color: var(--muted); margin-left: 8px;">${timeStr}</span>
+                    </div>
+                    <span class="admin-history-item-status" style="${statusStyle}">${statusText}</span>
                 </div>
-                <span class="admin-history-item-status" style="${statusStyle}">${statusText}</span>
-            </div>
-            <div class="admin-history-items-list">
-                ${itemsHtml}
-                ${order.note ? `<div style="font-size: 0.78rem; color: var(--muted); margin-top: 6px; font-style: italic; border-top: 1px solid rgba(255, 255, 255, 0.03); padding-top: 4px;">Note: ${order.note}</div>` : ""}
-                <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255, 255, 255, 0.03); padding-top: 6px; margin-top: 4px; font-weight: 600; font-size: 0.8rem;">
-                    <span style="color: var(--muted);">Total</span>
-                    <span style="color: var(--gold);">${order.totalPrice} MAD</span>
+                <div class="admin-history-items-list">
+                    ${itemsHtml}
+                    ${order.note ? `<div style="font-size: 0.78rem; color: var(--muted); margin-top: 6px; font-style: italic; border-top: 1px solid rgba(255, 255, 255, 0.03); padding-top: 4px;">Note: ${order.note}</div>` : ""}
+                    <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255, 255, 255, 0.03); padding-top: 6px; margin-top: 4px; font-weight: 600; font-size: 0.8rem;">
+                        <span style="color: var(--muted);">Total</span>
+                        <span style="color: var(--gold);">${order.totalPrice} MAD</span>
+                    </div>
+                    ${loyaltyHtml}
                 </div>
-            </div>
-        `;
+            `;
 
-        feed.appendChild(row);
+            // Action Valider Points (client existant)
+            const btnCredit = row.querySelector(".admin-btn-credit-order");
+            if (btnCredit) {
+                btnCredit.addEventListener("click", () => {
+                    const ph = btnCredit.dataset.phone;
+                    const amt = parseFloat(btnCredit.dataset.amount) || 0;
+                    btnCredit.disabled = true;
+                    btnCredit.textContent = "Validation...";
+                    dbService.creditLoyaltyPoints(ph, amt, order.table, "admin", order.id, (ok, added, newTot) => {
+                        if (ok) {
+                            order.loyaltyCredited = true;
+                            alert(`✅ +${added} points validés pour ${ph} !\nNouveau solde : ${newTot} / 500 pts`);
+                            renderAdminHistoryFeed();
+                        } else {
+                            alert("❌ Erreur lors de la validation des points.");
+                            btnCredit.disabled = false;
+                            btnCredit.textContent = "Réessayer";
+                        }
+                    });
+                });
+            }
+
+            // Action Assigner Points (client non renseigné)
+            const btnAssign = row.querySelector(".admin-btn-assign-order");
+            if (btnAssign) {
+                btnAssign.addEventListener("click", () => {
+                    const phoneRaw = prompt(`Valider ${ptsToAdd} points pour cette commande (Table ${order.table} - ${order.totalPrice} MAD) :\n\nEntrez le numéro de téléphone du client :`);
+                    if (!phoneRaw) return;
+                    const cleanPh = window.normalizePhone ? window.normalizePhone(phoneRaw) : phoneRaw.replace(/\D/g, "");
+                    if (cleanPh.length < 8) {
+                        alert("Numéro de téléphone invalide.");
+                        return;
+                    }
+                    btnAssign.disabled = true;
+                    btnAssign.textContent = "Validation...";
+                    dbService.createOrGetLoyaltyMember(cleanPh, "Client Table " + order.table, "admin", (okGet, member) => {
+                        dbService.creditLoyaltyPoints(cleanPh, order.totalPrice, order.table, "admin", order.id, (okCredit, added, newTot) => {
+                            if (okCredit) {
+                                order.loyaltyPhone = cleanPh;
+                                order.loyaltyCredited = true;
+                                alert(`👑 +${added} points validés pour ${cleanPh} !\nNouveau solde : ${newTot} / 500 pts`);
+                                renderAdminHistoryFeed();
+                            } else {
+                                alert("❌ Erreur lors de la validation des points.");
+                                btnAssign.disabled = false;
+                                btnAssign.textContent = "Réessayer";
+                            }
+                        });
+                    });
+                });
+            }
+
+            feed.appendChild(row);
+        });
     });
 }
 
@@ -582,6 +701,134 @@ function initAdminLoyaltyDashboard() {
     const btnCloseTxModal = document.getElementById("btnCloseTxModal");
     const txListContainer = document.getElementById("adminTxListContainer");
     const txModalTitle = document.getElementById("adminTxModalTitle");
+
+    // 0. Module Validation Rapide des Points (Admin)
+    const quickPhone = document.getElementById("adminQuickPhone");
+    const quickAmount = document.getElementById("adminQuickAmount");
+    const quickTable = document.getElementById("adminQuickTable");
+    const quickNote = document.getElementById("adminQuickNote");
+
+    const btnCreditPts = document.getElementById("btnAdminCreditPoints");
+    const btnRedeemPts = document.getElementById("btnAdminRedeemReward");
+    const btnDeductPts = document.getElementById("btnAdminDeductPoints");
+    const btnCreateMbr = document.getElementById("btnAdminCreateMember");
+
+    if (btnCreditPts && quickPhone) {
+        btnCreditPts.addEventListener("click", () => {
+            const raw = (quickPhone.value || "").trim();
+            const cleanPh = window.normalizePhone ? window.normalizePhone(raw) : raw.replace(/\D/g, "");
+            if (cleanPh.length < 8) {
+                alert("Veuillez saisir un numéro de téléphone valide.");
+                quickPhone.focus();
+                return;
+            }
+            const amount = parseFloat(quickAmount.value) || 0;
+            if (amount <= 0) {
+                alert("Veuillez saisir un montant d'addition valide en DH (ex: 120).");
+                quickAmount.focus();
+                return;
+            }
+            const tableNum = (quickTable.value || "").trim();
+            btnCreditPts.disabled = true;
+            btnCreditPts.textContent = "Validation en cours...";
+
+            dbService.createOrGetLoyaltyMember(cleanPh, "Client", "admin", (okM, mbr) => {
+                dbService.creditLoyaltyPoints(cleanPh, amount, tableNum, "admin", null, (ok, added, newTotal) => {
+                    btnCreditPts.disabled = false;
+                    btnCreditPts.textContent = "✅ Valider les Points (+1 DH = 1 pt)";
+                    if (ok) {
+                        alert(`✅ Addition de ${amount} DH validée avec succès !\n\n+${added} points crédités à ${cleanPh}.\nNouveau solde : ${newTotal} / 500 pts.`);
+                        quickAmount.value = "";
+                        quickNote.value = "";
+                    } else {
+                        alert("❌ Erreur lors de la validation des points.");
+                    }
+                });
+            });
+        });
+    }
+
+    if (btnRedeemPts && quickPhone) {
+        btnRedeemPts.addEventListener("click", () => {
+            const raw = (quickPhone.value || "").trim();
+            const cleanPh = window.normalizePhone ? window.normalizePhone(raw) : raw.replace(/\D/g, "");
+            if (cleanPh.length < 8) {
+                alert("Veuillez saisir un numéro de téléphone valide.");
+                quickPhone.focus();
+                return;
+            }
+            if (confirm(`Confirmez-vous déduire 500 points pour offrir 1 consommation gratuite à ${cleanPh} ?`)) {
+                btnRedeemPts.disabled = true;
+                btnRedeemPts.textContent = "Déduction...";
+                dbService.redeemLoyaltyReward(cleanPh, "admin", (ok, newTotal) => {
+                    btnRedeemPts.disabled = false;
+                    btnRedeemPts.textContent = "🎁 Valider Conso Offerte (-500 pts)";
+                    if (ok) {
+                        alert(`🎉 Consommation offerte accordée avec succès !\nNouveau solde : ${newTotal} points.`);
+                    } else {
+                        alert("❌ Solde insuffisant (minimum 500 points requis) ou compte introuvable.");
+                    }
+                });
+            }
+        });
+    }
+
+    if (btnDeductPts && quickPhone) {
+        btnDeductPts.addEventListener("click", () => {
+            const raw = (quickPhone.value || "").trim();
+            const cleanPh = window.normalizePhone ? window.normalizePhone(raw) : raw.replace(/\D/g, "");
+            if (cleanPh.length < 8) {
+                alert("Veuillez saisir un numéro de téléphone valide.");
+                quickPhone.focus();
+                return;
+            }
+            const pts = parseInt(quickAmount.value, 10) || 0;
+            if (pts <= 0) {
+                alert("Veuillez indiquer le nombre de points à déduire dans le champ Montant.");
+                quickAmount.focus();
+                return;
+            }
+            const note = (quickNote.value || "").trim() || "Déduction manuelle admin";
+            if (confirm(`Déduire ${pts} points à ${cleanPh} ?`)) {
+                btnDeductPts.disabled = true;
+                dbService.adjustLoyaltyPoints(cleanPh, -pts, note, "admin", (ok, newTotal) => {
+                    btnDeductPts.disabled = false;
+                    if (ok) {
+                        alert(`✅ ${pts} points déduits.\nNouveau solde : ${newTotal} points.`);
+                        quickAmount.value = "";
+                    } else {
+                        alert("❌ Erreur lors de la déduction.");
+                    }
+                });
+            }
+        });
+    }
+
+    if (btnCreateMbr && quickPhone) {
+        btnCreateMbr.addEventListener("click", () => {
+            const raw = (quickPhone.value || "").trim();
+            const cleanPh = window.normalizePhone ? window.normalizePhone(raw) : raw.replace(/\D/g, "");
+            if (cleanPh.length < 8) {
+                alert("Veuillez saisir un numéro de téléphone valide.");
+                quickPhone.focus();
+                return;
+            }
+            const name = prompt("Prénom du client :", "") || "Client";
+            btnCreateMbr.disabled = true;
+            dbService.createOrGetLoyaltyMember(cleanPh, name, "admin", (ok, mbr, isNew) => {
+                btnCreateMbr.disabled = false;
+                if (ok && mbr) {
+                    if (isNew) {
+                        alert(`👑 Compte fidélité créé pour ${mbr.firstName} (${cleanPh}) !\n+50 points de bienvenue offerts (Solde: ${mbr.points} pts).`);
+                    } else {
+                        alert(`ℹ️ Ce client existe déjà : ${mbr.firstName} (${cleanPh}) — Solde actuel: ${mbr.points} / 500 pts.`);
+                    }
+                } else {
+                    alert("❌ Erreur lors de la création du compte.");
+                }
+            });
+        });
+    }
 
     if (btnCloseTxModal && modalTx) {
         btnCloseTxModal.addEventListener("click", () => {
@@ -703,30 +950,53 @@ function initAdminLoyaltyDashboard() {
                 <td style="color:#2ecc71; font-weight:700;">${m.rewardsClaimed || 0} 🎁</td>
                 <td><span class="badge-source ${sourceClass}">${sourceLabel}</span></td>
                 <td>
-                    <button type="button" class="table-btn-action btn-adjust-pts" data-phone="${m.phone}" data-name="${m.firstName}">+/- Pts</button>
-                    ${pts >= 500 ? `<button type="button" class="table-btn-action table-btn-redeem btn-redeem-pts" data-phone="${m.phone}" data-name="${m.firstName}">🎁 Offrir</button>` : ""}
+                    <button type="button" class="table-btn-action btn-credit-pts" data-phone="${m.phone}" data-name="${m.firstName}" style="background:#27ae60; border-color:#27ae60; color:#fff; font-weight:700;">➕ Valider Pts</button>
+                    <button type="button" class="table-btn-action btn-adjust-pts" data-phone="${m.phone}" data-name="${m.firstName}">➖ Déduire</button>
+                    ${pts >= 500 ? `<button type="button" class="table-btn-action table-btn-redeem btn-redeem-pts" data-phone="${m.phone}" data-name="${m.firstName}">🎁 Offrir Conso</button>` : ""}
                     <button type="button" class="table-btn-action btn-history-pts" data-phone="${m.phone}" data-name="${m.firstName}">📜 Tx</button>
                 </td>
             `;
 
-            // Action +/- Points
+            // Action Valider / Créditer Points
+            const btnCreditRow = tr.querySelector(".btn-credit-pts");
+            if (btnCreditRow) {
+                btnCreditRow.addEventListener("click", () => {
+                    const amtStr = prompt(`Valider et créditer des points pour ${m.firstName} (${m.phone}) :\n\nEntrez le montant de l'addition en DH (ou points, 1 DH = 1 pt) :`);
+                    if (amtStr === null) return;
+                    const amt = parseFloat(amtStr);
+                    if (isNaN(amt) || amt <= 0) {
+                        alert("Montant invalide.");
+                        return;
+                    }
+                    const table = prompt("Numéro de table (optionnel) :", "") || "";
+                    dbService.creditLoyaltyPoints(m.phone, amt, table, "admin", null, (ok, added, newTotal) => {
+                        if (ok) {
+                            alert(`✅ +${added} points validés pour ${m.firstName} !\nNouveau solde : ${newTotal} / 500 pts.`);
+                        } else {
+                            alert("❌ Erreur lors de la validation des points.");
+                        }
+                    });
+                });
+            }
+
+            // Action Déduire Points
             const btnAdjust = tr.querySelector(".btn-adjust-pts");
             if (btnAdjust) {
                 btnAdjust.addEventListener("click", () => {
-                    const deltaStr = prompt(`Ajuster les points pour ${m.firstName} (${m.phone}) :\nEntrez un nombre positif (ex: 50) ou négatif (ex: -50) :`);
+                    const deltaStr = prompt(`Déduire des points pour ${m.firstName} (${m.phone}) :\n\nEntrez le nombre de points à déduire (ex: 50) :`);
                     if (deltaStr === null) return;
                     const delta = parseInt(deltaStr, 10);
-                    if (isNaN(delta) || delta === 0) {
-                        alert("Montant de points invalide.");
+                    if (isNaN(delta) || delta <= 0) {
+                        alert("Nombre de points invalide.");
                         return;
                     }
-                    const reason = prompt("Motif de l'ajustement (ex: Geste commercial, Correction addition) :") || "Ajustement administrateur";
+                    const reason = prompt("Motif de la déduction (ex: Correction addition, remboursement) :") || "Déduction administrateur";
 
-                    dbService.adjustLoyaltyPoints(m.phone, delta, reason, "admin", (ok, newTotal) => {
+                    dbService.adjustLoyaltyPoints(m.phone, -delta, reason, "admin", (ok, newTotal) => {
                         if (ok) {
-                            alert(`✅ Points ajustés avec succès !\nNouveau solde de ${m.firstName} : ${newTotal} points.`);
+                            alert(`✅ ${delta} points déduits avec succès !\nNouveau solde de ${m.firstName} : ${newTotal} points.`);
                         } else {
-                            alert("❌ Erreur lors de l'ajustement des points.");
+                            alert("❌ Erreur lors de la déduction des points.");
                         }
                     });
                 });

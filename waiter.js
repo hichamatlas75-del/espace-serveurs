@@ -831,10 +831,13 @@ function processCallsFeed(calls) {
             ${rewardClientInfo}
             <div class="card-actions">
                 ${call.status === "pending"
-                ? `<button class="action-btn-accept accept-call-btn" data-id="${call.id}">S'y Rendre</button>`
+                ? (call.type === "reward" && call.loyaltyPhone
+                    ? `<button class="action-btn-complete redeem-call-btn" style="background:#27ae60; font-weight:700;" data-id="${call.id}" data-phone="${call.loyaltyPhone}">🎁 Valider Conso Offerte (-500 pts)</button>
+                       <button class="action-btn-accept accept-call-btn" data-id="${call.id}">S'y Rendre</button>`
+                    : `<button class="action-btn-accept accept-call-btn" data-id="${call.id}">S'y Rendre</button>`)
                 : (isAcceptedByMe
                     ? `<div class="accepted-status-badge"><span class="mini-pulse"></span> En cours...</div>
-                           ${call.type === "reward" && call.loyaltyPhone ? `<button class="action-btn-complete redeem-call-btn" style="background:#27ae60;" data-id="${call.id}" data-phone="${call.loyaltyPhone}">🎁 Offrir (-500 pts)</button>` : ""}
+                           ${call.type === "reward" && call.loyaltyPhone ? `<button class="action-btn-complete redeem-call-btn" style="background:#27ae60; font-weight:700;" data-id="${call.id}" data-phone="${call.loyaltyPhone}">🎁 Valider Conso Offerte (-500 pts)</button>` : ""}
                            <button class="action-btn-complete complete-call-btn" data-id="${call.id}">Terminer</button>`
                     : `<div class="accepted-status-badge" style="color:var(--muted);">
                              <span>👨‍🍳 Pris en charge</span>
@@ -972,18 +975,30 @@ function processPreOrdersFeed(orders) {
         });
 
         let loyaltySnippet = "";
+        const ptsToAdd = Math.max(1, Math.round(order.totalPrice || 0));
         if (order.loyaltyPhone) {
-            const ptsToAdd = Math.floor(order.totalPrice || 0);
             loyaltySnippet = `
-                <div class="order-loyalty-banner">
+                <div class="order-loyalty-banner" style="background:rgba(201,169,110,0.1); border:1px solid rgba(201,169,110,0.3); padding:8px 10px; border-radius:8px; margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
                     <div>
                         <span style="font-weight:700; color:var(--gold);">👑 ${order.loyaltyName || "Client Club"}</span>
                         <span style="font-size:0.75rem; color:var(--muted); margin-left:4px;">(${order.loyaltyPhone})</span>
                     </div>
                     <div id="loyaltyPointsBadge_${order.id}">
                         ${order.loyaltyCredited 
-                            ? `<span style="color:#2ecc71; font-weight:700; font-size:0.82rem;">✓ Points crédités (+${ptsToAdd} pts)</span>`
-                            : `<button type="button" class="action-btn-credit-loyalty" data-order-id="${order.id}" data-phone="${order.loyaltyPhone}" data-amount="${order.totalPrice}" style="padding:4px 10px; cursor:pointer;">✅ Encaisser & Créditer (+${ptsToAdd} pts)</button>`
+                            ? `<span style="color:#2ecc71; font-weight:700; font-size:0.84rem;">✓ Points validés (+${ptsToAdd} pts)</span>`
+                            : `<button type="button" class="action-btn-credit-loyalty" data-order-id="${order.id}" data-phone="${order.loyaltyPhone}" data-amount="${order.totalPrice}" style="padding:6px 12px; cursor:pointer; background:#27ae60; color:#fff; border:none; border-radius:6px; font-weight:700; font-size:0.82rem;">✅ Valider Points (+${ptsToAdd} pts)</button>`
+                        }
+                    </div>
+                </div>
+            `;
+        } else {
+            loyaltySnippet = `
+                <div class="order-loyalty-banner" style="background:rgba(255,255,255,0.03); border:1px dashed rgba(201,169,110,0.35); padding:8px 10px; border-radius:8px; margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-size:0.8rem; color:var(--muted);">👑 Fidélité non renseignée</div>
+                    <div id="loyaltyPointsBadge_${order.id}">
+                        ${order.loyaltyCredited 
+                            ? `<span style="color:#2ecc71; font-weight:700; font-size:0.84rem;">✓ Points validés (+${ptsToAdd} pts)</span>`
+                            : `<button type="button" class="action-btn-assign-loyalty" data-order-id="${order.id}" data-amount="${order.totalPrice}" data-table="${order.table}" style="padding:5px 10px; cursor:pointer; background:rgba(201,169,110,0.18); border:1px solid var(--gold); border-radius:6px; color:var(--gold); font-size:0.8rem; font-weight:700;">➕ Valider Points (+${ptsToAdd} pts)</button>`
                         }
                     </div>
                 </div>
@@ -1035,6 +1050,18 @@ function processPreOrdersFeed(orders) {
         }
         if (btnComplete) {
             btnComplete.addEventListener("click", () => {
+                if (order.loyaltyPhone && !order.loyaltyCredited) {
+                    if (confirm(`Valider également les ${ptsToAdd} points de fidélité pour ${order.loyaltyName || order.loyaltyPhone} ?`)) {
+                        dbService.creditLoyaltyPoints(order.loyaltyPhone, order.totalPrice, order.table, activeWaiterId, order.id, (ok) => {
+                            if (ok) {
+                                playAlertSound();
+                                order.loyaltyCredited = true;
+                            }
+                            dbService.updatePreOrderStatus(order.id, "completed");
+                        });
+                        return;
+                    }
+                }
                 dbService.updatePreOrderStatus(order.id, "completed");
                 const ai = (typeof AndroidInterface !== "undefined") ? AndroidInterface : (typeof window !== "undefined" ? window.AndroidInterface : null);
                 if (ai && typeof ai.cancelAlert === "function") ai.cancelAlert(order.id);
@@ -1047,7 +1074,7 @@ function processPreOrdersFeed(orders) {
                 const phone = btnCreditLoyalty.dataset.phone;
                 const amount = parseFloat(btnCreditLoyalty.dataset.amount) || 0;
                 btnCreditLoyalty.disabled = true;
-                btnCreditLoyalty.textContent = "Crédit en cours...";
+                btnCreditLoyalty.textContent = "Validation...";
 
                 dbService.creditLoyaltyPoints(phone, amount, order.table, activeWaiterId, order.id, (ok, added, newTotal) => {
                     if (ok) {
@@ -1056,14 +1083,48 @@ function processPreOrdersFeed(orders) {
                         order.loyaltyCredited = true;
                         const container = document.getElementById(`loyaltyPointsBadge_${order.id}`);
                         if (container) {
-                            container.innerHTML = `<span style="color:#2ecc71; font-weight:700; font-size:0.82rem;">✓ Points crédités (+${added} pts)</span>`;
+                            container.innerHTML = `<span style="color:#2ecc71; font-weight:700; font-size:0.84rem;">✓ Points validés (+${added} pts)</span>`;
                         }
-                        alert(`👑 ${added} points crédités à ${phone} !\nNouveau solde: ${newTotal} pts`);
+                        alert(`👑 ${added} points validés pour ${phone} !\nNouveau solde : ${newTotal} / 500 pts`);
                     } else {
                         alert("❌ Erreur lors du crédit des points fidélité.");
                         btnCreditLoyalty.disabled = false;
                         btnCreditLoyalty.textContent = "Réessayer";
                     }
+                });
+            });
+        }
+
+        const btnAssignLoyalty = card.querySelector(".action-btn-assign-loyalty");
+        if (btnAssignLoyalty) {
+            btnAssignLoyalty.addEventListener("click", () => {
+                const phoneRaw = prompt(`Valider ${ptsToAdd} points pour cette commande (Table ${order.table} - ${order.totalPrice} MAD) :\n\nEntrez le numéro de téléphone du client :`);
+                if (!phoneRaw) return;
+                const cleanPh = window.normalizePhone ? window.normalizePhone(phoneRaw) : phoneRaw.replace(/\D/g, "");
+                if (cleanPh.length < 8) {
+                    alert("Numéro de téléphone invalide.");
+                    return;
+                }
+                btnAssignLoyalty.disabled = true;
+                btnAssignLoyalty.textContent = "Validation...";
+                dbService.createOrGetLoyaltyMember(cleanPh, "Client Table " + order.table, "waiter_direct", (okGet, member) => {
+                    dbService.creditLoyaltyPoints(cleanPh, order.totalPrice, order.table, activeWaiterId, order.id, (okCredit, added, newTotal) => {
+                        if (okCredit) {
+                            playAlertSound();
+                            triggerHapticVibrate();
+                            order.loyaltyPhone = cleanPh;
+                            order.loyaltyCredited = true;
+                            const container = document.getElementById(`loyaltyPointsBadge_${order.id}`);
+                            if (container) {
+                                container.innerHTML = `<span style="color:#2ecc71; font-weight:700; font-size:0.84rem;">✓ Points validés (+${added} pts)</span>`;
+                            }
+                            alert(`👑 +${added} points validés pour ${cleanPh} !\nNouveau solde : ${newTotal} / 500 pts`);
+                        } else {
+                            alert("❌ Erreur lors de la validation des points.");
+                            btnAssignLoyalty.disabled = false;
+                            btnAssignLoyalty.textContent = "Réessayer";
+                        }
+                    });
                 });
             });
         }
@@ -1318,73 +1379,70 @@ function initDirectLoyaltyModule() {
     const modal = document.getElementById("directLoyaltyModal");
     const btnOpen = document.getElementById("btnOpenDirectLoyalty");
     const btnClose = document.getElementById("btnCloseDirectLoyalty");
-    const searchInput = document.getElementById("directLoyaltySearchInput");
-    const searchBtn = document.getElementById("directLoyaltySearchBtn");
-    const contentArea = document.getElementById("directLoyaltyContentArea");
+    const modalSearchInput = document.getElementById("directLoyaltySearchInput");
+    const modalSearchBtn = document.getElementById("directLoyaltySearchBtn");
+    const modalContentArea = document.getElementById("directLoyaltyContentArea");
 
-    if (!modal || !btnOpen) return;
+    const tabSearchInput = document.getElementById("tabLoyaltySearchInput");
+    const tabSearchBtn = document.getElementById("tabLoyaltySearchBtn");
+    const tabContentArea = document.getElementById("tabLoyaltyContentArea");
 
-    const openModal = () => {
-        modal.style.display = "flex";
-        if (searchInput) {
-            searchInput.value = "";
-            setTimeout(() => searchInput.focus(), 150);
-        }
-        contentArea.innerHTML = `
-            <div style="text-align: center; color: var(--muted); padding: 24px 10px; font-size: 0.9rem;">
-                💡 Saisissez le numéro de téléphone pour créditer les points de l'addition ou offrir la boisson gratuite.
-            </div>
-        `;
-    };
+    // Quand le serveur clique sur le bouton en haut, on bascule directement sur l'onglet Fidélité !
+    if (btnOpen) {
+        btnOpen.addEventListener("click", () => {
+            const loyaltyTabBtn = document.querySelector('.tab-btn[data-tab="tabLoyalty"]');
+            if (loyaltyTabBtn) {
+                loyaltyTabBtn.click();
+                if (tabSearchInput) setTimeout(() => tabSearchInput.focus(), 150);
+            } else if (modal) {
+                modal.style.display = "flex";
+                if (modalSearchInput) setTimeout(() => modalSearchInput.focus(), 150);
+            }
+        });
+    }
 
-    const closeModal = () => {
-        modal.style.display = "none";
-    };
+    if (btnClose && modal) {
+        btnClose.addEventListener("click", () => { modal.style.display = "none"; });
+        modal.addEventListener("click", (e) => { if (e.target === modal) modal.style.display = "none"; });
+    }
 
-    btnOpen.addEventListener("click", openModal);
-    if (btnClose) btnClose.addEventListener("click", closeModal);
-    modal.addEventListener("click", (e) => {
-        if (e.target === modal) closeModal();
-    });
+    function setupController(searchInput, searchBtn, contentArea, suffix) {
+        if (!searchInput || !contentArea) return;
 
-    const performSearch = () => {
-        const query = (searchInput.value || "").trim();
-        if (!query) return;
+        const performSearch = () => {
+            const query = (searchInput.value || "").trim();
+            if (!query) return;
 
-        contentArea.innerHTML = `<div style="text-align:center; padding:20px; color:var(--muted);"><span class="mini-pulse"></span> Recherche du compte...</div>`;
+            contentArea.innerHTML = `<div style="text-align:center; padding:20px; color:var(--muted);"><span class="mini-pulse"></span> Recherche du compte...</div>`;
+            const cleanPhone = window.normalizePhone ? window.normalizePhone(query) : query.replace(/\D/g, "");
 
-        // Si 8 chiffres ou plus, on cherche directement le numéro normalisé
-        const cleanPhone = window.normalizePhone ? window.normalizePhone(query) : query.replace(/\D/g, "");
+            if (cleanPhone.length >= 8) {
+                dbService.getLoyaltyMember(cleanPhone, (member) => {
+                    if (member) {
+                        renderMember(member, contentArea, suffix);
+                    } else {
+                        renderCreate(cleanPhone, contentArea, suffix);
+                    }
+                });
+            } else {
+                dbService.onAllLoyaltyMembersChange((allMembers) => {
+                    const match = (allMembers || []).find(m => m.phone.endsWith(query) || (m.firstName && m.firstName.toLowerCase().includes(query.toLowerCase())));
+                    if (match) {
+                        renderMember(match, contentArea, suffix);
+                    } else {
+                        renderCreate(query, contentArea, suffix);
+                    }
+                });
+            }
+        };
 
-        if (cleanPhone.length >= 8) {
-            dbService.getLoyaltyMember(cleanPhone, (member) => {
-                if (member) {
-                    renderMemberDetails(member);
-                } else {
-                    renderCreateMemberForm(cleanPhone);
-                }
-            });
-        } else {
-            // Recherche par les 4 derniers chiffres ou par liste complète
-            dbService.onAllLoyaltyMembersChange((allMembers) => {
-                const match = allMembers.find(m => m.phone.endsWith(query) || (m.firstName && m.firstName.toLowerCase().includes(query.toLowerCase())));
-                if (match) {
-                    renderMemberDetails(match);
-                } else {
-                    renderCreateMemberForm(query);
-                }
-            });
-        }
-    };
-
-    if (searchBtn) searchBtn.addEventListener("click", performSearch);
-    if (searchInput) {
+        if (searchBtn) searchBtn.addEventListener("click", performSearch);
         searchInput.addEventListener("keydown", (e) => {
             if (e.key === "Enter") performSearch();
         });
     }
 
-    function renderMemberDetails(member) {
+    function renderMember(member, contentArea, suffix) {
         const pts = member.points || 0;
         const target = 500;
         const pct = Math.min(100, Math.round((pts / target) * 100));
@@ -1416,32 +1474,53 @@ function initDirectLoyaltyModule() {
 
                 ${canRedeem ? `
                     <div style="margin-top:14px;">
-                        <button type="button" class="btn-redeem-free-drink" id="btnDirectRedeemFreeDrink">
+                        <button type="button" class="btn-redeem-free-drink" id="btnRedeem_${suffix}">
                             🎁 OFFRIR LA CONSOMMATION (-500 pts)
                         </button>
                     </div>
                 ` : ""}
 
                 <div class="direct-credit-section">
-                    <div class="direct-credit-title">⚡ Encaissement Direct (Ajouter des points)</div>
+                    <div class="direct-credit-title">⚡ Encaissement Direct (Valider des points)</div>
                     <div class="direct-credit-inputs">
-                        <input type="number" id="directCreditAmount" class="waiter-num-input" placeholder="Montant addition (DH)" min="1" step="1" />
-                        <input type="text" id="directCreditTable" class="waiter-num-input" placeholder="Table (optionnel)" style="max-width:120px;" />
+                        <input type="number" id="creditAmount_${suffix}" class="waiter-num-input" placeholder="Montant addition (DH)" min="1" step="1" />
+                        <input type="text" id="creditTable_${suffix}" class="waiter-num-input" placeholder="Table (optionnel)" style="max-width:120px;" />
                     </div>
-                    <button type="button" class="btn-credit-now" id="btnDirectCreditNow">
-                        + Créditer les points (1 DH = 1 pt)
+                    <button type="button" class="btn-credit-now" id="btnCredit_${suffix}">
+                        ✅ Valider les points (1 DH = 1 pt)
                     </button>
                 </div>
             </div>
         `;
 
         if (canRedeem) {
-            bindRedeemBtn(member.phone);
+            const btnRedeem = document.getElementById(`btnRedeem_${suffix}`);
+            if (btnRedeem) {
+                btnRedeem.addEventListener("click", () => {
+                    if (confirm(`Confirmez-vous déduire 500 points pour offrir 1 consommation gratuite à ${member.firstName} (${member.phone}) ?`)) {
+                        btnRedeem.disabled = true;
+                        btnRedeem.textContent = "Déduction...";
+                        dbService.redeemLoyaltyReward(member.phone, activeWaiterId, (ok, newTotal) => {
+                            if (ok) {
+                                playAlertSound();
+                                triggerHapticVibrate();
+                                alert(`🎉 Consommation offerte accordée avec succès !\nNouveau solde : ${newTotal} pts`);
+                                member.points = newTotal;
+                                renderMember(member, contentArea, suffix);
+                            } else {
+                                alert("❌ Solde insuffisant ou erreur.");
+                                btnRedeem.disabled = false;
+                                btnRedeem.textContent = "🎁 OFFRIR LA CONSOMMATION (-500 pts)";
+                            }
+                        });
+                    }
+                });
+            }
         }
 
-        const btnCreditNow = document.getElementById("btnDirectCreditNow");
-        const inputAmount = document.getElementById("directCreditAmount");
-        const inputTable = document.getElementById("directCreditTable");
+        const btnCreditNow = document.getElementById(`btnCredit_${suffix}`);
+        const inputAmount = document.getElementById(`creditAmount_${suffix}`);
+        const inputTable = document.getElementById(`creditTable_${suffix}`);
 
         if (btnCreditNow && inputAmount) {
             btnCreditNow.addEventListener("click", () => {
@@ -1450,9 +1529,9 @@ function initDirectLoyaltyModule() {
                     alert("Veuillez saisir un montant d'addition valide.");
                     return;
                 }
-                const tableNum = (inputTable.value || "").trim();
+                const tableNum = (inputTable ? inputTable.value : "").trim();
                 btnCreditNow.disabled = true;
-                btnCreditNow.textContent = "Crédit en cours...";
+                btnCreditNow.textContent = "Validation en cours...";
 
                 dbService.creditLoyaltyPoints(member.phone, amount, tableNum, activeWaiterId, null, (ok, added, newTotal) => {
                     if (ok) {
@@ -1460,45 +1539,18 @@ function initDirectLoyaltyModule() {
                         triggerHapticVibrate();
                         alert(`✅ Addition de ${amount} DH encaissée !\n\n+${added} points crédités à ${member.firstName || "Client"}.\nNouveau solde : ${newTotal} / 500 pts`);
                         member.points = newTotal;
-                        renderMemberDetails(member);
+                        renderMember(member, contentArea, suffix);
                     } else {
                         alert("❌ Erreur lors de l'attribution des points.");
                         btnCreditNow.disabled = false;
-                        btnCreditNow.textContent = "+ Créditer les points";
+                        btnCreditNow.textContent = "✅ Valider les points (1 DH = 1 pt)";
                     }
                 });
             });
         }
     }
 
-    function bindRedeemBtn(phone) {
-        const btnRedeem = document.getElementById("btnDirectRedeemFreeDrink");
-        if (!btnRedeem) return;
-
-        btnRedeem.addEventListener("click", () => {
-            if (confirm(`Confirmez-vous déduire 500 points pour offrir 1 consommation gratuite à ce client ?`)) {
-                btnRedeem.disabled = true;
-                btnRedeem.textContent = "Déduction...";
-
-                dbService.redeemLoyaltyReward(phone, activeWaiterId, (ok, newTotal) => {
-                    if (ok) {
-                        playAlertSound();
-                        triggerHapticVibrate();
-                        alert(`🎉 Consommation offerte accordée avec succès !\nNouveau solde : ${newTotal} pts`);
-                        dbService.getLoyaltyMember(phone, (updated) => {
-                            if (updated) renderMemberDetails(updated);
-                        });
-                    } else {
-                        alert("❌ Solde insuffisant ou erreur.");
-                        btnRedeem.disabled = false;
-                        btnRedeem.textContent = "🎁 OFFRIR LA CONSOMMATION (-500 pts)";
-                    }
-                });
-            }
-        });
-    }
-
-    function renderCreateMemberForm(phoneVal) {
+    function renderCreate(phoneVal, contentArea, suffix) {
         contentArea.innerHTML = `
             <div class="waiter-member-card" style="border-color: rgba(201, 169, 110, 0.4);">
                 <div style="text-align: center; margin-bottom: 16px;">
@@ -1510,23 +1562,23 @@ function initDirectLoyaltyModule() {
                 <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;">
                     <div>
                         <label style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase;">Prénom du client</label>
-                        <input type="text" id="directNewFirstName" class="waiter-search-input" style="width: 100%; margin-top: 4px;" placeholder="Ex: Karim" />
+                        <input type="text" id="newFirstName_${suffix}" class="waiter-search-input" style="width: 100%; margin-top: 4px;" placeholder="Ex: Karim" />
                     </div>
                     <div>
                         <label style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase;">Numéro de téléphone</label>
-                        <input type="tel" id="directNewPhone" class="waiter-search-input" style="width: 100%; margin-top: 4px;" value="${phoneVal}" placeholder="Ex: 0612345678" />
+                        <input type="tel" id="newPhone_${suffix}" class="waiter-search-input" style="width: 100%; margin-top: 4px;" value="${phoneVal}" placeholder="Ex: 0612345678" />
                     </div>
                 </div>
 
-                <button type="button" id="btnDirectCreateMember" class="btn-credit-now" style="background: linear-gradient(135deg, #C9A96E 0%, #B8860B 100%); color: #000; font-weight: 700;">
+                <button type="button" id="btnCreate_${suffix}" class="btn-credit-now" style="background: linear-gradient(135deg, #C9A96E 0%, #B8860B 100%); color: #000; font-weight: 700;">
                     🎁 Créer le compte (+50 pts offerts) & Continuer
                 </button>
             </div>
         `;
 
-        const btnCreate = document.getElementById("btnDirectCreateMember");
-        const inputName = document.getElementById("directNewFirstName");
-        const inputPhone = document.getElementById("directNewPhone");
+        const btnCreate = document.getElementById(`btnCreate_${suffix}`);
+        const inputName = document.getElementById(`newFirstName_${suffix}`);
+        const inputPhone = document.getElementById(`newPhone_${suffix}`);
 
         if (btnCreate && inputPhone) {
             btnCreate.addEventListener("click", () => {
@@ -1547,7 +1599,7 @@ function initDirectLoyaltyModule() {
                         playAlertSound();
                         triggerHapticVibrate();
                         alert(`👑 Compte créé pour ${member.firstName} !\n+50 points de bienvenue offerts (Solde: ${member.points} pts).`);
-                        renderMemberDetails(member);
+                        renderMember(member, contentArea, suffix);
                     } else {
                         alert("❌ Erreur lors de la création du compte.");
                         btnCreate.disabled = false;
@@ -1557,6 +1609,9 @@ function initDirectLoyaltyModule() {
             });
         }
     }
+
+    setupController(modalSearchInput, modalSearchBtn, modalContentArea, "modal");
+    setupController(tabSearchInput, tabSearchBtn, tabContentArea, "tab");
 }
 
 document.addEventListener("DOMContentLoaded", () => {

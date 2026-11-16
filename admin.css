@@ -1244,3 +1244,165 @@ button, input, select, .admin-tab-btn, .freeze-btn, .cleanup-btn {
     font-weight: 700;
     font-size: 0.95rem;
 }
+
+/* ============================================================================
+   ADMIN MAIN NAVIGATION & QUICK VALIDATION
+   ============================================================================ */
+.admin-main-nav {
+    display: flex;
+    gap: 12px;
+    margin: 20px 0;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.admin-nav-btn {
+    flex: 1;
+    min-width: 180px;
+    padding: 14px 18px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    color: var(--muted);
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.admin-nav-btn:hover {
+    background: rgba(201, 168, 76, 0.08);
+    border-color: rgba(201, 168, 76, 0.3);
+    color: #ffffff;
+}
+
+.admin-nav-btn.active {
+    background: linear-gradient(135deg, rgba(201, 169, 110, 0.22) 0%, rgba(201, 169, 110, 0.1) 100%);
+    border-color: var(--gold);
+    color: #ffffff;
+    box-shadow: 0 4px 16px rgba(201, 169, 110, 0.15);
+}
+
+.admin-section {
+    display: none;
+}
+
+.admin-section.active {
+    display: block;
+}
+
+/* Quick Validation Card */
+.admin-loyalty-quick-validate-card {
+    background: var(--card);
+    border: 1px solid rgba(201, 169, 110, 0.35);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 24px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+.quick-validate-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-top: 14px;
+    align-items: flex-end;
+}
+
+.validate-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.validate-field label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.validate-field input {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: #ffffff;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.validate-field input:focus {
+    border-color: var(--gold);
+}
+
+.validate-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.btn-validate-credit {
+    background: #27ae60;
+    color: #ffffff;
+    border: none;
+    padding: 12px 22px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.92rem;
+    cursor: pointer;
+    transition: transform 0.15s, background 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-validate-credit:hover {
+    background: #219653;
+    transform: translateY(-1px);
+}
+
+.btn-validate-deduct {
+    background: rgba(231, 76, 60, 0.18);
+    color: #e74c3c;
+    border: 1px solid rgba(231, 76, 60, 0.4);
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    cursor: pointer;
+}
+
+.btn-validate-redeem {
+    background: linear-gradient(135deg, #f39c12 0%, #d35400 100%);
+    color: #ffffff;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(243, 156, 18, 0.25);
+}
+
+.btn-validate-create {
+    background: rgba(52, 152, 219, 0.18);
+    color: #3498db;
+    border: 1px solid rgba(52, 152, 219, 0.4);
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    cursor: pointer;
+}
+
