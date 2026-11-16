@@ -759,25 +759,25 @@ button, input, select, .hub-tab, .call-action-btn, .order-action-btn {
 .btn-quick-loyalty {
     width: 100%;
     min-height: 48px;
-    background: linear-gradient(135deg, rgba(201, 169, 110, 0.22) 0%, rgba(201, 169, 110, 0.1) 100%);
+    background: linear-gradient(135deg, rgba(161, 116, 32, 0.14) 0%, rgba(184, 134, 11, 0.08) 100%);
     border: 1.5px solid var(--gold);
     border-radius: 12px;
-    color: #f7eedb;
+    color: #0F172A;
     font-family: var(--font-sans);
-    font-size: 0.92rem;
-    font-weight: 700;
+    font-size: 0.95rem;
+    font-weight: 800;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 16px;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(201, 169, 110, 0.15);
+    box-shadow: 0 2px 8px rgba(161, 116, 32, 0.12);
     transition: transform 0.15s, background 0.15s;
 }
 
 .btn-quick-loyalty:active {
     transform: scale(0.98);
-    background: rgba(201, 169, 110, 0.25);
+    background: rgba(161, 116, 32, 0.22);
 }
 
 .btn-quick-icon {
@@ -785,12 +785,17 @@ button, input, select, .hub-tab, .call-action-btn, .order-action-btn {
     color: var(--gold);
 }
 
+.btn-quick-text {
+    color: #0F172A;
+    font-weight: 800;
+}
+
 .btn-quick-badge {
     background: var(--gold);
-    color: #07060a;
-    font-size: 0.7rem;
+    color: #FFFFFF !important;
+    font-size: 0.72rem;
     font-weight: 800;
-    padding: 3px 8px;
+    padding: 4px 10px;
     border-radius: 20px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -801,7 +806,7 @@ button, input, select, .hub-tab, .call-action-btn, .order-action-btn {
     position: fixed;
     inset: 0;
     z-index: 9999;
-    background: rgba(0, 0, 0, 0.75);
+    background: rgba(15, 23, 42, 0.65);
     backdrop-filter: blur(8px);
     display: flex;
     align-items: flex-end;
@@ -813,10 +818,10 @@ button, input, select, .hub-tab, .call-action-btn, .order-action-btn {
     width: 100%;
     max-width: 600px;
     max-height: 90vh;
-    background: var(--surface);
-    border-top: 2px solid var(--gold);
+    background: #FFFFFF;
+    border-top: 3px solid var(--gold);
     border-radius: 20px 20px 0 0;
-    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8);
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.25);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -834,7 +839,7 @@ button, input, select, .hub-tab, .call-action-btn, .order-action-btn {
     justify-content: space-between;
     padding: 16px 20px;
     border-bottom: 1px solid var(--border);
-    background: rgba(7, 6, 10, 0.6);
+    background: #FFFFFF;
 }
 
 .modal-title-row {
@@ -846,14 +851,14 @@ button, input, select, .hub-tab, .call-action-btn, .order-action-btn {
 .modal-title {
     font-family: var(--font-serif);
     font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--gold);
+    font-weight: 800;
+    color: #0F172A;
 }
 
 .modal-close-btn {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.06);
     border: none;
-    color: var(--text);
+    color: #0F172A;
     font-size: 1.5rem;
     line-height: 1;
     width: 36px;
@@ -879,44 +884,71 @@ button, input, select, .hub-tab, .call-action-btn, .order-action-btn {
 
 .waiter-search-input {
     flex: 1;
-    height: 48px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1.5px solid var(--border);
+    height: 50px;
+    background: #FFFFFF !important;
+    border: 2px solid var(--border) !important;
     border-radius: 12px;
-    color: #ffffff;
+    color: #0F172A !important; /* COULEUR NOIRE ULTRA LISIBLE */
     font-family: var(--font-sans);
-    font-size: 1rem;
-    font-weight: 500;
-    padding: 0 14px;
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    padding: 0 16px;
     outline: none;
-    transition: border-color 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .waiter-search-input:focus {
-    border-color: var(--gold);
+    border-color: var(--gold) !important;
+    box-shadow: 0 0 0 3px rgba(161, 116, 32, 0.18) !important;
+}
+
+.waiter-search-input::placeholder {
+    color: #94A3B8;
+    font-size: 0.95rem;
+    font-weight: 500;
+    letter-spacing: normal;
 }
 
 .btn-search-loyalty {
-    min-width: 90px;
-    height: 48px;
-    background: var(--gold);
-    color: #07060a;
-    font-weight: 700;
-    font-size: 0.9rem;
+    min-width: 105px;
+    height: 50px;
+    background: linear-gradient(135deg, #A17420 0%, #B8860B 100%) !important;
+    color: #FFFFFF !important;
+    font-weight: 800;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
     border: none;
     border-radius: 12px;
     cursor: pointer;
+    box-shadow: 0 4px 12px rgba(161, 116, 32, 0.25);
+    transition: all 0.15s ease;
 }
 
-/* Fiche Membre Fidélité dans Modal */
+.btn-search-loyalty:hover {
+    background: #8F661A !important;
+}
+
+.btn-search-loyalty:active {
+    transform: scale(0.98);
+}
+
+/* Fiche Membre Fidélité dans Modal et Onglet */
+.waiter-member-card,
 .loyalty-member-card {
-    background: var(--surface-2);
-    border: 1.5px solid rgba(201, 169, 110, 0.3);
+    background: #FFFFFF !important;
+    border: 1.5px solid var(--border) !important;
+    border-top: 4px solid var(--gold) !important;
     border-radius: 16px;
-    padding: 18px;
+    padding: 20px;
+    margin-top: 14px;
     margin-bottom: 16px;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
 }
 
+.member-card-header,
 .loyalty-card-head {
     display: flex;
     justify-content: space-between;
@@ -924,93 +956,171 @@ button, input, select, .hub-tab, .call-action-btn, .order-action-btn {
     margin-bottom: 12px;
 }
 
+.member-name,
 .member-name-tag {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #ffffff;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #0F172A !important;
 }
 
+.member-phone,
 .member-phone-sub {
-    font-size: 0.85rem;
-    color: var(--muted);
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--gold) !important;
+    margin-top: 3px;
+    letter-spacing: 0.04em;
 }
 
+.member-score,
 .member-points-pill {
     text-align: right;
 }
 
+.member-score-pts,
 .member-points-big {
-    font-size: 1.7rem;
-    font-weight: 800;
+    font-size: 1.8rem;
+    font-weight: 900;
     color: var(--gold);
     line-height: 1;
 }
 
+.member-score-sub,
 .member-points-target {
-    font-size: 0.78rem;
-    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #64748B;
 }
 
+.member-progress-wrap,
 .loyalty-card-progress {
     width: 100%;
-    height: 10px;
-    background: rgba(255, 255, 255, 0.08);
+    height: 12px;
+    background: #E2E8F0;
     border-radius: 10px;
     overflow: hidden;
-    margin-bottom: 12px;
+    margin: 12px 0 8px 0;
 }
 
+.member-progress-bar,
 .loyalty-card-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--gold) 0%, #ffd987 100%);
+    background: linear-gradient(90deg, #A17420 0%, #F59E0B 100%);
     border-radius: 10px;
     transition: width 0.4s ease;
 }
 
-/* Encaissement direct */
-.direct-action-block {
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid var(--border);
+.member-status-lbl {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 14px;
 }
 
+.direct-credit-section,
+.direct-action-block {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 14px;
+}
+
+.direct-credit-title {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #0F172A;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.direct-credit-inputs,
 .direct-inputs-grid {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
+    display: flex;
     gap: 10px;
     margin-bottom: 10px;
 }
 
+.waiter-num-input,
 .direct-input {
+    flex: 1;
     height: 48px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1.5px solid var(--border);
-    border-radius: 12px;
-    color: #ffffff;
+    background: #FFFFFF !important;
+    border: 1.5px solid #CBD5E1 !important;
+    border-radius: 10px;
+    color: #0F172A !important;
+    font-family: var(--font-sans);
     font-size: 1rem;
-    font-weight: 600;
-    padding: 0 12px;
+    font-weight: 700;
+    padding: 0 14px;
     outline: none;
+    transition: border-color 0.2s;
 }
 
+.waiter-num-input:focus,
 .direct-input:focus {
-    border-color: var(--gold);
+    border-color: var(--gold) !important;
+    box-shadow: 0 0 0 3px rgba(161, 116, 32, 0.15) !important;
 }
 
+.waiter-num-input::placeholder,
+.direct-input::placeholder {
+    color: #94A3B8;
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+
+.btn-credit-now,
 .btn-direct-credit {
     width: 100%;
-    min-height: 50px;
-    background: linear-gradient(135deg, var(--gold) 0%, #a88344 100%);
-    color: #07060a;
+    height: 48px;
+    background: #16A34A !important;
+    color: #FFFFFF !important;
+    font-size: 0.95rem;
     font-weight: 800;
-    font-size: 1rem;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+    transition: transform 0.15s, background 0.15s;
+}
+
+.btn-credit-now:hover,
+.btn-direct-credit:hover {
+    background: #15803D !important;
+}
+
+.btn-credit-now:active,
+.btn-direct-credit:active {
+    transform: scale(0.98);
+}
+
+.btn-redeem-free-drink,
+.btn-direct-redeem {
+    width: 100%;
+    height: 50px;
+    background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important;
+    color: #FFFFFF !important;
+    font-size: 0.95rem;
+    font-weight: 800;
     border: none;
     border-radius: 12px;
     cursor: pointer;
-    box-shadow: 0 4px 15px rgba(201, 169, 110, 0.3);
-    margin-top: 4px;
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+    margin-bottom: 14px;
     display: flex;
     align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
     justify-content: center;
     gap: 8px;
 }

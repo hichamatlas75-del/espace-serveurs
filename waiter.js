@@ -1615,7 +1615,7 @@ function initDirectLoyaltyModule() {
 }
 
 // ── GESTION DE LA MISE À JOUR RAPIDE (PWA, Android WebView & Navigateurs) ────
-const CURRENT_APP_VERSION = "4.0.0";
+const CURRENT_APP_VERSION = "4.1.0";
 
 async function performHardAppUpdate() {
     console.log("🔄 Lancement de la mise à jour forcée de l'application serveur...");

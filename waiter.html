@@ -18,7 +18,7 @@
     <meta name="theme-color" content="#FFFFFF">
     <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
-    <link rel="stylesheet" href="waiter.css?v=4.0">
+    <link rel="stylesheet" href="waiter.css?v=4.1">
 
     <style>
         /* ── Reset & Variables (THÈME CLAIR LUMINEUX & HAUTE LISIBILITÉ) ── */
@@ -320,6 +320,212 @@
 
         .btn-banner-update:hover {
             background: #B45309;
+        }
+
+        /* ── BARRE DE RECHERCHE TÉLÉPHONE & FIDÉLITÉ (HAUTE VISIBILITÉ NOIRE) ── */
+        .waiter-search-input {
+            flex: 1;
+            height: 50px !important;
+            background: #FFFFFF !important;
+            border: 2px solid var(--gold) !important;
+            border-radius: 12px !important;
+            color: #0F172A !important; /* COULEUR NOIRE ULTRA LISIBLE */
+            font-family: var(--font-sans) !important;
+            font-size: 1.2rem !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.05em !important;
+            padding: 0 16px !important;
+            outline: none !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+        }
+
+        .waiter-search-input:focus {
+            border-color: #B8860B !important;
+            box-shadow: 0 0 0 3px rgba(161, 116, 32, 0.2) !important;
+        }
+
+        .waiter-search-input::placeholder {
+            color: #94A3B8 !important;
+            font-size: 0.95rem !important;
+            font-weight: 500 !important;
+            letter-spacing: normal !important;
+        }
+
+        .btn-search-loyalty {
+            min-width: 105px !important;
+            height: 50px !important;
+            background: linear-gradient(135deg, #A17420 0%, #B8860B 100%) !important;
+            color: #FFFFFF !important;
+            font-weight: 800 !important;
+            font-size: 0.95rem !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.04em !important;
+            border: none !important;
+            border-radius: 12px !important;
+            cursor: pointer !important;
+            box-shadow: 0 4px 12px rgba(161, 116, 32, 0.25) !important;
+        }
+
+        .btn-quick-loyalty {
+            color: #0F172A !important;
+            font-weight: 800 !important;
+            border: 2px solid var(--gold) !important;
+        }
+
+        .btn-quick-text {
+            color: #0F172A !important;
+            font-weight: 800 !important;
+        }
+
+        .btn-quick-badge {
+            background: var(--gold) !important;
+            color: #FFFFFF !important;
+            font-weight: 800 !important;
+        }
+
+        .waiter-member-card {
+            background: #FFFFFF !important;
+            border: 1.5px solid var(--border) !important;
+            border-top: 4px solid var(--gold) !important;
+            border-radius: 16px !important;
+            padding: 20px !important;
+            margin-top: 14px !important;
+            box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08) !important;
+        }
+
+        .member-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .member-name {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #0F172A !important;
+        }
+
+        .member-phone {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: var(--gold) !important;
+            margin-top: 3px;
+            letter-spacing: 0.05em;
+        }
+
+        .member-score {
+            text-align: right;
+        }
+
+        .member-score-pts {
+            font-size: 1.8rem;
+            font-weight: 900;
+            color: var(--gold);
+            line-height: 1;
+        }
+
+        .member-score-sub {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #64748B;
+        }
+
+        .member-progress-wrap {
+            width: 100%;
+            height: 12px;
+            background: #E2E8F0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 12px 0 8px 0;
+        }
+
+        .member-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #A17420 0%, #F59E0B 100%);
+            border-radius: 10px;
+        }
+
+        .member-status-lbl {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 14px;
+        }
+
+        .direct-credit-section {
+            background: #F8FAFC !important;
+            border: 1px solid #E2E8F0 !important;
+            border-radius: 12px !important;
+            padding: 16px !important;
+            margin-top: 14px !important;
+        }
+
+        .direct-credit-title {
+            font-size: 0.88rem !important;
+            font-weight: 800 !important;
+            color: #0F172A !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.05em !important;
+            margin-bottom: 10px !important;
+        }
+
+        .direct-credit-inputs {
+            display: flex !important;
+            gap: 10px !important;
+            margin-bottom: 10px !important;
+        }
+
+        .waiter-num-input {
+            flex: 1 !important;
+            height: 48px !important;
+            background: #FFFFFF !important;
+            border: 1.5px solid #CBD5E1 !important;
+            border-radius: 10px !important;
+            color: #0F172A !important;
+            font-family: var(--font-sans) !important;
+            font-size: 1.05rem !important;
+            font-weight: 700 !important;
+            padding: 0 14px !important;
+            outline: none !important;
+        }
+
+        .waiter-num-input:focus {
+            border-color: var(--gold) !important;
+            box-shadow: 0 0 0 3px rgba(161, 116, 32, 0.15) !important;
+        }
+
+        .waiter-num-input::placeholder {
+            color: #94A3B8 !important;
+            font-weight: 500 !important;
+            font-size: 0.88rem !important;
+        }
+
+        .btn-credit-now {
+            width: 100% !important;
+            height: 50px !important;
+            background: #16A34A !important;
+            color: #FFFFFF !important;
+            font-size: 1rem !important;
+            font-weight: 800 !important;
+            border: none !important;
+            border-radius: 10px !important;
+            cursor: pointer !important;
+            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25) !important;
+        }
+
+        .btn-redeem-free-drink {
+            width: 100% !important;
+            height: 50px !important;
+            background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important;
+            color: #FFFFFF !important;
+            font-size: 1rem !important;
+            font-weight: 800 !important;
+            border: none !important;
+            border-radius: 12px !important;
+            cursor: pointer !important;
+            box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35) !important;
+            margin-bottom: 14px !important;
         }
 
         /* ── Stats bar ───────────────────────────────────────────────────── */
@@ -942,11 +1148,11 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js"></script>
-    <script src="firebase-config.js?v=4.0"></script>
-    <script type="module" src="js/config/firebase.js?v=4.0"></script>
+    <script src="firebase-config.js?v=4.1"></script>
+    <script type="module" src="js/config/firebase.js?v=4.1"></script>
 
     <!-- Waiter Logic -->
-    <script src="waiter.js?v=4.0"></script>
+    <script src="waiter.js?v=4.1"></script>
 </body>
 
 </html>
