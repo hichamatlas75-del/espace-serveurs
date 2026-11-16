@@ -937,6 +937,16 @@ function initAdminLoyaltyDashboard() {
             const sourceClass = m.source === "qr_menu" ? "qr" : (m.source === "waiter_direct" ? "waiter" : "admin");
             const sourceLabel = m.source === "qr_menu" ? "Menu QR" : (m.source === "waiter_direct" ? "Serveur" : "Admin");
 
+            // Format WhatsApp Phone (+212)
+            let waPhone = (m.phone || "").replace(/\D/g, "");
+            if (waPhone.startsWith("0")) {
+                waPhone = "212" + waPhone.substring(1);
+            } else if (!waPhone.startsWith("212") && waPhone.length === 9) {
+                waPhone = "212" + waPhone;
+            }
+            const waDefaultMsg = encodeURIComponent(`Bonjour ${m.firstName || "cher client"} ! ☕ Votre salon Grey Corner vous informe que vous disposez actuellement de ${pts} points sur votre carte fidélité.`);
+            const waLink = `https://wa.me/${waPhone}?text=${waDefaultMsg}`;
+
             tr.innerHTML = `
                 <td><strong>${m.firstName || "Client"}</strong></td>
                 <td><code style="color:var(--gold);">${m.phone}</code></td>
@@ -954,6 +964,7 @@ function initAdminLoyaltyDashboard() {
                     <button type="button" class="table-btn-action btn-adjust-pts" data-phone="${m.phone}" data-name="${m.firstName}">➖ Déduire</button>
                     ${pts >= 500 ? `<button type="button" class="table-btn-action table-btn-redeem btn-redeem-pts" data-phone="${m.phone}" data-name="${m.firstName}">🎁 Offrir Conso</button>` : ""}
                     <button type="button" class="table-btn-action btn-history-pts" data-phone="${m.phone}" data-name="${m.firstName}">📜 Tx</button>
+                    <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="table-btn-action" style="background:#25D366; border-color:#25D366; color:#fff; text-decoration:none; font-weight:700; display:inline-flex; align-items:center; gap:3px;" title="Discuter sur WhatsApp">💬 WA</a>
                 </td>
             `;
 
@@ -1056,6 +1067,135 @@ function initAdminLoyaltyDashboard() {
 
             tableBody.appendChild(tr);
         });
+    }
+
+    // ── Outils Export CSV & Campagne WhatsApp ──
+    const btnExportCSV = document.getElementById("btnExportLoyaltyCSV");
+    if (btnExportCSV) {
+        btnExportCSV.addEventListener("click", () => {
+            if (!cachedAdminLoyaltyMembers || cachedAdminLoyaltyMembers.length === 0) {
+                alert("Aucun client dans la base de données.");
+                return;
+            }
+            downloadMembersCSV(cachedAdminLoyaltyMembers, `clients_grey_corner_${new Date().toISOString().split("T")[0]}.csv`);
+        });
+    }
+
+    const btnCopyAll = document.getElementById("btnCopyAllPhones");
+    if (btnCopyAll) {
+        btnCopyAll.addEventListener("click", () => {
+            if (!cachedAdminLoyaltyMembers || cachedAdminLoyaltyMembers.length === 0) {
+                alert("Aucun client dans la base de données.");
+                return;
+            }
+            const phones = cachedAdminLoyaltyMembers.map(m => m.phone).filter(Boolean).join(", ");
+            navigator.clipboard.writeText(phones).then(() => {
+                alert(`📋 ${cachedAdminLoyaltyMembers.length} numéros de téléphone copiés dans le presse-papier !`);
+            }).catch(() => {
+                prompt("Voici la liste des numéros (Ctrl+C pour copier) :", phones);
+            });
+        });
+    }
+
+    // ── Modale Campagne WhatsApp ──
+    const modalWa = document.getElementById("adminWhatsAppModal");
+    const btnOpenWa = document.getElementById("btnOpenWhatsAppCampaignModal");
+    const btnCloseWa = document.getElementById("btnCloseWaModal");
+    const waTargetSelect = document.getElementById("waTargetSelect");
+    const waTargetCountLabel = document.getElementById("waTargetCountLabel");
+    const waMessageText = document.getElementById("waMessageText");
+    const btnCopyWaPhones = document.getElementById("btnCopyWaPhones");
+    const btnExportWaCSV = document.getElementById("btnExportWaCSV");
+
+    function getFilteredWaMembers() {
+        const mode = waTargetSelect ? waTargetSelect.value : "all";
+        return (cachedAdminLoyaltyMembers || []).filter(m => {
+            const pts = m.points || 0;
+            if (mode === "active") return pts > 100;
+            if (mode === "near_reward") return pts >= 400 && pts < 500;
+            if (mode === "reward_unlocked") return pts >= 500;
+            if (mode === "new") return pts <= 50;
+            return true;
+        });
+    }
+
+    function updateWaTargetCount() {
+        const list = getFilteredWaMembers();
+        if (waTargetCountLabel) {
+            waTargetCountLabel.textContent = `🎯 ${list.length} client(s) ciblé(s) sur ${cachedAdminLoyaltyMembers.length} inscrits.`;
+        }
+    }
+
+    if (btnOpenWa && modalWa) {
+        btnOpenWa.addEventListener("click", () => {
+            modalWa.style.display = "flex";
+            if (!waMessageText.value) {
+                waMessageText.value = "Bonjour {prenom} ! ☕ Toute l'équipe de Grey Corner a le plaisir de vous accueillir ce week-end avec des nouveautés exclusives. Votre solde fidélité est toujours actif !";
+            }
+            updateWaTargetCount();
+        });
+    }
+
+    if (btnCloseWa && modalWa) {
+        btnCloseWa.addEventListener("click", () => modalWa.style.display = "none");
+        modalWa.addEventListener("click", (e) => {
+            if (e.target === modalWa) modalWa.style.display = "none";
+        });
+    }
+
+    if (waTargetSelect) {
+        waTargetSelect.addEventListener("change", updateWaTargetCount);
+    }
+
+    if (btnCopyWaPhones) {
+        btnCopyWaPhones.addEventListener("click", () => {
+            const list = getFilteredWaMembers();
+            if (list.length === 0) {
+                alert("Aucun client correspondant à ce filtre.");
+                return;
+            }
+            const phones = list.map(m => m.phone).filter(Boolean).join(", ");
+            navigator.clipboard.writeText(phones).then(() => {
+                alert(`📋 ${list.length} numéros copiés dans le presse-papier ! Prêts à être collés dans WhatsApp.`);
+            }).catch(() => {
+                prompt("Voici les numéros :", phones);
+            });
+        });
+    }
+
+    if (btnExportWaCSV) {
+        btnExportWaCSV.addEventListener("click", () => {
+            const list = getFilteredWaMembers();
+            if (list.length === 0) {
+                alert("Aucun client correspondant à ce filtre.");
+                return;
+            }
+            downloadMembersCSV(list, `clients_cibles_whatsapp_${waTargetSelect.value}.csv`);
+        });
+    }
+
+    function downloadMembersCSV(membersList, filename) {
+        let csv = "Prenom,Telephone,Points,Total_Gagne,Conso_Offertes,Source,Date_Inscription\n";
+        membersList.forEach(m => {
+            const safeName = (m.firstName || "Client").replace(/"/g, '""');
+            const safePhone = (m.phone || "").replace(/"/g, '""');
+            const pts = m.points || 0;
+            const earned = m.totalEarned || pts;
+            const rewards = m.rewardsClaimed || 0;
+            const src = m.source || "qr_menu";
+            const date = (m.createdAt || "").split("T")[0] || "";
+            csv += `"${safeName}","${safePhone}",${pts},${earned},${rewards},"${src}","${date}"\n`;
+        });
+
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 }
 
