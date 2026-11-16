@@ -26,8 +26,8 @@ function jsonResponse(data, status = 200) {
     });
 }
 
-function errorResponse(message, status = 400) {
-    return jsonResponse({ error: message, success: false }, status);
+function errorResponse(message, status = 400, extra = {}) {
+    return jsonResponse({ error: message, message, success: false, ...extra }, status);
 }
 
 // Normalisation des numéros de téléphone (marocain: 06... / 07...)
@@ -474,10 +474,38 @@ export async function onRequest(context) {
                 if (request.method === "GET" && segments.length === 3) {
                     const phone = normalizePhone(segments[2]);
                     const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ?").bind(phone).first();
-                    return jsonResponse({ success: true, member: member || null });
+                    if (!member) return jsonResponse({ success: true, member: null });
+
+                    // Vérifier si le numéro a été crédité il y a moins de 2h
+                    const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
+                    const recentEarn = await db.prepare(`
+                        SELECT * FROM loyalty_transactions
+                        WHERE (phone = ? OR phone LIKE ?) AND type = 'EARN'
+                        ORDER BY createdAt DESC
+                        LIMIT 1
+                    `).bind(phone, `%${suffix9}`).first();
+
+                    let lockInfo = null;
+                    if (recentEarn && recentEarn.createdAt) {
+                        const lastTime = new Date(recentEarn.createdAt).getTime();
+                        const nowMs = Date.now();
+                        const elapsedMs = nowMs - lastTime;
+                        const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+                        if (!isNaN(lastTime) && elapsedMs < TWO_HOURS_MS && elapsedMs >= 0) {
+                            lockInfo = {
+                                isLocked: true,
+                                remainingMinutes: Math.max(1, Math.ceil((TWO_HOURS_MS - elapsedMs) / 60000)),
+                                tableNumber: recentEarn.tableNumber || "",
+                                validatedBy: recentEarn.validatedBy || "",
+                                lastEarnAt: recentEarn.createdAt
+                            };
+                        }
+                    }
+
+                    return jsonResponse({ success: true, member, lockInfo });
                 }
 
-                // POST /api/loyalty/members : Créer ou récupérer membre (+50 pts bienvenue)
+                // POST /api/loyalty/members : Créer ou récupérer membre (+20 pts bienvenue)
                 if (request.method === "POST") {
                     const body = await request.json();
                     const phone = normalizePhone(body.phone);
@@ -485,7 +513,32 @@ export async function onRequest(context) {
 
                     const existing = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ?").bind(phone).first();
                     if (existing) {
-                        return jsonResponse({ success: true, member: existing, isNew: false });
+                        const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
+                        const recentEarn = await db.prepare(`
+                            SELECT * FROM loyalty_transactions
+                            WHERE (phone = ? OR phone LIKE ?) AND type = 'EARN'
+                            ORDER BY createdAt DESC
+                            LIMIT 1
+                        `).bind(phone, `%${suffix9}`).first();
+
+                        let lockInfo = null;
+                        if (recentEarn && recentEarn.createdAt) {
+                            const lastTime = new Date(recentEarn.createdAt).getTime();
+                            const nowMs = Date.now();
+                            const elapsedMs = nowMs - lastTime;
+                            const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+                            if (!isNaN(lastTime) && elapsedMs < TWO_HOURS_MS && elapsedMs >= 0) {
+                                lockInfo = {
+                                    isLocked: true,
+                                    remainingMinutes: Math.max(1, Math.ceil((TWO_HOURS_MS - elapsedMs) / 60000)),
+                                    tableNumber: recentEarn.tableNumber || "",
+                                    validatedBy: recentEarn.validatedBy || "",
+                                    lastEarnAt: recentEarn.createdAt
+                                };
+                            }
+                        }
+
+                        return jsonResponse({ success: true, member: existing, isNew: false, lockInfo });
                     }
 
                     const firstName = (body.firstName || body.name || "Client").trim();
@@ -528,10 +581,61 @@ export async function onRequest(context) {
 
                 const amountDH = parseFloat(body.amountDH || body.amount) || 0;
                 const pointsToAdd = Math.max(1, Math.round(amountDH));
-                const tableNumber = body.tableNumber ? String(body.tableNumber) : "";
+                const tableNumber = body.tableNumber ? String(body.tableNumber).trim() : "";
                 const orderId = body.orderId || "";
                 const validatedBy = body.validatedBy || "waiter";
                 const now = new Date().toISOString();
+
+                // 🛑 1. RÈGLE ANTIFRAUDE INFRANCHISSABLE : BLOQUER LE MÊME NUMÉRO SI MOINS DE 2 HEURES (< 120 min)
+                const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
+                const lastEarn = await db.prepare(`
+                    SELECT * FROM loyalty_transactions
+                    WHERE (phone = ? OR phone LIKE ?) AND type = 'EARN'
+                    ORDER BY createdAt DESC
+                    LIMIT 1
+                `).bind(phone, `%${suffix9}`).first();
+
+                if (lastEarn && lastEarn.createdAt) {
+                    const lastTime = new Date(lastEarn.createdAt).getTime();
+                    const nowMs = Date.now();
+                    const elapsedMs = nowMs - lastTime;
+                    const TWO_HOURS_MS = 2 * 60 * 60 * 1000; // 120 minutes
+
+                    if (!isNaN(lastTime) && elapsedMs < TWO_HOURS_MS && elapsedMs >= 0) {
+                        const remainingMin = Math.max(1, Math.ceil((TWO_HOURS_MS - elapsedMs) / 60000));
+                        const tableInfo = lastEarn.tableNumber ? ` (Table ${lastEarn.tableNumber})` : "";
+                        const byInfo = lastEarn.validatedBy ? ` par ${lastEarn.validatedBy}` : "";
+
+                        // Serveurs (et QR clients) : BLOCAGE STRICT INFRANCHISSABLE (HTTP 429)
+                        if (validatedBy !== "admin") {
+                            return jsonResponse({
+                                success: false,
+                                blocked2h: true,
+                                remainingMinutes: remainingMin,
+                                error: `⛔ BLOCAGE ANTIFRAUDE (Moins de 2h) :\nCe numéro a déjà été crédité il y a moins de 2 heures${tableInfo}${byInfo}.\nNouveau crédit autorisé dans ${remainingMin} minute(s).`,
+                                message: `⛔ BLOCAGE ANTIFRAUDE (Moins de 2h) :\nCe numéro a déjà été crédité il y a moins de 2 heures${tableInfo}${byInfo}.\nNouveau crédit autorisé dans ${remainingMin} minute(s).`
+                            }, 429);
+                        }
+
+                        // Admin : avertissement bloquant avec possibilité de forcer via forceAdmin: true (HTTP 409)
+                        if (validatedBy === "admin" && !body.forceAdmin) {
+                            return jsonResponse({
+                                success: false,
+                                blocked2h: true,
+                                requiresAdminForce: true,
+                                remainingMinutes: remainingMin,
+                                error: `⚠️ DÉLAI ANTIFRAUDE (Moins de 2h) :\nCe numéro a déjà reçu des points il y a moins de 2 heures${tableInfo}${byInfo} (${remainingMin} min restantes).`,
+                                message: `⚠️ DÉLAI ANTIFRAUDE (Moins de 2h) :\nCe numéro a déjà reçu des points il y a moins de 2 heures${tableInfo}${byInfo} (${remainingMin} min restantes).\n\nConfirmez pour forcer l'attribution exceptionnelle.`
+                            }, 409);
+                        }
+                    }
+                }
+
+                // 🚨 2. RÈGLE DE SÉCURITÉ & CONTRÔLE DIRECTION :
+                // Si un serveur saisit un montant supérieur à 100 (> 100 pts), le NUMÉRO DE TABLE est OBLIGATOIRE !
+                if (pointsToAdd > 100 && validatedBy !== "admin" && !tableNumber) {
+                    return errorResponse("⚠️ RÈGLE DE CONTRÔLE DIRECTION : Pour toute attribution supérieure à 100 points, le NUMÉRO DE TABLE est obligatoire pour permettre un audit ultérieur.", 400);
+                }
 
                 // S'assurer que le membre existe
                 let member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ?").bind(phone).first();
@@ -551,12 +655,21 @@ export async function onRequest(context) {
                     member.totalEarned += pointsToAdd;
                 }
 
+                // Note avec flag explicite pour contrôle admin si > 100 pts ou si forçage admin
+                let noteText = body.note ? String(body.note) : `Encaissement ${amountDH} DH (+${pointsToAdd} pts)`;
+                if (pointsToAdd > 100 && validatedBy !== "admin") {
+                    noteText = `⚠️ [CONTRÔLE >100 PTS] ${noteText} — Table ${tableNumber}`;
+                }
+                if (body.forceAdmin) {
+                    noteText = `⚠️ [FORÇAGE ADMIN <2H] ${noteText}`;
+                }
+
                 // Enregistrer la transaction
                 const txId = generateId("tx");
                 await db.prepare(`
                     INSERT INTO loyalty_transactions (id, phone, type, pointsDelta, amountDH, tableNumber, orderId, validatedBy, note, createdAt)
                     VALUES (?, ?, 'EARN', ?, ?, ?, ?, ?, ?, ?)
-                `).bind(txId, phone, pointsToAdd, amountDH, tableNumber, orderId, validatedBy, `Encaissement ${amountDH} DH (+${pointsToAdd} pts)`, now).run();
+                `).bind(txId, phone, pointsToAdd, amountDH, tableNumber, orderId, validatedBy, noteText, now).run();
 
                 // Si lié à une commande, marquer comme crédité
                 if (orderId) {
@@ -567,7 +680,8 @@ export async function onRequest(context) {
                     success: true,
                     pointsAdded: pointsToAdd,
                     newTotal: member.points,
-                    member
+                    member,
+                    flaggedReview: pointsToAdd > 100 && validatedBy !== "admin"
                 });
             }
 
@@ -661,6 +775,38 @@ export async function onRequest(context) {
                     await db.prepare("INSERT OR REPLACE INTO system_config (key, value, updatedAt) VALUES ('loyalty_config', ?, ?)")
                         .bind(JSON.stringify(body), now).run();
                     return jsonResponse({ success: true, settings: body });
+                }
+            }
+
+            // G. Alertes & Contrôle Serveurs (/api/loyalty/alerts) — Transactions > 100 pts
+            if (sub === "alerts") {
+                if (request.method === "GET") {
+                    const rows = (await db.prepare(`
+                        SELECT t.*, m.firstName as memberName
+                        FROM loyalty_transactions t
+                        LEFT JOIN loyalty_members m ON t.phone = m.phone
+                        WHERE t.pointsDelta > 100 
+                          AND t.validatedBy NOT LIKE '%admin%' 
+                          AND t.validatedBy NOT LIKE '%VÉRIFIÉ%'
+                          AND t.note NOT LIKE '%[RECTIFIÉ]%'
+                        ORDER BY t.createdAt DESC
+                        LIMIT 50
+                    `).all()).results;
+                    return jsonResponse({ success: true, alerts: rows || [] });
+                }
+                if (request.method === "POST") {
+                    const body = await request.json();
+                    const txId = body.txId;
+                    const action = body.action || "verify";
+                    if (txId && action === "verify") {
+                        await db.prepare(`
+                            UPDATE loyalty_transactions 
+                            SET validatedBy = validatedBy || ' [VÉRIFIÉ ADMIN]' 
+                            WHERE id = ?
+                        `).bind(txId).run();
+                        return jsonResponse({ success: true, message: "Alerte marquée comme vérifiée." });
+                    }
+                    return errorResponse("Action ou ID de transaction manquant.");
                 }
             }
         }

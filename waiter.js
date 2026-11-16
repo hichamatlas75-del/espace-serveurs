@@ -1121,10 +1121,13 @@ function processPreOrdersFeed(orders) {
                                 return;
                             }
                         }
-                        dbService.creditLoyaltyPoints(order.loyaltyPhone, order.totalPrice, tableForControl || order.table, activeWaiterId, order.id, (ok) => {
+                        dbService.creditLoyaltyPoints(order.loyaltyPhone, order.totalPrice, tableForControl || order.table, activeWaiterId, order.id, (ok, added, newTotal, resObj) => {
                             if (ok) {
                                 playAlertSound();
                                 order.loyaltyCredited = true;
+                            } else {
+                                const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors du crédit des points.";
+                                alert(msg);
                             }
                             dbService.updatePreOrderStatus(order.id, "completed");
                             stopAlertRinging(order.id);
@@ -1145,7 +1148,7 @@ function processPreOrdersFeed(orders) {
                 btnCreditLoyalty.disabled = true;
                 btnCreditLoyalty.textContent = "Validation...";
 
-                dbService.creditLoyaltyPoints(phone, amount, order.table, activeWaiterId, order.id, (ok, added, newTotal) => {
+                dbService.creditLoyaltyPoints(phone, amount, order.table, activeWaiterId, order.id, (ok, added, newTotal, resObj) => {
                     if (ok) {
                         playAlertSound();
                         triggerHapticVibrate();
@@ -1156,7 +1159,8 @@ function processPreOrdersFeed(orders) {
                         }
                         alert(`👑 ${added} points validés pour ${phone} !\nNouveau solde : ${newTotal} / 500 pts`);
                     } else {
-                        alert("❌ Erreur lors du crédit des points fidélité.");
+                        const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors du crédit des points fidélité.";
+                        alert(msg);
                         btnCreditLoyalty.disabled = false;
                         btnCreditLoyalty.textContent = "Réessayer";
                     }
@@ -1177,7 +1181,7 @@ function processPreOrdersFeed(orders) {
                 btnAssignLoyalty.disabled = true;
                 btnAssignLoyalty.textContent = "Validation...";
                 dbService.createOrGetLoyaltyMember(cleanPh, "Client Table " + order.table, "waiter_direct", (okGet, member) => {
-                    dbService.creditLoyaltyPoints(cleanPh, order.totalPrice, order.table, activeWaiterId, order.id, (okCredit, added, newTotal) => {
+                    dbService.creditLoyaltyPoints(cleanPh, order.totalPrice, order.table, activeWaiterId, order.id, (okCredit, added, newTotal, resObj) => {
                         if (okCredit) {
                             playAlertSound();
                             triggerHapticVibrate();
@@ -1189,7 +1193,8 @@ function processPreOrdersFeed(orders) {
                             }
                             alert(`👑 +${added} points validés pour ${cleanPh} !\nNouveau solde : ${newTotal} / 500 pts`);
                         } else {
-                            alert("❌ Erreur lors de la validation des points.");
+                            const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors de la validation des points.";
+                            alert(msg);
                             btnAssignLoyalty.disabled = false;
                             btnAssignLoyalty.textContent = "Réessayer";
                         }
@@ -1650,7 +1655,7 @@ function initDirectLoyaltyModule() {
                 btnCreditNow.disabled = true;
                 btnCreditNow.textContent = "Validation en cours...";
 
-                dbService.creditLoyaltyPoints(member.phone, amount, tableNum, activeWaiterId, null, (ok, added, newTotal) => {
+                dbService.creditLoyaltyPoints(member.phone, amount, tableNum, activeWaiterId, null, (ok, added, newTotal, resObj) => {
                     if (ok) {
                         playAlertSound();
                         triggerHapticVibrate();
@@ -1658,7 +1663,8 @@ function initDirectLoyaltyModule() {
                         member.points = newTotal;
                         renderMember(member, contentArea, suffix);
                     } else {
-                        alert(typeof added === "string" ? added : "❌ Erreur lors de l'attribution des points.");
+                        const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors de l'attribution des points.";
+                        alert(msg);
                         btnCreditNow.disabled = false;
                         btnCreditNow.textContent = "✅ Valider les points (1 DH = 1 pt)";
                     }

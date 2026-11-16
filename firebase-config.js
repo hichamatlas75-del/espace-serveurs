@@ -61,20 +61,25 @@
 
         try {
             const res = await fetch(primaryUrl, options);
-            if (res.ok) return await res.json();
+            // Si la requête a abouti (même avec une erreur métier 4xx comme 400, 409, 429), c'est une réponse valide du serveur : NE PAS basculer sur le fallback !
+            if (res.ok || (res.status >= 400 && res.status < 500)) {
+                return await res.json().catch(() => null);
+            }
 
+            // Uniquement si le serveur primaire renvoie 5xx (serveur temporairement indisponible)
             if (API_BASE !== FALLBACK_API_BASE) {
                 const fallbackUrl = `${FALLBACK_API_BASE}${cleanEndpoint}`;
                 const resFallback = await fetch(fallbackUrl, options);
-                if (resFallback.ok) return await resFallback.json();
+                return await resFallback.json().catch(() => null);
             }
             return await res.json().catch(() => null);
         } catch (err) {
+            // Erreur réseau (fetch a levé une exception, hors ligne, DNS)
             if (API_BASE !== FALLBACK_API_BASE) {
                 try {
                     const fallbackUrl = `${FALLBACK_API_BASE}${cleanEndpoint}`;
                     const resFallback = await fetch(fallbackUrl, options);
-                    if (resFallback.ok) return await resFallback.json();
+                    return await resFallback.json().catch(() => null);
                 } catch (err2) {
                     console.warn(`⚠️ Cloudflare D1 API [${cleanEndpoint}] fallback error:`, err2.message || err2);
                 }
@@ -649,6 +654,17 @@
             } else if (typeof forceAdmin === "function") {
                 callback = forceAdmin;
                 forceAdmin = false;
+            } else if (typeof validatedBy === "function") {
+                callback = validatedBy;
+                validatedBy = "waiter";
+                orderId = null;
+                forceAdmin = false;
+            } else if (typeof tableNumber === "function") {
+                callback = tableNumber;
+                tableNumber = "";
+                validatedBy = "waiter";
+                orderId = null;
+                forceAdmin = false;
             }
             const phone = normalizePhone(rawPhone);
             if (!phone) { if (callback) callback(false, "Numéro invalide"); return; }
@@ -674,7 +690,7 @@
                     syncMembersNow();
                     if (callback) callback(true, pointsAdded, newTotal, res.member);
                 } else {
-                    const errMsg = res ? (res.message || res.error) : "Erreur de crédit";
+                    const errMsg = res ? (res.error || res.message) : "Erreur de crédit";
                     if (callback) callback(false, errMsg, null, res);
                 }
             }).catch(err => {
