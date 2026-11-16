@@ -33,10 +33,15 @@ function errorResponse(message, status = 400, extra = {}) {
 // Normalisation des numéros de téléphone (marocain: 06... / 07...)
 function normalizePhone(raw) {
     if (!raw) return "";
-    let clean = String(raw).replace(/[\s\-\.\(\)]/g, "");
-    if (clean.startsWith("+212")) clean = "0" + clean.slice(4);
-    else if (clean.startsWith("212")) clean = "0" + clean.slice(3);
-    else if (clean.startsWith("00212")) clean = "0" + clean.slice(5);
+    let clean = String(raw).replace(/[^\d+]/g, "").trim();
+    if (clean.startsWith("+2120")) clean = clean.substring(4);
+    else if (clean.startsWith("+212")) clean = "0" + clean.substring(4);
+    else if (clean.startsWith("00212")) clean = "0" + clean.substring(5);
+    else if (clean.startsWith("212") && clean.length >= 11) clean = "0" + clean.substring(3);
+    clean = clean.replace(/\D/g, "");
+    if (clean.length === 9 && (clean.startsWith("6") || clean.startsWith("7") || clean.startsWith("5"))) {
+        clean = "0" + clean;
+    }
     return clean;
 }
 
@@ -306,10 +311,20 @@ export async function onRequest(context) {
 
                 const id = body.id || generateId("call");
                 const type = body.type || "waiter";
-                const loyaltyPhone = normalizePhone(body.loyaltyPhone || "");
-                const loyaltyName = body.loyaltyName || "";
+                let loyaltyPhone = normalizePhone(body.loyaltyPhone || "");
+                let loyaltyName = body.loyaltyName || "";
                 const note = body.note || "";
                 const createdAt = body.createdAt || new Date().toISOString();
+
+                // Le numéro de téléphone est le SEUL repère pour identifier le client
+                if (loyaltyPhone) {
+                    const suffix9 = loyaltyPhone.length >= 9 ? loyaltyPhone.slice(-9) : loyaltyPhone;
+                    const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(loyaltyPhone, `%${suffix9}`).first();
+                    if (member) {
+                        loyaltyPhone = member.phone;
+                        if (member.firstName) loyaltyName = member.firstName;
+                    }
+                }
 
                 await db.prepare(`
                     INSERT INTO waiters_calls (id, tableNum, type, status, assignedTo, loyaltyPhone, loyaltyName, note, createdAt)
@@ -376,10 +391,21 @@ export async function onRequest(context) {
                 const itemsStr = typeof body.items === "string" ? body.items : JSON.stringify(body.items || []);
                 const note = body.note || "";
                 const totalPrice = parseFloat(body.totalPrice) || 0;
-                const loyaltyPhone = normalizePhone(body.loyaltyPhone || "");
-                const loyaltyName = body.loyaltyName || "";
-                const loyaltyPoints = typeof body.loyaltyPoints === "number" ? body.loyaltyPoints : null;
+                let loyaltyPhone = normalizePhone(body.loyaltyPhone || "");
+                let loyaltyName = body.loyaltyName || "";
+                let loyaltyPoints = typeof body.loyaltyPoints === "number" ? body.loyaltyPoints : null;
                 const createdAt = body.createdAt || new Date().toISOString();
+
+                // Le numéro de téléphone est le SEUL repère pour identifier le client : on rattache le compte officiel
+                if (loyaltyPhone) {
+                    const suffix9 = loyaltyPhone.length >= 9 ? loyaltyPhone.slice(-9) : loyaltyPhone;
+                    const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(loyaltyPhone, `%${suffix9}`).first();
+                    if (member) {
+                        loyaltyPhone = member.phone;
+                        loyaltyName = member.firstName || loyaltyName || "Client";
+                        loyaltyPoints = member.points;
+                    }
+                }
 
                 await db.prepare(`
                     INSERT INTO pre_orders (id, tableNum, items, note, totalPrice, status, assignedTo, loyaltyPhone, loyaltyName, loyaltyPoints, loyaltyCredited, createdAt)
@@ -473,17 +499,18 @@ export async function onRequest(context) {
                 // GET /api/loyalty/members/:phone : Fiche individuelle
                 if (request.method === "GET" && segments.length === 3) {
                     const phone = normalizePhone(segments[2]);
-                    const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ?").bind(phone).first();
+                    const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
+                    const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(phone, `%${suffix9}`).first();
                     if (!member) return jsonResponse({ success: true, member: null });
 
                     // Vérifier si le numéro a été crédité il y a moins de 2h
-                    const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
+                    const canonicalPhone = member.phone;
                     const recentEarn = await db.prepare(`
                         SELECT * FROM loyalty_transactions
                         WHERE (phone = ? OR phone LIKE ?) AND type = 'EARN'
                         ORDER BY createdAt DESC
                         LIMIT 1
-                    `).bind(phone, `%${suffix9}`).first();
+                    `).bind(canonicalPhone, `%${suffix9}`).first();
 
                     let lockInfo = null;
                     if (recentEarn && recentEarn.createdAt) {
@@ -506,20 +533,23 @@ export async function onRequest(context) {
                 }
 
                 // POST /api/loyalty/members : Créer ou récupérer membre (+20 pts bienvenue)
+                // RÈGLE : LE NUMÉRO DE TÉLÉPHONE EST LE SEUL ET UNIQUE REPÈRE DU CLIENT
+                // Même si le prénom rentré est différent ou comporte une faute, le compte lié au numéro prime
                 if (request.method === "POST") {
                     const body = await request.json();
                     const phone = normalizePhone(body.phone);
                     if (!phone || phone.length < 8) return errorResponse("Numéro de téléphone invalide.");
 
-                    const existing = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ?").bind(phone).first();
+                    const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
+                    const existing = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(phone, `%${suffix9}`).first();
                     if (existing) {
-                        const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
+                        const canonicalPhone = existing.phone;
                         const recentEarn = await db.prepare(`
                             SELECT * FROM loyalty_transactions
                             WHERE (phone = ? OR phone LIKE ?) AND type = 'EARN'
                             ORDER BY createdAt DESC
                             LIMIT 1
-                        `).bind(phone, `%${suffix9}`).first();
+                        `).bind(canonicalPhone, `%${suffix9}`).first();
 
                         let lockInfo = null;
                         if (recentEarn && recentEarn.createdAt) {
@@ -631,8 +661,8 @@ export async function onRequest(context) {
                     }
                 }
 
-                // S'assurer que le membre existe
-                let member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ?").bind(phone).first();
+                // S'assurer que le membre existe par son numéro de téléphone unique
+                let member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(phone, `%${suffix9}`).first();
                 if (!member) {
                     await db.prepare(`
                         INSERT INTO loyalty_members (phone, firstName, points, totalEarned, rewardsClaimed, source, createdAt, updatedAt)
@@ -640,6 +670,7 @@ export async function onRequest(context) {
                     `).bind(phone, now, now).run();
                     member = { phone, firstName: "Client", points: 0, totalEarned: 0 };
                 }
+                const canonicalPhone = member.phone;
 
                 // 🚨 2. RÈGLE DE SÉCURITÉ DIRECTION : MONTANT > 100 DH (> 100 PTS) PAR UN SERVEUR
                 // LE MONTANT PASSE TOUJOURS (encaissement validé), mais les points sont mis en attente de validation par l'administrateur !
@@ -651,7 +682,7 @@ export async function onRequest(context) {
                     await db.prepare(`
                         INSERT INTO loyalty_transactions (id, phone, type, pointsDelta, amountDH, tableNumber, orderId, validatedBy, note, createdAt)
                         VALUES (?, ?, 'EARN', ?, ?, ?, ?, ?, ?, ?)
-                    `).bind(txId, phone, pointsToAdd, amountDH, tableNumber, orderId, validatedBy, noteText, now).run();
+                    `).bind(txId, canonicalPhone, pointsToAdd, amountDH, tableNumber, orderId, validatedBy, noteText, now).run();
 
                     // Si lié à une commande, marquer comme crédité pour clore la commande
                     if (orderId) {
@@ -673,7 +704,7 @@ export async function onRequest(context) {
                     UPDATE loyalty_members
                     SET points = points + ?, totalEarned = totalEarned + ?, updatedAt = ?
                     WHERE phone = ?
-                `).bind(pointsToAdd, pointsToAdd, now, phone).run();
+                `).bind(pointsToAdd, pointsToAdd, now, canonicalPhone).run();
                 member.points += pointsToAdd;
                 member.totalEarned += pointsToAdd;
 
@@ -688,7 +719,7 @@ export async function onRequest(context) {
                 await db.prepare(`
                     INSERT INTO loyalty_transactions (id, phone, type, pointsDelta, amountDH, tableNumber, orderId, validatedBy, note, createdAt)
                     VALUES (?, ?, 'EARN', ?, ?, ?, ?, ?, ?, ?)
-                `).bind(txId, phone, pointsToAdd, amountDH, tableNumber, orderId, validatedBy, noteText, now).run();
+                `).bind(txId, canonicalPhone, pointsToAdd, amountDH, tableNumber, orderId, validatedBy, noteText, now).run();
 
                 // Si lié à une commande, marquer comme crédité
                 if (orderId) {
@@ -709,13 +740,15 @@ export async function onRequest(context) {
             if (sub === "redeem" && request.method === "POST") {
                 const body = await request.json();
                 const phone = normalizePhone(body.phone);
+                const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
                 const cost = 500;
-                const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ?").bind(phone).first();
+                const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(phone, `%${suffix9}`).first();
 
                 if (!member || member.points < cost) {
                     return errorResponse("Solde insuffisant pour débloquer une consommation (500 pts requis).", 400);
                 }
 
+                const canonicalPhone = member.phone;
                 const validatedBy = body.validatedBy || "waiter";
                 const now = new Date().toISOString();
 
@@ -723,13 +756,13 @@ export async function onRequest(context) {
                     UPDATE loyalty_members
                     SET points = points - ?, rewardsClaimed = rewardsClaimed + 1, updatedAt = ?
                     WHERE phone = ?
-                `).bind(cost, now, phone).run();
+                `).bind(cost, now, canonicalPhone).run();
 
                 const txId = generateId("tx");
                 await db.prepare(`
                     INSERT INTO loyalty_transactions (id, phone, type, pointsDelta, amountDH, tableNumber, orderId, validatedBy, note, createdAt)
                     VALUES (?, ?, 'REDEEM', ?, 0, '', '', ?, 'Consommation offerte accordée (-500 pts)', ?)
-                `).bind(txId, phone, -cost, validatedBy, now).run();
+                `).bind(txId, canonicalPhone, -cost, validatedBy, now).run();
 
                 return jsonResponse({
                     success: true,
@@ -742,28 +775,34 @@ export async function onRequest(context) {
             if (sub === "adjust" && request.method === "POST") {
                 const body = await request.json();
                 const phone = normalizePhone(body.phone);
+                const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
                 const delta = parseInt(body.delta, 10);
                 if (isNaN(delta) || delta === 0) return errorResponse("Valeur d'ajustement invalide.");
+
+                const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(phone, `%${suffix9}`).first();
+                const canonicalPhone = member ? member.phone : phone;
 
                 const reason = body.reason || "Ajustement administrateur";
                 const by = body.by || "admin";
                 const now = new Date().toISOString();
 
-                await db.prepare(`
-                    UPDATE loyalty_members
-                    SET points = MAX(0, points + ?),
-                        totalEarned = CASE WHEN ? > 0 THEN totalEarned + ? ELSE totalEarned END,
-                        updatedAt = ?
-                    WHERE phone = ?
-                `).bind(delta, delta, delta, now, phone).run();
+                if (member) {
+                    await db.prepare(`
+                        UPDATE loyalty_members
+                        SET points = MAX(0, points + ?),
+                            totalEarned = CASE WHEN ? > 0 THEN totalEarned + ? ELSE totalEarned END,
+                            updatedAt = ?
+                        WHERE phone = ?
+                    `).bind(delta, delta, delta, now, canonicalPhone).run();
+                }
 
                 const txId = generateId("tx");
                 await db.prepare(`
                     INSERT INTO loyalty_transactions (id, phone, type, pointsDelta, amountDH, tableNumber, orderId, validatedBy, note, createdAt)
                     VALUES (?, ?, 'ADMIN_ADJUST', ?, 0, '', '', ?, ?, ?)
-                `).bind(txId, phone, delta, by, reason, now).run();
+                `).bind(txId, canonicalPhone, delta, by, reason, now).run();
 
-                const updated = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ?").bind(phone).first();
+                const updated = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ?").bind(canonicalPhone).first();
                 return jsonResponse({ success: true, newTotal: updated ? updated.points : 0, member: updated });
             }
 
@@ -822,11 +861,12 @@ export async function onRequest(context) {
                         const tx = await db.prepare("SELECT * FROM loyalty_transactions WHERE id = ?").bind(txId).first();
                         if (tx) {
                             if (tx.note && tx.note.includes("[EN ATTENTE VALIDATION ADMIN")) {
+                                const suffix9 = tx.phone.length >= 9 ? tx.phone.slice(-9) : tx.phone;
                                 await db.prepare(`
                                     UPDATE loyalty_members
                                     SET points = points + ?, totalEarned = totalEarned + ?, updatedAt = ?
-                                    WHERE phone = ?
-                                `).bind(tx.pointsDelta, tx.pointsDelta, new Date().toISOString(), tx.phone).run();
+                                    WHERE phone = ? OR phone LIKE ?
+                                `).bind(tx.pointsDelta, tx.pointsDelta, new Date().toISOString(), tx.phone, `%${suffix9}`).run();
                             }
                             await db.prepare(`
                                 UPDATE loyalty_transactions 

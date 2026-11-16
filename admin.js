@@ -704,13 +704,16 @@ function renderAdminHistoryFeed() {
                     btnAssign.disabled = true;
                     btnAssign.textContent = "Validation...";
                     dbService.createOrGetLoyaltyMember(cleanPh, "Client Table " + order.table, "admin", (okGet, member) => {
-                        dbService.creditLoyaltyPoints(cleanPh, order.totalPrice, order.table, "admin", order.id, false, (okCredit, added, newTot, resObj) => {
+                        const canonicalPh = member ? member.phone : cleanPh;
+                        const canonicalName = member ? (member.firstName || "Client") : "Client";
+                        dbService.creditLoyaltyPoints(canonicalPh, order.totalPrice, order.table, "admin", order.id, false, (okCredit, added, newTot, resObj) => {
                             btnAssign.disabled = false;
                             btnAssign.textContent = "Attribuer Points";
                             if (okCredit) {
-                                order.loyaltyPhone = cleanPh;
+                                order.loyaltyPhone = canonicalPh;
+                                order.loyaltyName = canonicalName;
                                 order.loyaltyCredited = true;
-                                window.showGreyCornerNotice("👑 POINTS VALIDÉS", `+${added} points validés pour ${cleanPh} !\nNouveau solde : ${newTot} / 500 pts`, "success");
+                                window.showGreyCornerNotice("👑 POINTS VALIDÉS", `+${added} points validés pour ${canonicalName} (${canonicalPh}) !\nNouveau solde : ${newTot} / 500 pts`, "success");
                                 renderAdminHistoryFeed();
                             } else if (resObj && resObj.requiresAdminForce) {
                                 window.showGreyCornerNotice(
@@ -889,22 +892,22 @@ function initAdminLoyaltyDashboard() {
             const raw = (quickPhone.value || "").trim();
             const cleanPh = window.normalizePhone ? window.normalizePhone(raw) : raw.replace(/\D/g, "");
             if (cleanPh.length < 8) {
-                alert("Veuillez saisir un numéro de téléphone valide.");
+                window.showGreyCornerNotice("Numéro invalide", "Veuillez saisir un numéro de téléphone valide.", "warning");
                 quickPhone.focus();
                 return;
             }
-            const name = prompt("Prénom du client :", "") || "Client";
+            const name = prompt("Prénom du client (le numéro reste le repère unique) :", "") || "Client";
             btnCreateMbr.disabled = true;
             dbService.createOrGetLoyaltyMember(cleanPh, name, "admin", (ok, mbr, isNew) => {
                 btnCreateMbr.disabled = false;
                 if (ok && mbr) {
                     if (isNew) {
-                        alert(`👑 Compte fidélité créé pour ${mbr.firstName} (${cleanPh}) !\n+20 points de bienvenue offerts (Solde: ${mbr.points} pts).`);
+                        window.showGreyCornerNotice("👑 Compte Créé", `Compte fidélité créé pour ${mbr.firstName} (${mbr.phone}) !\n+20 points de bienvenue offerts (Solde: ${mbr.points} pts).`, "success");
                     } else {
-                        alert(`ℹ️ Ce client existe déjà : ${mbr.firstName} (${cleanPh}) — Solde actuel: ${mbr.points} / 500 pts.`);
+                        window.showGreyCornerNotice("ℹ️ Compte Existant Retrouvé", `Ce numéro (${mbr.phone}) appartient déjà à ${mbr.firstName} !\nSolde actuel conservé : ${mbr.points} / 500 pts.`, "info");
                     }
                 } else {
-                    alert("❌ Erreur lors de la création du compte.");
+                    window.showGreyCornerNotice("❌ Erreur", "Erreur lors de la création du compte.", "error");
                 }
             });
         });

@@ -1191,13 +1191,16 @@ function processPreOrdersFeed(orders) {
                 btnAssignLoyalty.disabled = true;
                 btnAssignLoyalty.textContent = "Validation...";
                 dbService.createOrGetLoyaltyMember(cleanPh, "Client Table " + order.table, "waiter_direct", (okGet, member) => {
-                    dbService.creditLoyaltyPoints(cleanPh, order.totalPrice, order.table, activeWaiterId, order.id, (okCredit, added, newTotal, resObj) => {
+                    const canonicalPh = member ? member.phone : cleanPh;
+                    const canonicalName = member ? (member.firstName || "Client") : "Client";
+                    dbService.creditLoyaltyPoints(canonicalPh, order.totalPrice, order.table, activeWaiterId, order.id, (okCredit, added, newTotal, resObj) => {
                         btnAssignLoyalty.disabled = false;
                         btnAssignLoyalty.textContent = "➕ Valider Points";
                         if (okCredit) {
                             playAlertSound();
                             triggerHapticVibrate();
-                            order.loyaltyPhone = cleanPh;
+                            order.loyaltyPhone = canonicalPh;
+                            order.loyaltyName = canonicalName;
                             order.loyaltyCredited = true;
                             const container = document.getElementById(`loyaltyPointsBadge_${order.id}`);
                             if (container) {
@@ -1212,7 +1215,7 @@ function processPreOrdersFeed(orders) {
                             } else {
                                 window.showGreyCornerNotice(
                                     "👑 POINTS VALIDÉS",
-                                    `+${added} points validés pour ${cleanPh} !\nNouveau solde : ${newTotal} / 500 pts`,
+                                    `+${added} points validés pour ${canonicalName} (${canonicalPh}) !\nNouveau solde : ${newTotal} / 500 pts`,
                                     "success"
                                 );
                             }
@@ -1533,7 +1536,18 @@ function initDirectLoyaltyModule() {
                 });
             } else {
                 dbService.onAllLoyaltyMembersChange((allMembers) => {
-                    const match = (allMembers || []).find(m => m.phone.endsWith(query) || (m.firstName && m.firstName.toLowerCase().includes(query.toLowerCase())));
+                    // Priorité absolue au numéro de téléphone (recherche par les 4+ derniers chiffres)
+                    const queryDigits = query.replace(/\D/g, "");
+                    let match = null;
+                    if (queryDigits.length >= 4) {
+                        match = (allMembers || []).find(m => {
+                            const pDigits = (m.phone || "").replace(/\D/g, "");
+                            return pDigits.endsWith(queryDigits) || pDigits.includes(queryDigits);
+                        });
+                    }
+                    if (!match) {
+                        match = (allMembers || []).find(m => m.firstName && m.firstName.toLowerCase().includes(query.toLowerCase()));
+                    }
                     if (match) {
                         dbService.getLoyaltyMember(match.phone, (fullMbr, lockInfo) => {
                             renderMember(fullMbr || match, contentArea, suffix, lockInfo);
@@ -1736,21 +1750,33 @@ function initDirectLoyaltyModule() {
                 const name = (inputName ? inputName.value.trim() : "") || "Client";
 
                 if (cleanPh.length < 8) {
-                    alert("Numéro de téléphone invalide (minimum 8 chiffres requis).");
+                    window.showGreyCornerNotice("Numéro invalide", "Numéro de téléphone invalide (minimum 8 chiffres requis).", "warning");
                     return;
                 }
 
                 btnCreate.disabled = true;
-                btnCreate.textContent = "Création du compte...";
+                btnCreate.textContent = "Recherche / Création...";
 
                 dbService.createOrGetLoyaltyMember(cleanPh, name, "waiter_direct", (ok, member, isNew) => {
                     if (ok && member) {
                         playAlertSound();
                         triggerHapticVibrate();
-                        alert(`👑 Compte créé pour ${member.firstName} !\n+20 points de bienvenue offerts (Solde: ${member.points} pts).`);
+                        if (isNew === false) {
+                            window.showGreyCornerNotice(
+                                "👑 Compte existant retrouvé",
+                                `Le numéro ${member.phone} appartient déjà à ${member.firstName || 'ce client'}.\n\nSolde actuel : ${member.points} pts.\nLe compte officiel lié à ce numéro a été chargé automatiquement.`,
+                                "info"
+                            );
+                        } else {
+                            window.showGreyCornerNotice(
+                                "👑 Nouveau Compte Fidélité",
+                                `Compte fidélité créé pour ${member.firstName} (${member.phone}) !\n+20 points de bienvenue offerts (Solde: ${member.points} pts).`,
+                                "success"
+                            );
+                        }
                         renderMember(member, contentArea, suffix);
                     } else {
-                        alert("❌ Erreur lors de la création du compte.");
+                        window.showGreyCornerNotice("❌ Erreur", "Erreur lors de la création ou récupération du compte.", "error");
                         btnCreate.disabled = false;
                         btnCreate.textContent = "🎁 Créer le compte (+20 pts) & Continuer";
                     }

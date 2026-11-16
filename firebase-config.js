@@ -136,11 +136,24 @@
     function normalizePhone(rawPhone) {
         if (!rawPhone) return "";
         let clean = String(rawPhone).replace(/[^\d+]/g, "").trim();
-        if (clean.startsWith("+212")) clean = "0" + clean.substring(4);
-        else if (clean.startsWith("212")) clean = "0" + clean.substring(3);
+        if (clean.startsWith("+2120")) clean = clean.substring(4);
+        else if (clean.startsWith("+212")) clean = "0" + clean.substring(4);
         else if (clean.startsWith("00212")) clean = "0" + clean.substring(5);
+        else if (clean.startsWith("212") && clean.length >= 11) clean = "0" + clean.substring(3);
         clean = clean.replace(/\D/g, "");
+        if (clean.length === 9 && (clean.startsWith("6") || clean.startsWith("7") || clean.startsWith("5"))) {
+            clean = "0" + clean;
+        }
         return clean;
+    }
+
+    function isSamePhone(p1, p2) {
+        if (!p1 || !p2) return false;
+        const c1 = normalizePhone(p1);
+        const c2 = normalizePhone(p2);
+        if (c1 === c2) return true;
+        if (c1.length >= 9 && c2.length >= 9 && c1.slice(-9) === c2.slice(-9)) return true;
+        return false;
     }
 
     function getTableZoneName(tableNum) {
@@ -563,9 +576,9 @@
             if (!phone) { if (callback) callback(null); return; }
 
             const checkLocal = () => {
-                const found = _cachedMembers.find(m => m.phone === phone);
+                const found = _cachedMembers.find(m => isSamePhone(m.phone, phone));
                 if (found) return found;
-                if (typeof localStorage !== "undefined" && localStorage.getItem("gc_loyalty_phone") === phone) {
+                if (typeof localStorage !== "undefined" && isSamePhone(localStorage.getItem("gc_loyalty_phone"), phone)) {
                     return {
                         phone: phone,
                         firstName: localStorage.getItem("gc_loyalty_name") || "Client",
@@ -581,7 +594,7 @@
             apiFetch(`/loyalty/members/${phone}`, "GET")
                 .then(res => {
                     if (res && res.success && res.member) {
-                        const idx = _cachedMembers.findIndex(m => m.phone === phone);
+                        const idx = _cachedMembers.findIndex(m => isSamePhone(m.phone, res.member.phone));
                         if (idx >= 0) _cachedMembers[idx] = res.member; else _cachedMembers.push(res.member);
                         setLocalCollection("loyalty_members", _cachedMembers);
                         if (callback) callback(res.member, res.lockInfo);
@@ -625,7 +638,7 @@
             apiFetch("/loyalty/members", "POST", { phone, firstName: cleanName, source: src })
                 .then(res => {
                     if (res && res.success && res.member) {
-                        const idx = _cachedMembers.findIndex(m => m.phone === phone);
+                        const idx = _cachedMembers.findIndex(m => isSamePhone(m.phone, res.member.phone));
                         if (idx >= 0) _cachedMembers[idx] = res.member; else _cachedMembers.push(res.member);
                         setLocalCollection("loyalty_members", _cachedMembers);
 
