@@ -1,4 +1,331 @@
 // ============================================================================
+// SERVICE WORKER & FCM PUSH NOTIFICATIONS
+// ============================================================================
+
+const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAoINLpUCCic9Xz9_PnM3al9Iu69q1FQpY",
+    authDomain: "grey-corner-restaurant.firebaseapp.com",
+    projectId: "grey-corner-restaurant",
+    storageBucket: "grey-corner-restaurant.firebasestorage.app",
+    messagingSenderId: "251703175568",
+    appId: "1:251703175568:web:8d693adc297eb869d12b15",
+    measurementId: "G-3HVHB0EELC"
+};
+
+// Initialiser Firebase immédiatement si ce n'est pas déjà fait
+if (typeof firebase !== "undefined" && !firebase.apps.length) {
+    try {
+        firebase.initializeApp(FIREBASE_CONFIG);
+    } catch (e) {
+        console.warn("Firebase déjà initialisé:", e);
+    }
+}
+
+let waiterSwRegistration = null;
+let currentFcmToken = null;
+
+// ── UI HELPERS (Statut Connexion & Push) ──────────────────────────────────────
+
+function setConnectionStatus(status) {
+    const pill = document.getElementById("connectionPill");
+    const label = document.getElementById("connectionLabel");
+    if (!pill) return;
+    if (status === "online") {
+        pill.classList.remove("disconnected");
+        pill.classList.add("connected");
+        if (label) label.textContent = "En ligne";
+        pill.title = "Connecté en temps réel à Firestore";
+    } else {
+        pill.classList.remove("connected");
+        pill.classList.add("disconnected");
+        if (label) label.textContent = "Connexion...";
+        pill.title = "En attente de connexion...";
+    }
+}
+
+function updatePushUI(state, customText) {
+    const btn = document.getElementById("pushNotifBtn");
+    const label = document.getElementById("pushNotifLabel");
+    if (!btn || !label) return;
+    btn.classList.remove("push-granted", "push-denied", "push-prompt");
+    if (state === "granted") {
+        btn.classList.add("push-granted");
+        label.textContent = customText || "Push Actif";
+        btn.title = "Notifications d'arrière-plan actives pour ce smartphone.";
+    } else if (state === "denied") {
+        btn.classList.add("push-denied");
+        label.textContent = customText || "Push Bloqué";
+        btn.title = "Notifications bloquées dans les paramètres du navigateur.";
+    } else {
+        btn.classList.add("push-prompt");
+        label.textContent = customText || "Activer Push";
+        btn.title = "Cliquez pour activer les notifications d'arrière-plan (écran éteint).";
+    }
+}
+
+function isAndroidNativeApp() {
+    return (typeof AndroidInterface !== "undefined")
+        || (typeof window !== "undefined" && window.AndroidInterface)
+        || (typeof window !== "undefined" && window.__isNativeAndroid)
+        || (navigator.userAgent && navigator.userAgent.includes("GreyCornerWaiterApp"));
+}
+
+async function syncNativeFcmToken() {
+    const ai = (typeof AndroidInterface !== "undefined")
+        ? AndroidInterface
+        : ((typeof window !== "undefined" && window.AndroidInterface) ? window.AndroidInterface : null);
+
+    const token = (window.__nativeFcmToken) || (ai && typeof ai.getFcmToken === "function" ? ai.getFcmToken() : null);
+    if (!token) {
+        setTimeout(syncNativeFcmToken, 2000);
+        return;
+    }
+
+    currentFcmToken = token;
+    console.log("📲 Token FCM natif Android synchronisé:", token.substring(0, 15) + "...");
+
+    const firestoreDb = (typeof db !== "undefined" && db) ? db : (typeof firebase !== "undefined" && firebase.firestore ? firebase.firestore() : null);
+    if (firestoreDb) {
+        try {
+            await firestoreDb.collection("waiter_fcm_tokens").doc(myDeviceId).set({
+                token: token,
+                deviceId: myDeviceId,
+                waiterId: activeWaiterId,
+                waiterName: activeWaiterName,
+                active: true,
+                platform: "android_native",
+                userAgent: navigator.userAgent,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            console.log("☁️ Token natif Android enregistré dans Firestore.");
+        } catch (e) {
+            console.warn("Erreur enregistrement token natif:", e);
+        }
+    }
+}
+
+function checkImmediatePushAndConnection() {
+    if (isAndroidNativeApp()) {
+        updatePushUI("granted", "App Native (FCM OK)");
+        const btn = document.getElementById("pushNotifBtn");
+        if (btn) btn.title = "Application Android Native — FCM et Service de maintien en arrière-plan actifs.";
+        syncNativeFcmToken();
+    } else if ("Notification" in window) {
+        if (Notification.permission === "granted") {
+            updatePushUI("granted", "Push Actif");
+        } else if (Notification.permission === "denied") {
+            updatePushUI("denied", "Push Bloqué");
+        } else {
+            updatePushUI("prompt", "Activer Push");
+        }
+    } else {
+        updatePushUI("denied", "Non supporté");
+    }
+
+    if (navigator.onLine) {
+        setConnectionStatus("online");
+    } else {
+        setConnectionStatus("offline");
+    }
+}
+
+// ── SERVICE WORKER & FCM INITIALISATION ───────────────────────────────────────
+
+function setupServiceWorkerAndFcm() {
+    if (!("serviceWorker" in navigator)) return;
+
+    // Supprimer tout ancien Service Worker résiduel (ex: waiter-sw.js)
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const reg of registrations) {
+            if (reg.active && reg.active.scriptURL && reg.active.scriptURL.includes("waiter-sw.js")) {
+                console.log("🧹 Révocation de l'ancien service worker:", reg.active.scriptURL);
+                reg.unregister();
+            }
+        }
+    }).catch(() => {});
+
+    // Enregistrer le Service Worker FCM officiel
+    navigator.serviceWorker.register("/firebase-messaging-sw.js", { scope: "/" })
+        .then((reg) => {
+            waiterSwRegistration = reg;
+            console.log("✅ Service Worker FCM enregistré:", reg.scope);
+
+            // Mettre à jour immédiatement
+            reg.update().catch(() => {});
+
+            // Init FCM Push
+            initWaiterFcmPush(reg);
+
+            // Vérifier les nouvelles versions
+            reg.addEventListener("updatefound", () => {
+                const newWorker = reg.installing;
+                if (newWorker) {
+                    newWorker.addEventListener("statechange", () => {
+                        if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                            newWorker.postMessage({ type: "SKIP_WAITING" });
+                        }
+                    });
+                }
+            });
+        })
+        .catch((err) => {
+            console.warn("⚠️ Échec enregistrement Service Worker FCM:", err);
+            initWaiterFcmPush(null);
+        });
+
+    // Keep-alive régulier
+    setInterval(() => {
+        if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({ type: "KEEP_ALIVE" });
+        }
+    }, 25000);
+}
+
+// Démarrer SW dès que possible
+if (document.readyState === "complete" || document.readyState === "interactive") {
+    setupServiceWorkerAndFcm();
+    checkImmediatePushAndConnection();
+} else {
+    window.addEventListener("DOMContentLoaded", () => {
+        setupServiceWorkerAndFcm();
+        checkImmediatePushAndConnection();
+    });
+}
+
+// Listeners online / offline du navigateur
+window.addEventListener("online", () => setConnectionStatus("online"));
+window.addEventListener("offline", () => setConnectionStatus("offline"));
+
+// ── GESTIONNAIRE PUSH FCM (Permissions & Tokens) ──────────────────────────────
+
+async function initWaiterFcmPush(swReg) {
+    if (isAndroidNativeApp()) {
+        updatePushUI("granted", "App Native (FCM OK)");
+        syncNativeFcmToken();
+        return;
+    }
+
+    const btn = document.getElementById("pushNotifBtn");
+    if (btn && !btn._hasClickListener) {
+        btn._hasClickListener = true;
+        btn.addEventListener("click", () => requestFcmPushPermission(swReg, true));
+    }
+
+    if (!("Notification" in window)) {
+        updatePushUI("denied", "Non supporté");
+        return;
+    }
+
+    if (Notification.permission === "granted") {
+        updatePushUI("granted", "Push Actif");
+        await registerFcmToken(swReg, false);
+    } else if (Notification.permission === "denied") {
+        updatePushUI("denied", "Push Bloqué");
+    } else {
+        updatePushUI("prompt", "Activer Push");
+    }
+}
+
+async function requestFcmPushPermission(swReg, userInitiated = false) {
+    if (!("Notification" in window)) {
+        alert("Les notifications Web Push ne sont pas supportées par ce navigateur.");
+        return;
+    }
+
+    if (Notification.permission === "denied") {
+        alert("Les notifications sont bloquées dans votre navigateur.\n\nPour les activer :\n1. Cliquez sur l'icône de cadenas ou de réglages à gauche de l'adresse web\n2. Autorisez les 'Notifications'\n3. Rechargez la page.");
+        return;
+    }
+
+    try {
+        const permission = await Notification.requestPermission();
+        if (permission === "granted") {
+            updatePushUI("granted", "Push Actif");
+            await registerFcmToken(swReg, userInitiated);
+        } else {
+            updatePushUI("denied", "Push Refusé");
+        }
+    } catch (e) {
+        console.error("❌ Erreur demande de permission:", e);
+    }
+}
+
+async function registerFcmToken(swReg, showSuccessFeedback = false) {
+    try {
+        if (typeof firebase === "undefined" || !firebase.messaging || !firebase.messaging.isSupported()) {
+            console.warn("⚠️ Firebase Messaging non supporté ou indisponible.");
+            if (Notification.permission === "granted") {
+                updatePushUI("granted", "Push Actif");
+            }
+            return;
+        }
+
+        const messaging = firebase.messaging();
+        const DEFAULT_VAPID_KEY = "BO5FSWfM-nUZt6OZV4uGCbTmEi_dErg_FCVW52oxYi8Y__v0dBreH3KTY1Eo4NjzhZ83g09dESoSlegDI3vBH1I";
+        let vapidKey = localStorage.getItem("fcm_vapid_key") || window.FIREBASE_VAPID_KEY || DEFAULT_VAPID_KEY;
+
+        const reg = swReg || waiterSwRegistration || (navigator.serviceWorker ? await navigator.serviceWorker.ready.catch(() => null) : null);
+
+        const tokenOptions = {
+            serviceWorkerRegistration: reg,
+            vapidKey: vapidKey
+        };
+
+        let token = null;
+        try {
+            token = await messaging.getToken(tokenOptions);
+        } catch (tokenErr) {
+            console.warn("⚠️ Erreur récupération token FCM:", tokenErr);
+            if (tokenErr.code === "messaging/missing-vapid-key" || (tokenErr.message && tokenErr.message.includes("vapidKey"))) {
+                const inputKey = prompt("🔑 Clé VAPID Firebase requise pour recevoir les pushs.\nCollez la clé VAPID :");
+                if (inputKey && inputKey.trim()) {
+                    vapidKey = inputKey.trim();
+                    localStorage.setItem("fcm_vapid_key", vapidKey);
+                    tokenOptions.vapidKey = vapidKey;
+                    token = await messaging.getToken(tokenOptions);
+                }
+            } else {
+                throw tokenErr;
+            }
+        }
+
+        if (token) {
+            currentFcmToken = token;
+            console.log("📲 FCM Token actif:", token.substring(0, 15) + "...");
+
+            const firestoreDb = (typeof db !== "undefined" && db) ? db : (typeof firebase !== "undefined" && firebase.firestore ? firebase.firestore() : null);
+
+            if (firestoreDb) {
+                await firestoreDb.collection("waiter_fcm_tokens").doc(myDeviceId).set({
+                    token: token,
+                    deviceId: myDeviceId,
+                    waiterId: activeWaiterId,
+                    waiterName: activeWaiterName,
+                    active: true,
+                    platform: "web",
+                    userAgent: navigator.userAgent,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                console.log("☁️ Token enregistré dans Firestore (collection waiter_fcm_tokens).");
+            }
+
+            updatePushUI("granted", "Push Actif");
+
+            if (showSuccessFeedback) {
+                alert("✅ Notifications Push activées avec succès !\n\nCe smartphone recevra désormais les alertes même avec l'écran éteint et l'application fermée.");
+            }
+        }
+    } catch (err) {
+        console.error("❌ Échec enregistrement token FCM:", err);
+        if (Notification.permission === "granted") {
+            updatePushUI("granted", "Push Actif");
+        } else {
+            updatePushUI("prompt", "Activer Push");
+        }
+    }
+}
+
+// ============================================================================
 // DEVICE IDENTITY — ID anonyme persistant pour le verrouillage coopératif
 // ============================================================================
 
@@ -17,6 +344,13 @@ const activeWaiterName = "Serveur";
 // ============================================================================
 // STATE — Listeners Firestore actifs
 // ============================================================================
+
+function parseSafeDate(input) {
+    if (!input) return new Date();
+    if (typeof input.toDate === "function") return input.toDate();
+    const d = new Date(input);
+    return isNaN(d.getTime()) ? new Date() : d;
+}
 
 function savePreOrdersCache(newOrders) {
     const todayStr = new Date().toDateString();
@@ -37,7 +371,7 @@ function savePreOrdersCache(newOrders) {
         if (!newO || !newO.id) return;
 
         // Éviter de stocker les commandes des jours précédents dans le cache quotidien
-        const orderDateStr = newO.createdAt ? new Date(newO.createdAt).toDateString() : todayStr;
+        const orderDateStr = newO.createdAt ? parseSafeDate(newO.createdAt).toDateString() : todayStr;
         if (orderDateStr !== todayStr) return;
 
         const existingIdx = currentCache.findIndex(o => o.id === newO.id);
@@ -105,56 +439,210 @@ let globalWaiters = [];
 let isReconnecting = false;
 
 // ============================================================================
-// AUDIO & VIBRATION
+// ============================================================================
+// AUDIO & VIBRATION (Synthesizer + Audio element + Haptic)
 // ============================================================================
 
 const alertChime = new Audio("https://assets.mixkit.co/active_storage/sfx/911/911-200.wav");
-alertChime.volume = 0.55;
+alertChime.volume = 1.0;
+
+let waiterAudioCtx = null;
+function getWaiterAudioContext() {
+    if (!waiterAudioCtx && typeof window !== "undefined") {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+            waiterAudioCtx = new AudioContextClass();
+        }
+    }
+    if (waiterAudioCtx && waiterAudioCtx.state === "suspended") {
+        waiterAudioCtx.resume().catch(() => {});
+    }
+    return waiterAudioCtx;
+}
+
+function playSynthesizedChime() {
+    try {
+        const ctx = getWaiterAudioContext();
+        if (!ctx) return false;
+
+        const now = ctx.currentTime;
+        // Bip 1 (880 Hz - La 5)
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = "sine";
+        osc1.frequency.setValueAtTime(880, now);
+        gain1.gain.setValueAtTime(1.0, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.35);
+
+        // Bip 2 (1320 Hz - Mi 6)
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = "sine";
+        osc2.frequency.setValueAtTime(1320, now + 0.18);
+        gain2.gain.setValueAtTime(1.0, now + 0.18);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now + 0.18);
+        osc2.stop(now + 0.65);
+
+        return true;
+    } catch (e) {
+        console.warn("⚠️ Synthesizer audio error:", e);
+        return false;
+    }
+}
+
+let audioUnlocked = false;
+function unlockWaiterAudio() {
+    if (audioUnlocked) return;
+    try {
+        const ctx = getWaiterAudioContext();
+        if (ctx && ctx.state === "suspended") {
+            ctx.resume().catch(() => {});
+        }
+    } catch (e) {}
+    alertChime.play().then(() => {
+        alertChime.pause();
+        alertChime.currentTime = 0;
+        audioUnlocked = true;
+    }).catch(() => {});
+
+    // Notification permission & Screen Wake Lock
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+        Notification.requestPermission().catch(() => {});
+    }
+    requestScreenWakeLock();
+
+    const ai = (typeof AndroidInterface !== "undefined") ? AndroidInterface : (typeof window !== "undefined" ? window.AndroidInterface : null);
+    if (ai && typeof ai.keepAlive === "function") {
+        ai.keepAlive();
+    }
+
+    document.removeEventListener("touchstart", unlockWaiterAudio);
+    document.removeEventListener("click", unlockWaiterAudio);
+}
+
+if (typeof window !== "undefined") {
+    document.addEventListener("touchstart", unlockWaiterAudio, { once: true });
+    document.addEventListener("click", unlockWaiterAudio, { once: true });
+}
 
 function triggerHapticVibrate() {
     if (typeof navigator !== "undefined" && navigator.vibrate) {
-        navigator.vibrate([200, 100, 200]);
+        navigator.vibrate([400, 150, 400, 150, 800]);
     }
 }
 
 function playAlertSound() {
+    const synthPlayed = playSynthesizedChime();
     alertChime.currentTime = 0;
-    alertChime.play().catch(() => {
-        console.warn("🔊 Autoplay bloqué par le navigateur.");
+    alertChime.play().catch((e) => {
+        if (!synthPlayed) console.warn("🔊 Autoplay bloqué par le navigateur:", e);
     });
 }
 
 // ============================================================================
-// ANDROID NATIVE BRIDGE — Helpers sécurisés
+// SCREEN WAKE LOCK API (Maintien de l'écran allumé)
+// ============================================================================
+
+let screenWakeLock = null;
+async function requestScreenWakeLock() {
+    if (typeof navigator !== "undefined" && "wakeLock" in navigator) {
+        try {
+            screenWakeLock = await navigator.wakeLock.request("screen");
+            console.log("💡 Screen Wake Lock acquis — l'écran restera allumé.");
+            screenWakeLock.addEventListener("release", () => {
+                screenWakeLock = null;
+                console.log("💡 Screen Wake Lock relâché.");
+            });
+        } catch (err) {
+            console.warn("⚠️ Wake Lock error:", err);
+        }
+    }
+}
+
+// ============================================================================
+// ANDROID NATIVE BRIDGE — Helpers sécurisés & Keep-Alive continu
 // ============================================================================
 
 function triggerAndroidAlert(id, type, title, message) {
-    if (typeof AndroidInterface === "undefined") return;
-    try {
-        if (typeof AndroidInterface.triggerActionAlert === "function") {
-            AndroidInterface.triggerActionAlert(id, type, title, message);
-        } else if (typeof AndroidInterface.triggerNativeAlert === "function") {
-            AndroidInterface.triggerNativeAlert(title, message);
+    const ai = (typeof AndroidInterface !== "undefined")
+        ? AndroidInterface
+        : ((typeof window !== "undefined" && window.AndroidInterface) ? window.AndroidInterface : null);
+
+    if (ai) {
+        try {
+            if (typeof ai.triggerActionAlert === "function") {
+                ai.triggerActionAlert(id, type, title, message);
+            } else if (typeof ai.triggerNativeAlert === "function") {
+                ai.triggerNativeAlert(title, message);
+            }
+            if (typeof ai.keepAlive === "function") {
+                ai.keepAlive();
+            }
+            console.log("📲 AndroidInterface alert envoyée avec succès.");
+        } catch (e) {
+            console.error("❌ Android bridge error:", e);
         }
-    } catch (e) {
-        console.error("❌ Android bridge error:", e);
+    }
+
+    // Web Notification API fallback (si Chrome / PWA / standalone sans AndroidInterface)
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+            if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+                navigator.serviceWorker.ready.then(reg => {
+                    reg.showNotification(title, {
+                        body: message,
+                        icon: "images/logo-gold.png",
+                        badge: "images/logo-gold.png",
+                        vibrate: [400, 150, 400, 150, 800],
+                        tag: id,
+                        renotify: true,
+                        requireInteraction: true
+                    });
+                }).catch(() => {});
+            } else {
+                new Notification(title, {
+                    body: message,
+                    icon: "images/logo-gold.png",
+                    vibrate: [400, 150, 400, 150, 800],
+                    tag: id,
+                    requireInteraction: true
+                });
+            }
+        } catch (e) {
+            console.warn("⚠️ Web Notification error:", e);
+        }
     }
 }
 
 function startAndroidKeepAlive() {
-    const INTERVAL_MS = 20 * 60 * 1000;
+    const ai = (typeof AndroidInterface !== "undefined")
+        ? AndroidInterface
+        : ((typeof window !== "undefined" && window.AndroidInterface) ? window.AndroidInterface : null);
 
-    setInterval(() => {
-        if (typeof AndroidInterface === "undefined") return;
+    const ping = () => {
+        if (!ai) return;
         try {
-            if (typeof AndroidInterface.keepAlive === "function") {
-                AndroidInterface.keepAlive();
+            if (typeof ai.keepAlive === "function") {
+                ai.keepAlive();
                 console.log("💓 Keep-alive envoyé au service Android.");
             }
         } catch (e) {
             console.warn("⚠️ Keep-alive bridge error:", e);
         }
-    }, INTERVAL_MS);
+    };
+
+    // Ping initial immédiat
+    ping();
+
+    // Répéter toutes les 25 secondes pour maintenir le ForegroundService actif en Doze Mode
+    setInterval(ping, 25000);
 }
 
 // ============================================================================
@@ -163,9 +651,9 @@ function startAndroidKeepAlive() {
 
 function getTableZoneName(tableNum) {
     const num = parseInt(tableNum);
-    if (num >= 101 && num <= 115) return "Salon";
-    if (num >= 201 && num <= 223) return "Loge";
-    if (num >= 301 && num <= 324) return "Terrasse";
+    if (num >= 101 && num <= 115) return "Salle";
+    if (num >= 201 && num <= 219) return "Loge";
+    if (num >= 301 && num <= 323) return "Terrasse";
     return "Table";
 }
 
@@ -218,7 +706,7 @@ function startRealtimeHub() {
     unsubCalls = dbService.onCallsChange((calls) => {
         const todayStr = new Date().toDateString();
         const todayCalls = calls.filter(c => {
-            const dateStr = c.createdAt ? new Date(c.createdAt).toDateString() : todayStr;
+            const dateStr = c.createdAt ? parseSafeDate(c.createdAt).toDateString() : todayStr;
             return dateStr === todayStr;
         });
         activeCallsList = todayCalls;
@@ -300,7 +788,9 @@ function processCallsFeed(calls) {
             myActiveCallsCount++;
             if (!knownCallIds.has(call.id)) {
                 knownCallIds.add(call.id);
-                if (!isCallsInitialLoad) {
+                const callAgeMs = call.createdAt ? (Date.now() - parseSafeDate(call.createdAt).getTime()) : 0;
+                const isRecentPending = callAgeMs >= 0 && callAgeMs < 10 * 60 * 1000;
+                if (!isCallsInitialLoad || isRecentPending) {
                     newPendingDetected = true;
                     const zoneName    = getTableZoneName(call.table);
                     const typeLabels  = { waiter: "Appel Serveur", water: "Besoin d'Eau", bill: "L'Addition" };
@@ -313,14 +803,20 @@ function processCallsFeed(calls) {
         } else {
             knownCallIds.add(call.id);
             if (isAcceptedByMe) myActiveCallsCount++;
+            const ai = (typeof AndroidInterface !== "undefined") ? AndroidInterface : (typeof window !== "undefined" ? window.AndroidInterface : null);
+            if (ai && typeof ai.cancelAlert === "function") ai.cancelAlert(call.id);
         }
 
         const card = document.createElement("div");
         card.className = `alert-card ${call.status === "pending" ? "call-pending" : "call-accepted"} ${isAcceptedByOther ? "unassigned-card" : ""}`;
         card.dataset.id = call.id;
 
-        const typeLabels = { waiter: "Appel Serveur", water: "Besoin d'Eau", bill: "L'Addition" };
-        const badgeClasses = { waiter: "badge-waiter", water: "badge-water", bill: "badge-bill" };
+        const typeLabels = { waiter: "Appel Serveur", water: "Besoin d'Eau", bill: "L'Addition", reward: "🎁 Consommation Gratuite (500 pts)" };
+        const badgeClasses = { waiter: "badge-waiter", water: "badge-water", bill: "badge-bill", reward: "badge-reward" };
+
+        const rewardClientInfo = (call.type === "reward" && call.loyaltyPhone) 
+            ? `<div style="font-size:0.82rem; color:#2ecc71; margin-top:4px; font-weight:600;">👑 Client: ${call.loyaltyName || ""} (${call.loyaltyPhone})</div>` 
+            : "";
 
         card.innerHTML = `
             <div class="card-top">
@@ -332,11 +828,13 @@ function processCallsFeed(calls) {
                 </div>
                 <span class="time-elapsed" data-created="${call.createdAt}">${getElapsedTimeMarkup(call.createdAt)}</span>
             </div>
+            ${rewardClientInfo}
             <div class="card-actions">
                 ${call.status === "pending"
                 ? `<button class="action-btn-accept accept-call-btn" data-id="${call.id}">S'y Rendre</button>`
                 : (isAcceptedByMe
                     ? `<div class="accepted-status-badge"><span class="mini-pulse"></span> En cours...</div>
+                           ${call.type === "reward" && call.loyaltyPhone ? `<button class="action-btn-complete redeem-call-btn" style="background:#27ae60;" data-id="${call.id}" data-phone="${call.loyaltyPhone}">🎁 Offrir (-500 pts)</button>` : ""}
                            <button class="action-btn-complete complete-call-btn" data-id="${call.id}">Terminer</button>`
                     : `<div class="accepted-status-badge" style="color:var(--muted);">
                              <span>👨‍🍳 Pris en charge</span>
@@ -352,11 +850,35 @@ function processCallsFeed(calls) {
         if (btnAccept) {
             btnAccept.addEventListener("click", () => {
                 dbService.updateCallStatus(call.id, "accepted", activeWaiterId);
+                const ai = (typeof AndroidInterface !== "undefined") ? AndroidInterface : (typeof window !== "undefined" ? window.AndroidInterface : null);
+                if (ai && typeof ai.cancelAlert === "function") ai.cancelAlert(call.id);
             });
         }
         if (btnComplete) {
             btnComplete.addEventListener("click", () => {
                 dbService.updateCallStatus(call.id, "completed");
+                const ai = (typeof AndroidInterface !== "undefined") ? AndroidInterface : (typeof window !== "undefined" ? window.AndroidInterface : null);
+                if (ai && typeof ai.cancelAlert === "function") ai.cancelAlert(call.id);
+            });
+        }
+
+        const btnRedeemCall = card.querySelector(".redeem-call-btn");
+        if (btnRedeemCall) {
+            btnRedeemCall.addEventListener("click", () => {
+                if (confirm(`Confirmer la déduction de 500 points pour ${call.loyaltyPhone} ?`)) {
+                    btnRedeemCall.disabled = true;
+                    dbService.redeemLoyaltyReward(call.loyaltyPhone, activeWaiterId, (ok, newTotal) => {
+                        if (ok) {
+                            playAlertSound();
+                            triggerHapticVibrate();
+                            alert(`🎉 Consommation offerte accordée ! Nouveau solde: ${newTotal} pts`);
+                            dbService.updateCallStatus(call.id, "completed", activeWaiterId);
+                        } else {
+                            alert("❌ Erreur ou solde insuffisant (minimum 500 points requis).");
+                            btnRedeemCall.disabled = false;
+                        }
+                    });
+                }
             });
         }
 
@@ -414,7 +936,9 @@ function processPreOrdersFeed(orders) {
             myActiveOrdersCount++;
             if (!knownOrderIds.has(order.id)) {
                 knownOrderIds.add(order.id);
-                if (!isOrdersInitialLoad) {
+                const orderAgeMs = order.createdAt ? (Date.now() - parseSafeDate(order.createdAt).getTime()) : 0;
+                const isRecentPending = orderAgeMs >= 0 && orderAgeMs < 15 * 60 * 1000;
+                if (!isOrdersInitialLoad || isRecentPending) {
                     newOrderDetected = true;
                     const zoneName   = getTableZoneName(order.table);
                     const alertTitle = `👨‍🍳 Nouvelle Précommande : ${zoneName} ${order.table}`;
@@ -425,6 +949,8 @@ function processPreOrdersFeed(orders) {
         } else {
             knownOrderIds.add(order.id);
             if (isAcceptedByMe) myActiveOrdersCount++;
+            const ai = (typeof AndroidInterface !== "undefined") ? AndroidInterface : (typeof window !== "undefined" ? window.AndroidInterface : null);
+            if (ai && typeof ai.cancelAlert === "function") ai.cancelAlert(order.id);
         }
 
         const card = document.createElement("div");
@@ -445,6 +971,25 @@ function processPreOrdersFeed(orders) {
             `;
         });
 
+        let loyaltySnippet = "";
+        if (order.loyaltyPhone) {
+            const ptsToAdd = Math.floor(order.totalPrice || 0);
+            loyaltySnippet = `
+                <div class="order-loyalty-banner">
+                    <div>
+                        <span style="font-weight:700; color:var(--gold);">👑 ${order.loyaltyName || "Client Club"}</span>
+                        <span style="font-size:0.75rem; color:var(--muted); margin-left:4px;">(${order.loyaltyPhone})</span>
+                    </div>
+                    <div id="loyaltyPointsBadge_${order.id}">
+                        ${order.loyaltyCredited 
+                            ? `<span style="color:#2ecc71; font-weight:700; font-size:0.82rem;">✓ Points crédités (+${ptsToAdd} pts)</span>`
+                            : `<button type="button" class="action-btn-credit-loyalty" data-order-id="${order.id}" data-phone="${order.loyaltyPhone}" data-amount="${order.totalPrice}" style="padding:4px 10px; cursor:pointer;">✅ Encaisser & Créditer (+${ptsToAdd} pts)</button>`
+                        }
+                    </div>
+                </div>
+            `;
+        }
+
         card.innerHTML = `
             <div class="card-top">
                 <div class="card-title-wrap">
@@ -463,6 +1008,7 @@ function processPreOrdersFeed(orders) {
                     <span class="order-total-price">${order.totalPrice} MAD</span>
                 </div>
             </div>
+            ${loyaltySnippet}
             <div class="card-actions">
                 ${order.status === "pending"
                 ? `<button class="action-btn-accept accept-order-btn" data-id="${order.id}">Valider & POS</button>`
@@ -483,11 +1029,42 @@ function processPreOrdersFeed(orders) {
         if (btnAccept) {
             btnAccept.addEventListener("click", () => {
                 dbService.updatePreOrderStatus(order.id, "accepted", activeWaiterId);
+                const ai = (typeof AndroidInterface !== "undefined") ? AndroidInterface : (typeof window !== "undefined" ? window.AndroidInterface : null);
+                if (ai && typeof ai.cancelAlert === "function") ai.cancelAlert(order.id);
             });
         }
         if (btnComplete) {
             btnComplete.addEventListener("click", () => {
                 dbService.updatePreOrderStatus(order.id, "completed");
+                const ai = (typeof AndroidInterface !== "undefined") ? AndroidInterface : (typeof window !== "undefined" ? window.AndroidInterface : null);
+                if (ai && typeof ai.cancelAlert === "function") ai.cancelAlert(order.id);
+            });
+        }
+
+        const btnCreditLoyalty = card.querySelector(".action-btn-credit-loyalty");
+        if (btnCreditLoyalty) {
+            btnCreditLoyalty.addEventListener("click", () => {
+                const phone = btnCreditLoyalty.dataset.phone;
+                const amount = parseFloat(btnCreditLoyalty.dataset.amount) || 0;
+                btnCreditLoyalty.disabled = true;
+                btnCreditLoyalty.textContent = "Crédit en cours...";
+
+                dbService.creditLoyaltyPoints(phone, amount, order.table, activeWaiterId, order.id, (ok, added, newTotal) => {
+                    if (ok) {
+                        playAlertSound();
+                        triggerHapticVibrate();
+                        order.loyaltyCredited = true;
+                        const container = document.getElementById(`loyaltyPointsBadge_${order.id}`);
+                        if (container) {
+                            container.innerHTML = `<span style="color:#2ecc71; font-weight:700; font-size:0.82rem;">✓ Points crédités (+${added} pts)</span>`;
+                        }
+                        alert(`👑 ${added} points crédités à ${phone} !\nNouveau solde: ${newTotal} pts`);
+                    } else {
+                        alert("❌ Erreur lors du crédit des points fidélité.");
+                        btnCreditLoyalty.disabled = false;
+                        btnCreditLoyalty.textContent = "Réessayer";
+                    }
+                });
             });
         }
 
@@ -660,7 +1237,19 @@ document.addEventListener("visibilitychange", () => {
         hiddenAt = Date.now();
     } else {
         const hiddenDuration = hiddenAt ? Date.now() - hiddenAt : 0;
-        if (hiddenDuration > 3 * 60 * 1000) {
+        // Réactivation immédiate de l'écran, du contexte audio et du keep-alive
+        requestScreenWakeLock();
+        if (waiterAudioCtx && waiterAudioCtx.state === "suspended") {
+            waiterAudioCtx.resume().catch(() => {});
+        }
+        const ai = (typeof AndroidInterface !== "undefined")
+            ? AndroidInterface
+            : ((typeof window !== "undefined" && window.AndroidInterface) ? window.AndroidInterface : null);
+        if (ai && typeof ai.keepAlive === "function") {
+            ai.keepAlive();
+        }
+
+        if (hiddenDuration > 30 * 1000) {
             console.log(`🔄 Page cachée ${Math.round(hiddenDuration / 1000)}s → reconnexion préventive.`);
             reconnectHub();
         }
@@ -673,32 +1262,331 @@ window.addEventListener("beforeunload", () => {
 });
 
 // ============================================================================
+// WATCHDOG DE SECOURS — Rappels sonores tant qu'un appel ou commande est en attente
+// ============================================================================
+let pendingAlertWatchdog = null;
+function startPendingAlertWatchdog() {
+    if (pendingAlertWatchdog) return;
+    pendingAlertWatchdog = setInterval(() => {
+        const now = Date.now();
+        const maxAgeMs = 15 * 60 * 1000; // Ne relance que les alertes de moins de 15 minutes
+
+        const hasPendingCalls = (activeCallsList || []).some(c => {
+            if (c.status !== "pending") return false;
+            const age = c.createdAt ? (now - parseSafeDate(c.createdAt).getTime()) : 0;
+            return age >= 0 && age < maxAgeMs;
+        });
+        const hasPendingOrders = (activePreOrdersList || []).some(o => {
+            if (o.status !== "pending") return false;
+            const age = o.createdAt ? (now - parseSafeDate(o.createdAt).getTime()) : 0;
+            return age >= 0 && age < maxAgeMs;
+        });
+
+        if (hasPendingCalls || hasPendingOrders) {
+            console.log("⏰ Watchdog : Éléments récents toujours en attente → Relance sonore et réveil écran.");
+            triggerHapticVibrate();
+            playAlertSound();
+            requestScreenWakeLock();
+
+            const ai = (typeof AndroidInterface !== "undefined")
+                ? AndroidInterface
+                : ((typeof window !== "undefined" && window.AndroidInterface) ? window.AndroidInterface : null);
+            if (ai && typeof ai.triggerActionAlert === "function") {
+                const label = hasPendingOrders ? "Commande(s) récente(s) en attente !" : "Appel(s) en attente !";
+                ai.triggerActionAlert("pending_reminder", "reminder", "⚠️ Attention : En attente", label);
+            }
+        }
+    }, 20000); // Répète toutes les 20 secondes
+}
+
+// ============================================================================
 // INITIALISATION
 // ============================================================================
 
+
+// ============================================================================
+// MODULE FIDÉLITÉ DIRECTE (SERVEUR — SCÉNARIO B : CLIENT SANS QR)
+// ============================================================================
+
+function initDirectLoyaltyModule() {
+    const modal = document.getElementById("directLoyaltyModal");
+    const btnOpen = document.getElementById("btnOpenDirectLoyalty");
+    const btnClose = document.getElementById("btnCloseDirectLoyalty");
+    const searchInput = document.getElementById("directLoyaltySearchInput");
+    const searchBtn = document.getElementById("directLoyaltySearchBtn");
+    const contentArea = document.getElementById("directLoyaltyContentArea");
+
+    if (!modal || !btnOpen) return;
+
+    const openModal = () => {
+        modal.style.display = "flex";
+        if (searchInput) {
+            searchInput.value = "";
+            setTimeout(() => searchInput.focus(), 150);
+        }
+        contentArea.innerHTML = `
+            <div style="text-align: center; color: var(--muted); padding: 24px 10px; font-size: 0.9rem;">
+                💡 Saisissez le numéro de téléphone pour créditer les points de l'addition ou offrir la boisson gratuite.
+            </div>
+        `;
+    };
+
+    const closeModal = () => {
+        modal.style.display = "none";
+    };
+
+    btnOpen.addEventListener("click", openModal);
+    if (btnClose) btnClose.addEventListener("click", closeModal);
+    modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeModal();
+    });
+
+    const performSearch = () => {
+        const query = (searchInput.value || "").trim();
+        if (!query) return;
+
+        contentArea.innerHTML = `<div style="text-align:center; padding:20px; color:var(--muted);"><span class="mini-pulse"></span> Recherche du compte...</div>`;
+
+        // Si 8 chiffres ou plus, on cherche directement le numéro normalisé
+        const cleanPhone = window.normalizePhone ? window.normalizePhone(query) : query.replace(/\D/g, "");
+
+        if (cleanPhone.length >= 8) {
+            dbService.getLoyaltyMember(cleanPhone, (member) => {
+                if (member) {
+                    renderMemberDetails(member);
+                } else {
+                    renderCreateMemberForm(cleanPhone);
+                }
+            });
+        } else {
+            // Recherche par les 4 derniers chiffres ou par liste complète
+            dbService.onAllLoyaltyMembersChange((allMembers) => {
+                const match = allMembers.find(m => m.phone.endsWith(query) || (m.firstName && m.firstName.toLowerCase().includes(query.toLowerCase())));
+                if (match) {
+                    renderMemberDetails(match);
+                } else {
+                    renderCreateMemberForm(query);
+                }
+            });
+        }
+    };
+
+    if (searchBtn) searchBtn.addEventListener("click", performSearch);
+    if (searchInput) {
+        searchInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") performSearch();
+        });
+    }
+
+    function renderMemberDetails(member) {
+        const pts = member.points || 0;
+        const target = 500;
+        const pct = Math.min(100, Math.round((pts / target) * 100));
+        const canRedeem = pts >= target;
+
+        contentArea.innerHTML = `
+            <div class="waiter-member-card">
+                <div class="member-card-header">
+                    <div>
+                        <div class="member-name">👑 ${member.firstName || "Client"}</div>
+                        <div class="member-phone">${member.phone}</div>
+                    </div>
+                    <div class="member-score">
+                        <span class="member-score-pts">${pts}</span>
+                        <span class="member-score-sub">/ 500 pts</span>
+                    </div>
+                </div>
+
+                <div class="member-progress-wrap">
+                    <div class="member-progress-bar" style="width: ${pct}%;"></div>
+                </div>
+
+                <div class="member-status-lbl">
+                    ${canRedeem 
+                        ? `<span style="color:#2ecc71; font-weight:700;">🎉 CE CLIENT A DROIT À 1 CONSOMMATION GRATUITE !</span>` 
+                        : `<span>Encore <strong>${target - pts} pts</strong> pour débloquer la boisson offerte</span>`
+                    }
+                </div>
+
+                ${canRedeem ? `
+                    <div style="margin-top:14px;">
+                        <button type="button" class="btn-redeem-free-drink" id="btnDirectRedeemFreeDrink">
+                            🎁 OFFRIR LA CONSOMMATION (-500 pts)
+                        </button>
+                    </div>
+                ` : ""}
+
+                <div class="direct-credit-section">
+                    <div class="direct-credit-title">⚡ Encaissement Direct (Ajouter des points)</div>
+                    <div class="direct-credit-inputs">
+                        <input type="number" id="directCreditAmount" class="waiter-num-input" placeholder="Montant addition (DH)" min="1" step="1" />
+                        <input type="text" id="directCreditTable" class="waiter-num-input" placeholder="Table (optionnel)" style="max-width:120px;" />
+                    </div>
+                    <button type="button" class="btn-credit-now" id="btnDirectCreditNow">
+                        + Créditer les points (1 DH = 1 pt)
+                    </button>
+                </div>
+            </div>
+        `;
+
+        if (canRedeem) {
+            bindRedeemBtn(member.phone);
+        }
+
+        const btnCreditNow = document.getElementById("btnDirectCreditNow");
+        const inputAmount = document.getElementById("directCreditAmount");
+        const inputTable = document.getElementById("directCreditTable");
+
+        if (btnCreditNow && inputAmount) {
+            btnCreditNow.addEventListener("click", () => {
+                const amount = parseFloat(inputAmount.value) || 0;
+                if (amount <= 0) {
+                    alert("Veuillez saisir un montant d'addition valide.");
+                    return;
+                }
+                const tableNum = (inputTable.value || "").trim();
+                btnCreditNow.disabled = true;
+                btnCreditNow.textContent = "Crédit en cours...";
+
+                dbService.creditLoyaltyPoints(member.phone, amount, tableNum, activeWaiterId, null, (ok, added, newTotal) => {
+                    if (ok) {
+                        playAlertSound();
+                        triggerHapticVibrate();
+                        alert(`✅ Addition de ${amount} DH encaissée !\n\n+${added} points crédités à ${member.firstName || "Client"}.\nNouveau solde : ${newTotal} / 500 pts`);
+                        member.points = newTotal;
+                        renderMemberDetails(member);
+                    } else {
+                        alert("❌ Erreur lors de l'attribution des points.");
+                        btnCreditNow.disabled = false;
+                        btnCreditNow.textContent = "+ Créditer les points";
+                    }
+                });
+            });
+        }
+    }
+
+    function bindRedeemBtn(phone) {
+        const btnRedeem = document.getElementById("btnDirectRedeemFreeDrink");
+        if (!btnRedeem) return;
+
+        btnRedeem.addEventListener("click", () => {
+            if (confirm(`Confirmez-vous déduire 500 points pour offrir 1 consommation gratuite à ce client ?`)) {
+                btnRedeem.disabled = true;
+                btnRedeem.textContent = "Déduction...";
+
+                dbService.redeemLoyaltyReward(phone, activeWaiterId, (ok, newTotal) => {
+                    if (ok) {
+                        playAlertSound();
+                        triggerHapticVibrate();
+                        alert(`🎉 Consommation offerte accordée avec succès !\nNouveau solde : ${newTotal} pts`);
+                        dbService.getLoyaltyMember(phone, (updated) => {
+                            if (updated) renderMemberDetails(updated);
+                        });
+                    } else {
+                        alert("❌ Solde insuffisant ou erreur.");
+                        btnRedeem.disabled = false;
+                        btnRedeem.textContent = "🎁 OFFRIR LA CONSOMMATION (-500 pts)";
+                    }
+                });
+            }
+        });
+    }
+
+    function renderCreateMemberForm(phoneVal) {
+        contentArea.innerHTML = `
+            <div class="waiter-member-card" style="border-color: rgba(201, 169, 110, 0.4);">
+                <div style="text-align: center; margin-bottom: 16px;">
+                    <span style="font-size: 2rem;">👤</span>
+                    <h4 style="margin: 6px 0 2px 0; font-size: 1.1rem; color: var(--gold);">Nouveau Client</h4>
+                    <p style="margin: 0; font-size: 0.8rem; color: var(--muted);">Ce numéro n'est pas encore inscrit au Club.</p>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;">
+                    <div>
+                        <label style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase;">Prénom du client</label>
+                        <input type="text" id="directNewFirstName" class="waiter-search-input" style="width: 100%; margin-top: 4px;" placeholder="Ex: Karim" />
+                    </div>
+                    <div>
+                        <label style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase;">Numéro de téléphone</label>
+                        <input type="tel" id="directNewPhone" class="waiter-search-input" style="width: 100%; margin-top: 4px;" value="${phoneVal}" placeholder="Ex: 0612345678" />
+                    </div>
+                </div>
+
+                <button type="button" id="btnDirectCreateMember" class="btn-credit-now" style="background: linear-gradient(135deg, #C9A96E 0%, #B8860B 100%); color: #000; font-weight: 700;">
+                    🎁 Créer le compte (+50 pts offerts) & Continuer
+                </button>
+            </div>
+        `;
+
+        const btnCreate = document.getElementById("btnDirectCreateMember");
+        const inputName = document.getElementById("directNewFirstName");
+        const inputPhone = document.getElementById("directNewPhone");
+
+        if (btnCreate && inputPhone) {
+            btnCreate.addEventListener("click", () => {
+                const rawPh = inputPhone.value.trim();
+                const cleanPh = window.normalizePhone ? window.normalizePhone(rawPh) : rawPh.replace(/\D/g, "");
+                const name = (inputName ? inputName.value.trim() : "") || "Client";
+
+                if (cleanPh.length < 8) {
+                    alert("Numéro de téléphone invalide (minimum 8 chiffres requis).");
+                    return;
+                }
+
+                btnCreate.disabled = true;
+                btnCreate.textContent = "Création du compte...";
+
+                dbService.createOrGetLoyaltyMember(cleanPh, name, "waiter_direct", (ok, member, isNew) => {
+                    if (ok && member) {
+                        playAlertSound();
+                        triggerHapticVibrate();
+                        alert(`👑 Compte créé pour ${member.firstName} !\n+50 points de bienvenue offerts (Solde: ${member.points} pts).`);
+                        renderMemberDetails(member);
+                    } else {
+                        alert("❌ Erreur lors de la création du compte.");
+                        btnCreate.disabled = false;
+                        btnCreate.textContent = "🎁 Créer le compte (+50 pts) & Continuer";
+                    }
+                });
+            });
+        }
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     initTabNavigation();
-
-    document.addEventListener("click", () => {
-        alertChime.play().then(() => {
-            alertChime.pause();
-            alertChime.currentTime = 0;
-        }).catch(() => { });
-    }, { once: true });
-
+    initDirectLoyaltyModule();
+    requestScreenWakeLock();
     startAndroidKeepAlive();
+    startPendingAlertWatchdog();
 
-    if (typeof dbService !== "undefined" && dbService.isCloud()) {
-        firebase.auth().signInAnonymously()
-            .then(() => {
-                console.log("🔒 Authentification anonyme réussie.");
-                startRealtimeHub();
-            })
-            .catch(e => {
-                console.error("❌ Auth échouée, démarrage en mode fallback:", e);
-                startRealtimeHub();
-            });
+    function startWaiterApp() {
+        if (typeof dbService !== "undefined" && dbService.isCloud()) {
+            firebase.auth().signInAnonymously()
+                .then(() => {
+                    console.log("🔒 Authentification anonyme réussie.");
+                    setConnectionStatus("online");
+                    startRealtimeHub();
+                })
+                .catch(e => {
+                    console.error("❌ Auth échouée, démarrage en mode fallback:", e);
+                    setConnectionStatus("online");
+                    startRealtimeHub();
+                });
+        } else {
+            setConnectionStatus("online");
+            startRealtimeHub();
+        }
+    }
+
+    if (typeof dbService !== "undefined") {
+        startWaiterApp();
     } else {
-        startRealtimeHub();
+        const checkInterval = setInterval(() => {
+            if (typeof dbService !== "undefined") {
+                clearInterval(checkInterval);
+                startWaiterApp();
+            }
+        }, 50);
     }
 });

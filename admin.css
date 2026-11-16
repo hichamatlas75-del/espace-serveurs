@@ -714,6 +714,20 @@ body {
     border-bottom: none;
 }
 
+button, input, select, .admin-tab-btn, .freeze-btn, .cleanup-btn {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
 /* ============================================================================
    LOCK SCREEN & AUTHENTICATION (CODE: greycorner2024)
    ============================================================================ */
@@ -748,17 +762,11 @@ body {
     margin-bottom: 12px;
 }
 
-.admin-auth-icon-badge {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    background: rgba(201, 168, 76, 0.1);
-    border: 1.5px solid rgba(201, 168, 76, 0.35);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 20px rgba(201, 168, 76, 0.2);
-    margin-bottom: 6px;
+.admin-auth-logo {
+    width: 58px;
+    height: 58px;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 10px rgba(201, 168, 76, 0.3));
 }
 
 .admin-auth-title {
@@ -938,4 +946,301 @@ body {
 
 .logout-btn:active {
     transform: scale(0.96);
+}
+
+/* ============================================================================
+   6. ADMIN LOYALTY CLUB (500 PTS) STYLES
+   ============================================================================ */
+.admin-loyalty-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.loyalty-kpi-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.loyalty-kpi-card .kpi-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+}
+
+.loyalty-kpi-card .kpi-val {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+}
+
+.loyalty-kpi-card .kpi-subval {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--gold);
+    margin-top: 4px;
+}
+
+.admin-loyalty-settings-card {
+    background: rgba(201, 169, 110, 0.05);
+    border: 1px solid rgba(201, 169, 110, 0.2);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 18px;
+}
+
+.settings-card-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--gold);
+    margin-bottom: 12px;
+}
+
+.settings-inputs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    align-items: flex-end;
+}
+
+.setting-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.setting-field label {
+    font-size: 0.74rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.setting-field input {
+    height: 38px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #ffffff;
+    padding: 0 10px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    outline: none;
+}
+
+.setting-field input:focus {
+    border-color: var(--gold);
+}
+
+.btn-save-settings {
+    height: 38px;
+    background: var(--gold);
+    color: #07060a;
+    font-weight: 700;
+    border: none;
+    border-radius: 8px;
+    padding: 0 16px;
+    cursor: pointer;
+    transition: filter 0.2s;
+}
+
+.btn-save-settings:hover {
+    filter: brightness(1.1);
+}
+
+.admin-loyalty-table-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    padding: 16px;
+}
+
+.table-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.admin-search-input {
+    min-width: 240px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #ffffff;
+    padding: 0 12px;
+    font-size: 0.85rem;
+    outline: none;
+}
+
+.admin-search-input:focus {
+    border-color: var(--gold);
+}
+
+.admin-table-container {
+    overflow-x: auto;
+}
+
+.admin-loyalty-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.84rem;
+    text-align: left;
+}
+
+.admin-loyalty-table th {
+    padding: 10px 12px;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-loyalty-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    color: #ffffff;
+    vertical-align: middle;
+}
+
+.badge-source {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    display: inline-block;
+}
+
+.badge-source.qr {
+    background: rgba(52, 152, 219, 0.15);
+    color: #3498db;
+    border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+.badge-source.waiter {
+    background: rgba(201, 169, 110, 0.15);
+    color: var(--gold);
+    border: 1px solid rgba(201, 169, 110, 0.3);
+}
+
+.badge-source.admin {
+    background: rgba(155, 89, 182, 0.15);
+    color: #9b59b6;
+    border: 1px solid rgba(155, 89, 182, 0.3);
+}
+
+.table-btn-action {
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.04);
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-right: 4px;
+    transition: background 0.2s;
+}
+
+.table-btn-action:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.table-btn-redeem {
+    background: rgba(46, 204, 113, 0.15);
+    border-color: rgba(46, 204, 113, 0.4);
+    color: #2ecc71;
+}
+
+.table-btn-redeem:hover {
+    background: rgba(46, 204, 113, 0.3);
+}
+
+/* Modal Historique Transactions */
+.admin-tx-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.admin-tx-modal-sheet {
+    width: 100%;
+    max-width: 580px;
+    max-height: 80vh;
+    background: #111118;
+    border: 1px solid rgba(201, 169, 110, 0.3);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.admin-tx-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-tx-modal-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+}
+
+.btn-close-modal {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.btn-close-modal:hover {
+    color: #ffffff;
+}
+
+.tx-item-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.82rem;
+}
+
+.tx-delta-pos {
+    color: #2ecc71;
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+.tx-delta-neg {
+    color: #e74c3c;
+    font-weight: 700;
+    font-size: 0.95rem;
 }

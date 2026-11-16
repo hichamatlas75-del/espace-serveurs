@@ -3,18 +3,18 @@
    ============================================================================ */
 
 :root {
-    --bg: #0A0F1A;
-    --card: #121A2A;
-    --card-accent: #172237;
-    --gold: #C9A84C;
-    --gold-dark: #A48332;
-    --sc-gold-light: #E2C97E;
-    --text: #F8F9FA;
-    --muted: rgba(240, 234, 216, 0.45);
-    --border: rgba(201, 168, 76, 0.15);
-    --success: #2ecc71;
-    --alert: #e74c3c;
-    --water: #3498db;
+    --bg: #F4F6F9;
+    --card: #FFFFFF;
+    --card-accent: #EAEFF5;
+    --gold: #A17420;
+    --gold-dark: #845B10;
+    --sc-gold-light: #B8860B;
+    --text: #0F172A;
+    --muted: #64748B;
+    --border: #DDE3EA;
+    --success: #16A34A;
+    --alert: #DC2626;
+    --water: #0284C7;
 }
 
 * {
@@ -27,7 +27,7 @@
 body {
     background-color: var(--bg);
     color: var(--text);
-    font-family: 'Poppins', sans-serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     line-height: 1.5;
     overflow-x: hidden;
@@ -199,7 +199,7 @@ body {
 /* App Header */
 .app-header {
     height: 64px;
-    background: rgba(18, 26, 42, 0.85);
+    background: rgba(255, 255, 255, 0.97);
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
     border-bottom: 1px solid var(--border);
@@ -731,4 +731,400 @@ body {
     .alert-card {
         justify-content: space-between;
     }
+}
+
+button, input, select, .hub-tab, .call-action-btn, .order-action-btn {
+    touch-action: manipulation;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+
+/* ==========================================================================
+   MODULE FIDÉLITÉ DIRECTE & SCÉNARIOS A & B (SERVEUR)
+   ========================================================================== */
+.waiter-loyalty-quick-bar {
+    padding: 10px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.btn-quick-loyalty {
+    width: 100%;
+    min-height: 48px;
+    background: linear-gradient(135deg, rgba(201, 169, 110, 0.22) 0%, rgba(201, 169, 110, 0.1) 100%);
+    border: 1.5px solid var(--gold);
+    border-radius: 12px;
+    color: #f7eedb;
+    font-family: var(--font-sans);
+    font-size: 0.92rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(201, 169, 110, 0.15);
+    transition: transform 0.15s, background 0.15s;
+}
+
+.btn-quick-loyalty:active {
+    transform: scale(0.98);
+    background: rgba(201, 169, 110, 0.25);
+}
+
+.btn-quick-icon {
+    font-size: 1.25rem;
+    color: var(--gold);
+}
+
+.btn-quick-badge {
+    background: var(--gold);
+    color: #07060a;
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+/* Modal Fidélité Directe */
+.waiter-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+}
+
+.waiter-modal-sheet {
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    background: var(--surface);
+    border-top: 2px solid var(--gold);
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: slideUpModal 0.28s ease-out;
+}
+
+@keyframes slideUpModal {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+.waiter-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(7, 6, 10, 0.6);
+}
+
+.modal-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.modal-title {
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--gold);
+}
+
+.modal-close-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    color: var(--text);
+    font-size: 1.5rem;
+    line-height: 1;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.waiter-modal-body {
+    padding: 18px 20px 30px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.waiter-search-box {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.waiter-search-input {
+    flex: 1;
+    height: 48px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    color: #ffffff;
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 500;
+    padding: 0 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.waiter-search-input:focus {
+    border-color: var(--gold);
+}
+
+.btn-search-loyalty {
+    min-width: 90px;
+    height: 48px;
+    background: var(--gold);
+    color: #07060a;
+    font-weight: 700;
+    font-size: 0.9rem;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+}
+
+/* Fiche Membre Fidélité dans Modal */
+.loyalty-member-card {
+    background: var(--surface-2);
+    border: 1.5px solid rgba(201, 169, 110, 0.3);
+    border-radius: 16px;
+    padding: 18px;
+    margin-bottom: 16px;
+}
+
+.loyalty-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.member-name-tag {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.member-phone-sub {
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.member-points-pill {
+    text-align: right;
+}
+
+.member-points-big {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: var(--gold);
+    line-height: 1;
+}
+
+.member-points-target {
+    font-size: 0.78rem;
+    color: var(--muted);
+}
+
+.loyalty-card-progress {
+    width: 100%;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.loyalty-card-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold) 0%, #ffd987 100%);
+    border-radius: 10px;
+    transition: width 0.4s ease;
+}
+
+/* Encaissement direct */
+.direct-action-block {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+
+.direct-inputs-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.direct-input {
+    height: 48px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    color: #ffffff;
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 0 12px;
+    outline: none;
+}
+
+.direct-input:focus {
+    border-color: var(--gold);
+}
+
+.btn-direct-credit {
+    width: 100%;
+    min-height: 50px;
+    background: linear-gradient(135deg, var(--gold) 0%, #a88344 100%);
+    color: #07060a;
+    font-weight: 800;
+    font-size: 1rem;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(201, 169, 110, 0.3);
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-direct-credit:active {
+    transform: scale(0.98);
+}
+
+/* Alerte Récompense Gratuite */
+.direct-reward-alert {
+    background: rgba(46, 204, 113, 0.15);
+    border: 1.5px solid #2ecc71;
+    border-radius: 14px;
+    padding: 14px;
+    margin: 14px 0;
+    text-align: center;
+}
+
+.reward-alert-title {
+    color: #2ecc71;
+    font-size: 1rem;
+    font-weight: 800;
+    margin-bottom: 8px;
+}
+
+.btn-direct-redeem {
+    width: 100%;
+    min-height: 48px;
+    background: #27ae60;
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 0.95rem;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);
+}
+
+/* Création nouveau compte */
+.loyalty-create-box {
+    background: var(--surface-2);
+    border: 1.5px dashed var(--gold);
+    border-radius: 16px;
+    padding: 20px;
+    text-align: center;
+}
+
+.create-box-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--gold);
+    margin-bottom: 6px;
+}
+
+.create-box-desc {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 14px;
+}
+
+.btn-create-account {
+    width: 100%;
+    min-height: 50px;
+    background: linear-gradient(135deg, var(--gold) 0%, #a88344 100%);
+    color: #07060a;
+    font-weight: 800;
+    font-size: 0.95rem;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+/* Annonce client */
+.announcement-box {
+    margin-top: 14px;
+    background: rgba(201, 169, 110, 0.1);
+    border-left: 3px solid var(--gold);
+    border-radius: 0 10px 10px 0;
+    padding: 10px 14px;
+    font-size: 0.88rem;
+    color: #e2c98a;
+    font-weight: 600;
+}
+
+/* Scénario A : badge et bouton sur commande QR */
+.order-loyalty-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(201, 169, 110, 0.1);
+    border: 1px solid rgba(201, 169, 110, 0.25);
+    border-radius: 10px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    font-size: 0.85rem;
+}
+
+.order-loyalty-pts {
+    font-weight: 800;
+    color: var(--gold);
+}
+
+.action-btn-credit-loyalty {
+    background: linear-gradient(135deg, var(--gold) 0%, #a88344 100%);
+    color: #07060a !important;
+    font-weight: 700 !important;
+    font-size: 0.85rem !important;
+    border-radius: 8px !important;
+    box-shadow: 0 3px 10px rgba(201, 169, 110, 0.25);
+}
+
+.badge-reward {
+    background: rgba(46, 204, 113, 0.2) !important;
+    color: #2ecc71 !important;
+    border: 1px solid rgba(46, 204, 113, 0.5) !important;
 }
