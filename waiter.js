@@ -1222,8 +1222,12 @@ function initTabNavigation() {
 // ============================================================================
 
 window.addEventListener("online", () => {
-    console.log("🌐 Réseau rétabli → reconnexion...");
-    reconnectHub();
+    console.log("🌐 Réseau rétabli.");
+    setConnectionStatus("online");
+    // Ne relancer les flux que si les listes sont vides (évite de re-consommer le quota si Firebase a maintenu le cache)
+    if (!activeCallsList || activeCallsList.length === 0) {
+        reconnectHub();
+    }
 });
 
 window.addEventListener("offline", () => {
@@ -1249,8 +1253,10 @@ document.addEventListener("visibilitychange", () => {
             ai.keepAlive();
         }
 
-        if (hiddenDuration > 30 * 1000) {
-            console.log(`🔄 Page cachée ${Math.round(hiddenDuration / 1000)}s → reconnexion préventive.`);
+        // Optimisation anti-quota : Firebase gère déjà la reprise automatique du WebSocket.
+        // On ne force une reconnexion que si la page est restée en veille plus de 30 minutes ET que le réseau est coupé
+        if (hiddenDuration > 30 * 60 * 1000 && !navigator.onLine) {
+            console.log(`🔄 Longue veille (${Math.round(hiddenDuration / 60000)} min) et hors-ligne → reconnexion.`);
             reconnectHub();
         }
         hiddenAt = null;

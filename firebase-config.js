@@ -354,6 +354,7 @@ const dbService = {
         if (isFirebaseActive) {
             return db.collection("waiters_calls")
                 .orderBy("createdAt", "desc")
+                .limit(15)
                 .onSnapshot(snapshot => {
                     const calls = [];
                     snapshot.forEach(doc => {
@@ -450,6 +451,7 @@ const dbService = {
         if (isFirebaseActive) {
             return db.collection("pre_orders")
                 .orderBy("createdAt", "desc")
+                .limit(15)
                 .onSnapshot(snapshot => {
                     const orders = [];
                     snapshot.forEach(doc => {
