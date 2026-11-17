@@ -31,6 +31,12 @@
     const headers = {
       "Content-Type": "application/json"
     };
+    if (typeof sessionStorage !== "undefined") {
+      const adminKey = sessionStorage.getItem("gc_admin_key");
+      if (adminKey) {
+        headers["X-Admin-Key"] = adminKey;
+      }
+    }
     const options = {
       method,
       headers
@@ -436,10 +442,6 @@
       };
       apiFetch("/calls", "POST", payload).then((res) => {
         const callId = res && res.id ? res.id : `call_${Date.now()}`;
-        const zoneName = getTableZoneName(numTable);
-        const typeLabels = { waiter: "Appel Serveur", water: "Besoin d'Eau", bill: "L'Addition", reward: "\u{1F381} Consommation Gratuite (500 pts)" };
-        const label = typeLabels[type] || "Appel";
-        sendFcmToWaiters("CALL", `\u{1F514} ${label} : ${zoneName}`, `Table ${numTable} demande de l'assistance`, numTable, callId);
         syncNow();
         if (callback) callback(true, callId);
       }).catch((err) => {
@@ -513,19 +515,29 @@
       };
       apiFetch("/orders", "POST", payload).then((res) => {
         const orderId = res && res.id ? res.id : `order_${Date.now()}`;
-        const zoneName = getTableZoneName(numTable);
-        let itemsSummary = "";
-        if (Array.isArray(items) && items.length > 0) {
-          const preview = items.slice(0, 3).map((it) => `${it.qty || 1}x ${it.name_lang || it.name || "Article"}`).join(", ");
-          const extra = items.length > 3 ? ` (+${items.length - 3})` : "";
-          itemsSummary = `${preview}${extra} \u2022 `;
-        }
-        sendFcmToWaiters("PRE_ORDER", `\u{1F468}\u200D\u{1F373} Nouvelle Pr\xE9commande : ${zoneName}`, `${itemsSummary}Total : ${totalPrice} MAD`, numTable, orderId);
         syncNow();
         if (callback) callback(true, orderId);
       }).catch((err) => {
         console.error("sendPreOrder error:", err);
         if (callback) callback(false);
+      });
+    },
+    getOrder(orderId, callback) {
+      if (!orderId) {
+        if (callback) callback(null);
+        return;
+      }
+      const found = (_cachedOrders || []).find((o) => String(o.id) === String(orderId));
+      apiFetch("/orders/" + orderId).then((res) => {
+        if (res && res.success && res.order) {
+          if (callback) callback(res.order);
+        } else if (found) {
+          if (callback) callback(found);
+        } else {
+          if (callback) callback(null);
+        }
+      }).catch(() => {
+        if (callback) callback(found || null);
       });
     },
     onSinglePreOrderChange(orderId, callback) {
@@ -776,6 +788,21 @@
         }
       }).catch((err) => {
         if (callback) callback(false, err.message || String(err));
+      });
+    },
+    verifyAdminKey(key, callback) {
+      apiFetch("/admin/verify", "POST", { key }).then((res) => {
+        if (res && res.success) {
+          try {
+            sessionStorage.setItem("gc_admin_key", key);
+          } catch (e) {
+          }
+          if (callback) callback(true);
+        } else {
+          if (callback) callback(false, res && res.error || "Code d'acc\xE8s incorrect");
+        }
+      }).catch((err) => {
+        if (callback) callback(false, err.message || "Erreur de connexion");
       });
     },
     adjustLoyaltyPoints(rawPhone, delta, reason, adminName, callback) {
@@ -6830,39 +6857,39 @@ ${lines}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   function armBackupOrderReminder(orderId, table, total) {
     if (!orderId || !table) return;
     setTimeout(() => {
-      if (typeof db !== "undefined" && db) {
-        db.collection("pre_orders").doc(String(orderId)).get().then((doc) => {
-          if (doc.exists && doc.data() && doc.data().status === "pending") {
-            console.log("\u{1F6A8} NOTIFICATION DE SECOURS (25s) : Commande toujours en attente !");
-            const zone = getTableZoneName ? getTableZoneName(table) : `Table ${table}`;
-            sendFcmToWaiters(
-              "PRE_ORDER",
-              `\u26A0\uFE0F RAPPEL DE SECOURS \u2014 ${zone}`,
-              `Commande non valid\xE9e apr\xE8s 25s ! Total : ${total} MAD`,
-              table,
-              orderId
-            );
-          }
-        }).catch(() => {
-        });
+      const checkOrder = (order) => {
+        if (order && order.status === "pending") {
+          console.log("\u{1F6A8} NOTIFICATION DE SECOURS (25s) : Commande toujours en attente !");
+          const zone = getTableZoneName ? getTableZoneName(table) : `Table ${table}`;
+          sendFcmToWaiters(
+            "PRE_ORDER",
+            `\u26A0\uFE0F RAPPEL DE SECOURS \u2014 ${zone}`,
+            `Commande non valid\xE9e apr\xE8s 25s ! Total : ${total} MAD`,
+            table,
+            orderId
+          );
+        }
+      };
+      if (typeof dbService !== "undefined" && dbService && typeof dbService.getOrder === "function") {
+        dbService.getOrder(orderId, checkOrder);
       }
     }, 25e3);
     setTimeout(() => {
-      if (typeof db !== "undefined" && db) {
-        db.collection("pre_orders").doc(String(orderId)).get().then((doc) => {
-          if (doc.exists && doc.data() && doc.data().status === "pending") {
-            console.log("\u{1F6A8} ALARME D'URGENCE (55s) : Relance finale de secours !");
-            const zone = getTableZoneName ? getTableZoneName(table) : `Table ${table}`;
-            sendFcmToWaiters(
-              "PRE_ORDER",
-              `\u{1F6A8} ALARME URGENTE \u2014 ${zone}`,
-              `Commande EN ATTENTE depuis 1 min ! Le client attend.`,
-              table,
-              orderId
-            );
-          }
-        }).catch(() => {
-        });
+      const checkOrder = (order) => {
+        if (order && order.status === "pending") {
+          console.log("\u{1F6A8} ALARME D'URGENCE (55s) : Relance finale de secours !");
+          const zone = getTableZoneName ? getTableZoneName(table) : `Table ${table}`;
+          sendFcmToWaiters(
+            "PRE_ORDER",
+            `\u{1F6A8} ALARME URGENTE \u2014 ${zone}`,
+            `Commande EN ATTENTE depuis 1 min ! Le client attend.`,
+            table,
+            orderId
+          );
+        }
+      };
+      if (typeof dbService !== "undefined" && dbService && typeof dbService.getOrder === "function") {
+        dbService.getOrder(orderId, checkOrder);
       }
     }, 55e3);
   }

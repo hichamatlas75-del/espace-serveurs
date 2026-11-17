@@ -3,7 +3,7 @@
 -- Base de données relationnelle serverless sur l'Edge Cloudflare
 -- ============================================================================
 
--- 1. Tables du restaurant
+-- 1. Tables du restaurant (57 tables : Salon 101-115, Loge 201-219, Terrasse 301-323)
 CREATE TABLE IF NOT EXISTS tables (
     id INTEGER PRIMARY KEY,
     zone TEXT NOT NULL,

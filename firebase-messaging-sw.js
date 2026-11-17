@@ -42,6 +42,7 @@ const STATIC_ASSETS = [
     "/waiter.html",
     "/waiter.css",
     "/waiter.js",
+    "/firebase-config.js",
     "/images/logo-gold.png",
     "/images/android-chrome-192x192.png",
     "/images/android-chrome-512x512.png"

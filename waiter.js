@@ -879,11 +879,24 @@ function processCallsFeed(calls) {
         card.className = `alert-card ${call.status === "pending" ? "call-pending" : "call-accepted"} ${isAcceptedByOther ? "unassigned-card" : ""}`;
         card.dataset.id = call.id;
 
-        const typeLabels = { waiter: "Appel Serveur", water: "Besoin d'Eau", bill: "L'Addition", reward: "🎁 Consommation Gratuite (500 pts)" };
+        const isRewardJuice = call.type === "reward" && call.note && (call.note.includes("Jus") || call.note.includes("1000") || call.note.includes("1 000"));
+        const rewardCost = isRewardJuice ? 1000 : 500;
+        const rewardTypeKey = isRewardJuice ? "juice" : "hot_drink";
+        const rewardTitle = isRewardJuice ? "🍹 Jus de Fruits Frais" : "☕ Boisson Chaude";
+
+        const typeLabels = { 
+            waiter: "Appel Serveur", 
+            water: "Besoin d'Eau", 
+            bill: "L'Addition", 
+            reward: isRewardJuice ? "🎁 Jus Offert (1000 pts)" : "🎁 Boisson Offerte (500 pts)" 
+        };
         const badgeClasses = { waiter: "badge-waiter", water: "badge-water", bill: "badge-bill", reward: "badge-reward" };
 
         const rewardClientInfo = (call.type === "reward" && call.loyaltyPhone) 
             ? `<div style="font-size:0.82rem; color:#2ecc71; margin-top:4px; font-weight:600;">👑 Client: ${escapeHtml(call.loyaltyName || "")} (${escapeHtml(call.loyaltyPhone)})</div>` 
+            : "";
+        const callNoteInfo = (call.note && !call.note.startsWith("🎁"))
+            ? `<div style="font-size:0.8rem; color:#f1c40f; margin-top:3px; font-weight:500;">📝 Note: ${escapeHtml(call.note)}</div>`
             : "";
 
         card.innerHTML = `
@@ -897,15 +910,16 @@ function processCallsFeed(calls) {
                 <span class="time-elapsed" data-created="${call.createdAt}">${getElapsedTimeMarkup(call.createdAt)}</span>
             </div>
             ${rewardClientInfo}
+            ${callNoteInfo}
             <div class="card-actions">
                 ${call.status === "pending"
                 ? (call.type === "reward" && call.loyaltyPhone
-                    ? `<button class="action-btn-complete redeem-call-btn" style="background:#27ae60; font-weight:700;" data-id="${call.id}" data-phone="${call.loyaltyPhone}">🎁 Valider Conso Offerte (-500 pts)</button>
+                    ? `<button class="action-btn-complete redeem-call-btn" style="background:#27ae60; font-weight:700;" data-id="${call.id}" data-phone="${call.loyaltyPhone}">🎁 Valider ${rewardTitle} (-${rewardCost} pts)</button>
                        <button class="action-btn-accept accept-call-btn" data-id="${call.id}">S'y Rendre</button>`
                     : `<button class="action-btn-accept accept-call-btn" data-id="${call.id}">S'y Rendre</button>`)
                 : (isAcceptedByMe
                     ? `<div class="accepted-status-badge"><span class="mini-pulse"></span> En cours...</div>
-                           ${call.type === "reward" && call.loyaltyPhone ? `<button class="action-btn-complete redeem-call-btn" style="background:#27ae60; font-weight:700;" data-id="${call.id}" data-phone="${call.loyaltyPhone}">🎁 Valider Conso Offerte (-500 pts)</button>` : ""}
+                           ${call.type === "reward" && call.loyaltyPhone ? `<button class="action-btn-complete redeem-call-btn" style="background:#27ae60; font-weight:700;" data-id="${call.id}" data-phone="${call.loyaltyPhone}">🎁 Valider ${rewardTitle} (-${rewardCost} pts)</button>` : ""}
                            <button class="action-btn-complete complete-call-btn" data-id="${call.id}">Terminer</button>`
                     : `<div class="accepted-status-badge" style="color:var(--muted);">
                              <span>👨‍🍳 Pris en charge</span>
@@ -934,16 +948,24 @@ function processCallsFeed(calls) {
         const btnRedeemCall = card.querySelector(".redeem-call-btn");
         if (btnRedeemCall) {
             btnRedeemCall.addEventListener("click", () => {
-                if (confirm(`Confirmer la déduction de 500 points pour ${call.loyaltyPhone} ?`)) {
+                if (confirm(`Confirmer la déduction de ${rewardCost} points pour ${rewardTitle} (${call.loyaltyPhone}) ?`)) {
                     btnRedeemCall.disabled = true;
-                    dbService.redeemLoyaltyReward(call.loyaltyPhone, activeWaiterId, (ok, newTotal) => {
+                    dbService.redeemLoyaltyReward(call.loyaltyPhone, activeWaiterId, rewardTypeKey, (ok, newTotal) => {
                         if (ok) {
                             playAlertSound();
                             triggerHapticVibrate();
-                            alert(`🎉 Consommation offerte accordée ! Nouveau solde: ${newTotal} pts`);
+                            if (window.showGreyCornerNotice) {
+                                window.showGreyCornerNotice("🎉 RÉCOMPENSE ACCORDÉE", `${rewardTitle} offerte avec succès !\nNouveau solde : ${newTotal} pts`, "success");
+                            } else {
+                                alert(`🎉 ${rewardTitle} accordée ! Nouveau solde: ${newTotal} pts`);
+                            }
                             dbService.updateCallStatus(call.id, "completed", activeWaiterId);
                         } else {
-                            alert("❌ Erreur ou solde insuffisant (minimum 500 points requis).");
+                            if (window.showGreyCornerNotice) {
+                                window.showGreyCornerNotice("❌ Solde insuffisant", `Solde insuffisant (minimum ${rewardCost} points requis).`, "error");
+                            } else {
+                                alert(`❌ Erreur ou solde insuffisant (minimum ${rewardCost} points requis).`);
+                            }
                             btnRedeemCall.disabled = false;
                         }
                     });
@@ -1134,7 +1156,7 @@ function processPreOrdersFeed(orders) {
                             } else {
                                 window.showGreyCornerNotice(
                                     "👑 POINTS VALIDÉS",
-                                    `✅ Commande Table ${order.table} terminée !\n\n+${added} points crédités pour ${order.loyaltyPhone}.\nNouveau solde : ${newTotal} / 500 pts`,
+                                    `✅ Commande Table ${order.table} terminée !\n\n+${added} points crédités pour ${order.loyaltyPhone}.\nNouveau solde : ${newTotal} pts`,
                                     "success"
                                 );
                             }
@@ -1180,7 +1202,7 @@ function processPreOrdersFeed(orders) {
                         } else {
                             window.showGreyCornerNotice(
                                 "👑 POINTS VALIDÉS",
-                                `${added} points validés pour ${phone} !\nNouveau solde : ${newTotal} / 500 pts`,
+                                `${added} points validés pour ${phone} !\nNouveau solde : ${newTotal} pts`,
                                 "success"
                             );
                         }
@@ -1229,7 +1251,7 @@ function processPreOrdersFeed(orders) {
                             } else {
                                 window.showGreyCornerNotice(
                                     "👑 POINTS VALIDÉS",
-                                    `+${added} points validés pour ${canonicalName} (${canonicalPh}) !\nNouveau solde : ${newTotal} / 500 pts`,
+                                    `+${added} points validés pour ${canonicalName} (${canonicalPh}) !\nNouveau solde : ${newTotal} pts`,
                                     "success"
                                 );
                             }

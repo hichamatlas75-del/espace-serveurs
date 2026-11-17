@@ -212,39 +212,41 @@ function armBackupOrderReminder(orderId, table, total) {
 
   // Secours N°1 après 25 secondes si toujours en attente
   setTimeout(() => {
-    if (typeof db !== "undefined" && db) {
-      db.collection("pre_orders").doc(String(orderId)).get().then(doc => {
-        if (doc.exists && doc.data() && doc.data().status === "pending") {
-          console.log("🚨 NOTIFICATION DE SECOURS (25s) : Commande toujours en attente !");
-          const zone = getTableZoneName ? getTableZoneName(table) : `Table ${table}`;
-          sendFcmToWaiters(
-            "PRE_ORDER",
-            `⚠️ RAPPEL DE SECOURS — ${zone}`,
-            `Commande non validée après 25s ! Total : ${total} MAD`,
-            table,
-            orderId
-          );
-        }
-      }).catch(() => {});
+    const checkOrder = (order) => {
+      if (order && order.status === "pending") {
+        console.log("🚨 NOTIFICATION DE SECOURS (25s) : Commande toujours en attente !");
+        const zone = getTableZoneName ? getTableZoneName(table) : `Table ${table}`;
+        sendFcmToWaiters(
+          "PRE_ORDER",
+          `⚠️ RAPPEL DE SECOURS — ${zone}`,
+          `Commande non validée après 25s ! Total : ${total} MAD`,
+          table,
+          orderId
+        );
+      }
+    };
+    if (typeof dbService !== "undefined" && dbService && typeof dbService.getOrder === "function") {
+      dbService.getOrder(orderId, checkOrder);
     }
   }, 25000);
 
   // Secours N°2 d'urgence après 55 secondes
   setTimeout(() => {
-    if (typeof db !== "undefined" && db) {
-      db.collection("pre_orders").doc(String(orderId)).get().then(doc => {
-        if (doc.exists && doc.data() && doc.data().status === "pending") {
-          console.log("🚨 ALARME D'URGENCE (55s) : Relance finale de secours !");
-          const zone = getTableZoneName ? getTableZoneName(table) : `Table ${table}`;
-          sendFcmToWaiters(
-            "PRE_ORDER",
-            `🚨 ALARME URGENTE — ${zone}`,
-            `Commande EN ATTENTE depuis 1 min ! Le client attend.`,
-            table,
-            orderId
-          );
-        }
-      }).catch(() => {});
+    const checkOrder = (order) => {
+      if (order && order.status === "pending") {
+        console.log("🚨 ALARME D'URGENCE (55s) : Relance finale de secours !");
+        const zone = getTableZoneName ? getTableZoneName(table) : `Table ${table}`;
+        sendFcmToWaiters(
+          "PRE_ORDER",
+          `🚨 ALARME URGENTE — ${zone}`,
+          `Commande EN ATTENTE depuis 1 min ! Le client attend.`,
+          table,
+          orderId
+        );
+      }
+    };
+    if (typeof dbService !== "undefined" && dbService && typeof dbService.getOrder === "function") {
+      dbService.getOrder(orderId, checkOrder);
     }
   }, 55000);
 }

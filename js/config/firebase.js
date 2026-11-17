@@ -55,6 +55,12 @@ async function apiFetch(endpoint, method = "GET", body = null) {
     const headers = {
         "Content-Type": "application/json"
     };
+    if (typeof sessionStorage !== "undefined") {
+        const adminKey = sessionStorage.getItem("gc_admin_key");
+        if (adminKey) {
+            headers["X-Admin-Key"] = adminKey;
+        }
+    }
 
     const options = {
         method,
@@ -452,11 +458,7 @@ export const dbService = {
         apiFetch("/calls", "POST", payload)
             .then(res => {
                 const callId = res && res.id ? res.id : `call_${Date.now()}`;
-                const zoneName = getTableZoneName(numTable);
-                const typeLabels = { waiter: "Appel Serveur", water: "Besoin d'Eau", bill: "L'Addition", reward: "🎁 Consommation Gratuite (500 pts)" };
-                const label = typeLabels[type] || "Appel";
-                sendFcmToWaiters("CALL", `🔔 ${label} : ${zoneName}`, `Table ${numTable} demande de l'assistance`, numTable, callId);
-
+                // Notification push envoyée nativement et sans doublon par le serveur Cloudflare D1
                 syncNow();
                 if (callback) callback(true, callId);
             })
@@ -538,15 +540,7 @@ export const dbService = {
         apiFetch("/orders", "POST", payload)
             .then(res => {
                 const orderId = res && res.id ? res.id : `order_${Date.now()}`;
-                const zoneName = getTableZoneName(numTable);
-                let itemsSummary = "";
-                if (Array.isArray(items) && items.length > 0) {
-                    const preview = items.slice(0, 3).map(it => `${it.qty || 1}x ${it.name_lang || it.name || "Article"}`).join(", ");
-                    const extra = items.length > 3 ? ` (+${items.length - 3})` : "";
-                    itemsSummary = `${preview}${extra} • `;
-                }
-                sendFcmToWaiters("PRE_ORDER", `👨‍🍳 Nouvelle Précommande : ${zoneName}`, `${itemsSummary}Total : ${totalPrice} MAD`, numTable, orderId);
-
+                // Notification push envoyée nativement et sans doublon par le serveur Cloudflare D1
                 syncNow();
                 if (callback) callback(true, orderId);
             })
@@ -556,7 +550,28 @@ export const dbService = {
             });
     },
 
-    onSinglePreOrderChange(orderId, callback) {
+    getOrder(orderId, callback) {
+            if (!orderId) {
+                if (callback) callback(null);
+                return;
+            }
+            const found = (_cachedOrders || []).find(o => String(o.id) === String(orderId));
+            apiFetch('/orders/' + orderId)
+                .then(res => {
+                    if (res && res.success && res.order) {
+                        if (callback) callback(res.order);
+                    } else if (found) {
+                        if (callback) callback(found);
+                    } else {
+                        if (callback) callback(null);
+                    }
+                })
+                .catch(() => {
+                    if (callback) callback(found || null);
+                });
+        },
+
+        onSinglePreOrderChange(orderId, callback) {
         if (!orderId || !callback) return () => {};
         if (!_singleOrderListeners.has(orderId)) {
             _singleOrderListeners.set(orderId, new Set());
@@ -807,6 +822,19 @@ export const dbService = {
             }
         }).catch(err => {
             if (callback) callback(false, err.message || String(err));
+        });
+    },
+
+    verifyAdminKey(key, callback) {
+        apiFetch("/admin/verify", "POST", { key }).then(res => {
+            if (res && res.success) {
+                try { sessionStorage.setItem("gc_admin_key", key); } catch(e) {}
+                if (callback) callback(true);
+            } else {
+                if (callback) callback(false, (res && res.error) || "Code d'accès incorrect");
+            }
+        }).catch(err => {
+            if (callback) callback(false, err.message || "Erreur de connexion");
         });
     },
 

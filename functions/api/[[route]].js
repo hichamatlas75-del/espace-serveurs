@@ -9,12 +9,36 @@
 const CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, X-Admin-Key",
     "Access-Control-Max-Age": "86400"
 };
 
 const FCM_WORKER_URL = "https://greycorner-fcm.hichamatlas75.workers.dev";
 const FCM_SECRET = "greycorner_secure_2026";
+
+// ── SÉCURITÉ ADMINISTRATEUR ─────────────────────────────────────────────────
+function getAdminKey(env) {
+    if (env && env.ADMIN_KEY) return String(env.ADMIN_KEY).trim();
+    if (env && env.ADMIN_SECRET) return String(env.ADMIN_SECRET).trim();
+    return "greycorner2024";
+}
+
+
+function getZoneByTableNumber(tableNum) {
+    const num = parseInt(tableNum, 10);
+    if (isNaN(num)) return "Salon";
+    if (num >= 101 && num <= 115) return "Salon";
+    if (num >= 201 && num <= 219) return "Loge";
+    if (num >= 301 && num <= 323) return "Terrasse";
+    return "Salon";
+}
+
+function verifyAdmin(request, env) {
+    const adminKey = getAdminKey(env);
+    const clientKey = (request.headers.get("X-Admin-Key") || "").trim() ||
+                      (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+    return Boolean(clientKey && clientKey === adminKey);
+}
 
 function jsonResponse(data, status = 200) {
     return new Response(JSON.stringify(data), {
@@ -45,6 +69,18 @@ function normalizePhone(raw) {
         clean = "0" + clean;
     }
     return clean;
+}
+
+// Recherche sécurisée d'un membre par son numéro (évite les collisions sur numéros courts)
+async function findMemberByPhone(db, rawPhone) {
+    const clean = normalizePhone(rawPhone);
+    if (!clean) return null;
+    if (clean.length >= 9) {
+        const s9 = clean.slice(-9);
+        return await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR (LENGTH(phone) >= 9 AND phone LIKE ?) LIMIT 1")
+            .bind(clean, `%${s9}`).first();
+    }
+    return await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? LIMIT 1").bind(clean).first();
 }
 
 // Calcul des Paliers VIP Grey Corner basés sur le solde de points actuel (points)
@@ -212,28 +248,17 @@ async function ensureDb(db) {
             await db.prepare(sql).run();
         }
 
-        // Peupler les 24 tables par défaut si la table est vide
-        const countRes = await db.prepare("SELECT COUNT(*) as count FROM tables").first();
-        if (!countRes || countRes.count === 0) {
-            const defaultTables = [
-                // Salon : 101 -> 112
-                { id: 101, zone: "salon" }, { id: 102, zone: "salon" }, { id: 103, zone: "salon" },
-                { id: 104, zone: "salon" }, { id: 105, zone: "salon" }, { id: 106, zone: "salon" },
-                { id: 107, zone: "salon" }, { id: 108, zone: "salon" }, { id: 109, zone: "salon" },
-                { id: 110, zone: "salon" }, { id: 111, zone: "salon" }, { id: 112, zone: "salon" },
-                // Loge : 201 -> 206
-                { id: 201, zone: "loge" }, { id: 202, zone: "loge" }, { id: 203, zone: "loge" },
-                { id: 204, zone: "loge" }, { id: 205, zone: "loge" }, { id: 206, zone: "loge" },
-                // Terrasse : 301 -> 306
-                { id: 301, zone: "terrasse" }, { id: 302, zone: "terrasse" }, { id: 303, zone: "terrasse" },
-                { id: 304, zone: "terrasse" }, { id: 305, zone: "terrasse" }, { id: 306, zone: "terrasse" }
-            ];
-            const inserts = defaultTables.map(t => 
-                db.prepare("INSERT OR IGNORE INTO tables (id, zone, assignedTo, status, active) VALUES (?, ?, '', 'libre', 1)")
-                  .bind(t.id, t.zone)
-            );
-            await db.batch(inserts);
-        }
+        // Peupler les 57 tables complètes (Salon: 101-115, Loge: 201-219, Terrasse: 301-323)
+        const defaultTables = [];
+        for (let i = 101; i <= 115; i++) defaultTables.push({ id: i, zone: "salon" });
+        for (let i = 201; i <= 219; i++) defaultTables.push({ id: i, zone: "loge" });
+        for (let i = 301; i <= 323; i++) defaultTables.push({ id: i, zone: "terrasse" });
+
+        const inserts = defaultTables.map(t => 
+            db.prepare("INSERT OR IGNORE INTO tables (id, zone, assignedTo, status, active) VALUES (?, ?, '', 'libre', 1)")
+              .bind(t.id, t.zone)
+        );
+        await db.batch(inserts);
 
         // Configuration par défaut
         await db.prepare("INSERT OR IGNORE INTO system_config (key, value, updatedAt) VALUES (?, ?, ?)")
@@ -282,8 +307,22 @@ export async function onRequest(context) {
             });
         }
 
-        // ── 0. Initialisation explicite de la base ────────────────────────────
+        // ── 0.1 Authentification Administrateur (/api/admin/verify) ───────────
+        if (segments[0] === "admin" && segments[1] === "verify" && request.method === "POST") {
+            const body = await request.json().catch(() => ({}));
+            const key = (body.key || body.code || "").trim();
+            const adminKey = getAdminKey(env);
+            if (key && key === adminKey) {
+                return jsonResponse({ success: true, message: "Authentification administrateur réussie." });
+            }
+            return errorResponse("Code d'accès administrateur incorrect.", 401);
+        }
+
+        // ── 0.2 Initialisation explicite de la base (Sécurisée) ────────────────
         if (path === "init-db") {
+            if (!verifyAdmin(request, env)) {
+                return errorResponse("Accès non autorisé : clé administrateur requise.", 401);
+            }
             isDbInitialized = false;
             const log = [];
             for (let i = 0; i < DB_SCHEMA_STATEMENTS.length; i++) {
@@ -366,7 +405,7 @@ export async function onRequest(context) {
                 // Récupérer le serveur assigné à cette table
                 const tableRow = await db.prepare("SELECT assignedTo, zone FROM tables WHERE id = ?").bind(tableNum).first();
                 const assignedTo = tableRow ? (tableRow.assignedTo || "") : "";
-                const zoneName = tableRow ? tableRow.zone : "Salon";
+                const zoneName = (tableRow && tableRow.zone) ? tableRow.zone : getZoneByTableNumber(tableNum);
 
                 const id = body.id || generateId("call");
                 const type = body.type || "waiter";
@@ -377,8 +416,7 @@ export async function onRequest(context) {
 
                 // Le numéro de téléphone est le SEUL repère pour identifier le client
                 if (loyaltyPhone) {
-                    const suffix9 = loyaltyPhone.length >= 9 ? loyaltyPhone.slice(-9) : loyaltyPhone;
-                    const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(loyaltyPhone, `%${suffix9}`).first();
+                    const member = await findMemberByPhone(db, loyaltyPhone);
                     if (member) {
                         loyaltyPhone = member.phone;
                         if (member.firstName) loyaltyName = member.firstName;
@@ -391,9 +429,9 @@ export async function onRequest(context) {
                 `).bind(id, tableNum, type, assignedTo, loyaltyPhone, loyaltyName, note, createdAt).run();
 
                 // Notification push native FCM
-                const typeLabels = { waiter: "Appel Serveur", water: "Besoin d'Eau", bill: "L'Addition", reward: "🎁 Consommation Gratuite (500 pts)" };
-                const label = typeLabels[type] || "Appel";
-                dispatchFcmNotification(env, "CALL", `🔔 ${label} : Table ${tableNum} (${zoneName})`, `Assistance demandée`, tableNum, id);
+                const typeLabels = { waiter: "Appel Serveur", water: "Besoin d'Eau", bill: "L'Addition", reward: "🎁 Consommation Gratuite" };
+                const label = note.includes("Jus") ? "🍹 Jus Offert (1000 pts)" : (note.includes("Boisson") ? "☕ Boisson Offerte (500 pts)" : (typeLabels[type] || "Appel"));
+                dispatchFcmNotification(env, "CALL", `🔔 ${label} : Table ${tableNum} (${zoneName})`, note || `Assistance demandée`, tableNum, id);
 
                 return jsonResponse({ success: true, id, call: { id, table: tableNum, type, status: "pending", createdAt } });
             }
@@ -425,8 +463,16 @@ export async function onRequest(context) {
 
         // ── 3. PRÉCOMMANDES (/api/orders) ───────────────────────────────────
         if (segments[0] === "orders") {
-            // GET /api/orders
+            // GET /api/orders ou GET /api/orders/:id
             if (request.method === "GET") {
+                if (segments.length === 2) {
+                    const orderId = segments[1];
+                    const o = await db.prepare("SELECT * FROM pre_orders WHERE id = ?").bind(orderId).first();
+                    if (!o) return errorResponse("Commande introuvable.", 404);
+                    let items = [];
+                    try { items = typeof o.items === "string" ? JSON.parse(o.items) : o.items; } catch(e) {}
+                    return jsonResponse({ success: true, order: { ...o, table: o.tableNum, items, loyaltyCredited: Boolean(o.loyaltyCredited) } });
+                }
                 const { results } = await db.prepare("SELECT * FROM pre_orders ORDER BY createdAt DESC LIMIT 50").all();
                 const orders = (results || []).map(o => {
                     let items = [];
@@ -438,18 +484,41 @@ export async function onRequest(context) {
 
             // POST /api/orders
             if (request.method === "POST" && segments.length === 1) {
+                // Vérifier si le système est en mode Rush / Freeze
+                const frozenRow = await db.prepare("SELECT value FROM system_config WHERE key = 'system_frozen'").first();
+                if (frozenRow && frozenRow.value === "true") {
+                    return errorResponse("Le service de commande en ligne est momentanément suspendu en raison d'une forte affluence (Rush Mode).", 423);
+                }
+
                 const body = await request.json();
                 const tableNum = parseInt(body.table || body.tableNum, 10);
                 if (!tableNum) return errorResponse("Numéro de table manquant.");
 
                 const tableRow = await db.prepare("SELECT assignedTo, zone FROM tables WHERE id = ?").bind(tableNum).first();
                 const assignedTo = tableRow ? (tableRow.assignedTo || "") : "";
-                const zoneName = tableRow ? tableRow.zone : "Salon";
+                const zoneName = (tableRow && tableRow.zone) ? tableRow.zone : getZoneByTableNumber(tableNum);
 
                 const id = body.id || generateId("order");
                 const itemsStr = typeof body.items === "string" ? body.items : JSON.stringify(body.items || []);
                 const note = body.note || "";
-                const totalPrice = parseFloat(body.totalPrice) || 0;
+                let totalPrice = parseFloat(body.totalPrice) || 0;
+
+                // Validation et recalcul serveur du total pour empêcher les fraudes de prix
+                try {
+                    const parsedItems = typeof body.items === "string" ? JSON.parse(body.items) : (body.items || []);
+                    if (Array.isArray(parsedItems) && parsedItems.length > 0) {
+                        let calculatedTotal = 0;
+                        for (const it of parsedItems) {
+                            const q = Math.max(1, parseInt(it.qty, 10) || 1);
+                            const p = Math.max(0, parseFloat(it.price) || 0);
+                            calculatedTotal += q * p;
+                        }
+                        if (calculatedTotal > 0 && (totalPrice <= 0 || Math.abs(totalPrice - calculatedTotal) > 0.05)) {
+                            totalPrice = Math.round(calculatedTotal * 100) / 100;
+                        }
+                    }
+                } catch(e) {}
+                if (totalPrice < 0) totalPrice = 0;
                 let loyaltyPhone = normalizePhone(body.loyaltyPhone || "");
                 let loyaltyName = body.loyaltyName || "";
                 let loyaltyPoints = typeof body.loyaltyPoints === "number" ? body.loyaltyPoints : null;
@@ -457,8 +526,7 @@ export async function onRequest(context) {
 
                 // Le numéro de téléphone est le SEUL repère pour identifier le client : on rattache le compte officiel
                 if (loyaltyPhone) {
-                    const suffix9 = loyaltyPhone.length >= 9 ? loyaltyPhone.slice(-9) : loyaltyPhone;
-                    const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(loyaltyPhone, `%${suffix9}`).first();
+                    const member = await findMemberByPhone(db, loyaltyPhone);
                     if (member) {
                         loyaltyPhone = member.phone;
                         loyaltyName = member.firstName || loyaltyName || "Client";
@@ -553,8 +621,7 @@ export async function onRequest(context) {
                 if (request.method === "GET" && segments.length === 2) {
                     const qPhone = normalizePhone(url.searchParams.get("phone") || "");
                     if (qPhone) {
-                        const suffix9 = qPhone.length >= 9 ? qPhone.slice(-9) : qPhone;
-                        const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(qPhone, `%${suffix9}`).first();
+                        const member = await findMemberByPhone(db, qPhone);
                         if (member) member.vipTier = getVipTier(member.points);
                         return jsonResponse({ success: true, member: member || null });
                     }
@@ -566,20 +633,20 @@ export async function onRequest(context) {
                 // GET /api/loyalty/members/:phone : Fiche individuelle
                 if (request.method === "GET" && segments.length === 3) {
                     const phone = normalizePhone(segments[2]);
-                    const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
-                    const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(phone, `%${suffix9}`).first();
+                    const member = await findMemberByPhone(db, phone);
                     if (!member) return jsonResponse({ success: true, member: null });
 
                     member.vipTier = getVipTier(member.points);
 
                     // Vérifier si le numéro a été crédité il y a moins de 2h
                     const canonicalPhone = member.phone;
+                    const s9 = canonicalPhone.length >= 9 ? canonicalPhone.slice(-9) : canonicalPhone;
                     const recentEarn = await db.prepare(`
                         SELECT * FROM loyalty_transactions
-                        WHERE (phone = ? OR phone LIKE ?) AND type = 'EARN' AND validatedBy NOT LIKE '%REJETÉ%'
+                        WHERE (phone = ? OR (LENGTH(phone) >= 9 AND phone LIKE ?)) AND type = 'EARN' AND validatedBy NOT LIKE '%REJETÉ%'
                         ORDER BY createdAt DESC
                         LIMIT 1
-                    `).bind(canonicalPhone, `%${suffix9}`).first();
+                    `).bind(canonicalPhone, `%${s9}`).first();
 
                     let lockInfo = null;
                     if (recentEarn && recentEarn.createdAt) {
@@ -609,17 +676,17 @@ export async function onRequest(context) {
                     const phone = normalizePhone(body.phone);
                     if (!phone || phone.length < 8) return errorResponse("Numéro de téléphone invalide.");
 
-                    const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
-                    const existing = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(phone, `%${suffix9}`).first();
+                    const existing = await findMemberByPhone(db, phone);
                     if (existing) {
                         existing.vipTier = getVipTier(existing.points);
                         const canonicalPhone = existing.phone;
+                        const s9 = canonicalPhone.length >= 9 ? canonicalPhone.slice(-9) : canonicalPhone;
                         const recentEarn = await db.prepare(`
                             SELECT * FROM loyalty_transactions
-                            WHERE (phone = ? OR phone LIKE ?) AND type = 'EARN' AND validatedBy NOT LIKE '%REJETÉ%'
+                            WHERE (phone = ? OR (LENGTH(phone) >= 9 AND phone LIKE ?)) AND type = 'EARN' AND validatedBy NOT LIKE '%REJETÉ%'
                             ORDER BY createdAt DESC
                             LIMIT 1
-                        `).bind(canonicalPhone, `%${suffix9}`).first();
+                        `).bind(canonicalPhone, `%${s9}`).first();
 
                         let lockInfo = null;
                         if (recentEarn && recentEarn.createdAt) {
@@ -688,16 +755,16 @@ export async function onRequest(context) {
                 const now = new Date().toISOString();
 
                 // 🛑 1. RÈGLE ANTIFRAUDE INFRANCHISSABLE POUR LES SERVEURS ET CLIENTS (< 2h)
-                // L'ADMINISTRATEUR A LES PLEINS POUVOIRS ET CRÉDITE/DÉDUIT LIBREMENT SANS AUCUNE RESTRICTION
-                const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
-                const isAdmin = String(validatedBy).toLowerCase().includes("admin");
+                // L'ADMINISTRATEUR EST AUTHENTIFIÉ PAR CLÉ SECRÈTE SERVEUR (HEADER X-Admin-Key ou Bearer)
+                const isAdmin = verifyAdmin(request, env);
                 if (!isAdmin) {
+                    const s9 = phone.length >= 9 ? phone.slice(-9) : phone;
                     const lastEarn = await db.prepare(`
                         SELECT * FROM loyalty_transactions
-                        WHERE (phone = ? OR phone LIKE ?) AND type = 'EARN' AND validatedBy NOT LIKE '%REJETÉ%'
+                        WHERE (phone = ? OR (LENGTH(phone) >= 9 AND phone LIKE ?)) AND type = 'EARN' AND validatedBy NOT LIKE '%REJETÉ%'
                         ORDER BY createdAt DESC
                         LIMIT 1
-                    `).bind(phone, `%${suffix9}`).first();
+                    `).bind(phone, `%${s9}`).first();
 
                     if (lastEarn && lastEarn.createdAt) {
                         const lastTime = new Date(lastEarn.createdAt).getTime();
@@ -722,7 +789,7 @@ export async function onRequest(context) {
                 }
 
                 // S'assurer que le membre existe par son numéro de téléphone unique
-                let member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(phone, `%${suffix9}`).first();
+                let member = await findMemberByPhone(db, phone);
                 if (!member) {
                     await db.prepare(`
                         INSERT INTO loyalty_members (phone, firstName, points, totalEarned, rewardsClaimed, source, createdAt, updatedAt)
@@ -820,7 +887,6 @@ export async function onRequest(context) {
             if (sub === "redeem" && request.method === "POST") {
                 const body = await request.json();
                 const phone = normalizePhone(body.phone);
-                const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
 
                 const rewardType = (body.rewardType || body.reward || "").toLowerCase();
                 const isJuice = rewardType === "juice" || rewardType === "jus" || parseInt(body.points, 10) === 1000;
@@ -828,7 +894,7 @@ export async function onRequest(context) {
                 const rewardTitle = isJuice ? "🍹 Jus de Fruits Frais au choix" : "☕ Boisson Chaude au choix";
                 const rewardNote = `${rewardTitle} accordée (-${cost} pts)`;
 
-                const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(phone, `%${suffix9}`).first();
+                const member = await findMemberByPhone(db, phone);
 
                 if (!member || member.points < cost) {
                     const currentPts = member ? member.points : 0;
@@ -871,15 +937,17 @@ export async function onRequest(context) {
                 });
             }
 
-            // D. Ajustement Admin (/api/loyalty/adjust)
+            // D. Ajustement Admin (/api/loyalty/adjust - Sécurisé)
             if (sub === "adjust" && request.method === "POST") {
+                if (!verifyAdmin(request, env)) {
+                    return errorResponse("Accès non autorisé : clé administrateur requise.", 401);
+                }
                 const body = await request.json();
                 const phone = normalizePhone(body.phone);
-                const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
                 const delta = parseInt(body.delta, 10);
                 if (isNaN(delta) || delta === 0) return errorResponse("Valeur d'ajustement invalide.");
 
-                const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(phone, `%${suffix9}`).first();
+                const member = await findMemberByPhone(db, phone);
                 const canonicalPhone = member ? member.phone : phone;
 
                 const reason = body.reason || "Ajustement administrateur";
@@ -934,6 +1002,9 @@ export async function onRequest(context) {
                     return jsonResponse({ success: true, settings });
                 }
                 if (request.method === "POST") {
+                    if (!verifyAdmin(request, env)) {
+                        return errorResponse("Accès non autorisé : clé administrateur requise.", 401);
+                    }
                     const body = await request.json();
                     const now = new Date().toISOString();
                     await db.prepare("INSERT OR REPLACE INTO system_config (key, value, updatedAt) VALUES ('loyalty_config', ?, ?)")
@@ -948,9 +1019,9 @@ export async function onRequest(context) {
                     const rows = (await db.prepare(`
                         SELECT t.*, m.firstName as memberName
                         FROM loyalty_transactions t
-                        LEFT JOIN loyalty_members m ON (t.phone = m.phone OR m.phone LIKE '%' || SUBSTR(t.phone, -9))
+                        LEFT JOIN loyalty_members m ON (t.phone = m.phone OR (LENGTH(t.phone) >= 9 AND LENGTH(m.phone) >= 9 AND m.phone LIKE '%' || SUBSTR(t.phone, -9)))
                         WHERE t.pointsDelta > 100 
-                          AND t.validatedBy NOT LIKE '%admin%'
+                          AND (t.note LIKE '%[EN ATTENTE VALIDATION ADMIN%' OR t.validatedBy NOT LIKE '%admin%')
                           AND t.validatedBy NOT LIKE '%VÉRIFIÉ%'
                           AND t.validatedBy NOT LIKE '%RECTIFIÉ%'
                           AND t.validatedBy NOT LIKE '%REJETÉ%'
@@ -961,6 +1032,9 @@ export async function onRequest(context) {
                     return jsonResponse({ success: true, alerts: rows || [] });
                 }
                 if (request.method === "POST") {
+                    if (!verifyAdmin(request, env)) {
+                        return errorResponse("Accès non autorisé : clé administrateur requise pour valider, rectifier ou rejeter des alertes.", 401);
+                    }
                     const body = await request.json();
                     const txId = body.txId;
                     const action = body.action || "verify";
@@ -973,22 +1047,24 @@ export async function onRequest(context) {
                         return errorResponse("Cette transaction a déjà été traitée par la direction.");
                     }
 
-                    const suffix9 = tx.phone.length >= 9 ? tx.phone.slice(-9) : tx.phone;
                     const now = new Date().toISOString();
 
                     if (action === "verify") {
-                        const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(tx.phone, `%${suffix9}`).first();
-                        if (!member) {
-                            await db.prepare(`
-                                INSERT INTO loyalty_members (phone, firstName, points, totalEarned, rewardsClaimed, source, createdAt, updatedAt)
-                                VALUES (?, 'Client', ?, ?, 0, 'waiter_direct', ?, ?)
-                            `).bind(tx.phone, tx.pointsDelta, tx.pointsDelta, now, now).run();
-                        } else {
-                            await db.prepare(`
-                                UPDATE loyalty_members
-                                SET points = points + ?, totalEarned = totalEarned + ?, updatedAt = ?
-                                WHERE phone = ? OR phone LIKE ?
-                            `).bind(tx.pointsDelta, tx.pointsDelta, now, tx.phone, `%${suffix9}`).run();
+                        const isActuallyPending = tx.note && tx.note.includes("[EN ATTENTE VALIDATION ADMIN");
+                        if (isActuallyPending) {
+                            const member = await findMemberByPhone(db, tx.phone);
+                            if (!member) {
+                                await db.prepare(`
+                                    INSERT INTO loyalty_members (phone, firstName, points, totalEarned, rewardsClaimed, source, createdAt, updatedAt)
+                                    VALUES (?, 'Client', ?, ?, 0, 'waiter_direct', ?, ?)
+                                `).bind(tx.phone, tx.pointsDelta, tx.pointsDelta, now, now).run();
+                            } else {
+                                await db.prepare(`
+                                    UPDATE loyalty_members
+                                    SET points = points + ?, totalEarned = totalEarned + ?, updatedAt = ?
+                                    WHERE phone = ?
+                                `).bind(tx.pointsDelta, tx.pointsDelta, now, member.phone).run();
+                            }
                         }
                         await db.prepare(`
                             UPDATE loyalty_transactions 
@@ -1000,20 +1076,26 @@ export async function onRequest(context) {
                     }
 
                     if (action === "rectify") {
-                        const newPoints = Math.max(0, parseInt(body.newPoints, 10) || 0);
-                        if (newPoints > 0) {
-                            const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(tx.phone, `%${suffix9}`).first();
+                        const member = await findMemberByPhone(db, tx.phone);
+                        const vipTier = getVipTier(member ? member.points : 0);
+                        const amountDH = Math.max(0, parseFloat(body.newAmountDH || body.newPoints) || 0);
+                        // Calcul dynamique des points respectant le palier VIP du client
+                        const finalPoints = (body.exactPoints !== undefined && !isNaN(parseInt(body.exactPoints, 10)))
+                            ? Math.max(0, parseInt(body.exactPoints, 10))
+                            : Math.max(1, Math.round(amountDH * (vipTier.ratio || 1.0)));
+
+                        if (finalPoints > 0) {
                             if (!member) {
                                 await db.prepare(`
                                     INSERT INTO loyalty_members (phone, firstName, points, totalEarned, rewardsClaimed, source, createdAt, updatedAt)
                                     VALUES (?, 'Client', ?, ?, 0, 'waiter_direct', ?, ?)
-                                `).bind(tx.phone, newPoints, newPoints, now, now).run();
+                                `).bind(tx.phone, finalPoints, finalPoints, now, now).run();
                             } else {
                                 await db.prepare(`
                                     UPDATE loyalty_members
                                     SET points = points + ?, totalEarned = totalEarned + ?, updatedAt = ?
-                                    WHERE phone = ? OR phone LIKE ?
-                                `).bind(newPoints, newPoints, now, tx.phone, `%${suffix9}`).run();
+                                    WHERE phone = ?
+                                `).bind(finalPoints, finalPoints, now, member.phone).run();
                             }
                         }
                         await db.prepare(`
@@ -1021,10 +1103,10 @@ export async function onRequest(context) {
                             SET pointsDelta = ?,
                                 amountDH = ?,
                                 validatedBy = validatedBy || ' [RECTIFIÉ & CRÉDITÉ ADMIN]',
-                                note = '[RECTIFIÉ & CRÉDITÉ ADMIN +' || ? || ' PTS] (Initialement demandé: ' || ? || ' pts) — ' || REPLACE(COALESCE(note, ''), '[EN ATTENTE VALIDATION ADMIN >100 PTS]', '[RECTIFIÉ]')
+                                note = '[RECTIFIÉ & CRÉDITÉ ADMIN +' || ? || ' PTS (' || ? || ' x' || ? || ')] (Initialement demandé: ' || ? || ' pts) — ' || REPLACE(COALESCE(note, ''), '[EN ATTENTE VALIDATION ADMIN >100 PTS]', '[RECTIFIÉ]')
                             WHERE id = ?
-                        `).bind(newPoints, newPoints, newPoints, tx.pointsDelta, txId).run();
-                        return jsonResponse({ success: true, message: `✅ Transaction rectifiée : +${newPoints} points crédités au client.` });
+                        `).bind(finalPoints, amountDH, finalPoints, vipTier.name, vipTier.ratio, tx.pointsDelta, txId).run();
+                        return jsonResponse({ success: true, message: `✅ Transaction rectifiée : +${finalPoints} points crédités au client (${vipTier.name} x${vipTier.ratio}).` });
                     }
 
                     if (action === "reject") {
@@ -1043,7 +1125,7 @@ export async function onRequest(context) {
             }
         }
 
-        // ── 6. SYSTÈME (Rush mode freeze & purge) ───────────────────────────
+        // ── 6. SYSTÈME (Rush mode freeze & purge - Sécurisé) ────────────────
         if (segments[0] === "system") {
             const sub = segments[1];
             if (sub === "freeze") {
@@ -1052,6 +1134,9 @@ export async function onRequest(context) {
                     return jsonResponse({ success: true, frozen: row ? row.value === "true" : false });
                 }
                 if (request.method === "POST") {
+                    if (!verifyAdmin(request, env)) {
+                        return errorResponse("Accès non autorisé : clé administrateur requise.", 401);
+                    }
                     const body = await request.json();
                     const frozenStr = body.frozen ? "true" : "false";
                     const now = new Date().toISOString();
@@ -1062,6 +1147,9 @@ export async function onRequest(context) {
             }
 
             if (sub === "cleanup" && request.method === "POST") {
+                if (!verifyAdmin(request, env)) {
+                    return errorResponse("Accès non autorisé : clé administrateur requise.", 401);
+                }
                 const cutoff = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
                 await db.prepare("DELETE FROM waiters_calls WHERE createdAt < ? AND status IN ('completed', 'cancelled')").bind(cutoff).run();
                 await db.prepare("DELETE FROM pre_orders WHERE createdAt < ? AND status IN ('completed', 'cancelled')").bind(cutoff).run();

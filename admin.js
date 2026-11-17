@@ -190,7 +190,7 @@ function initAdminStreams() {
             setTimeout(() => {
                 if (typeof dbService !== "undefined" && dbService.cleanupOldData) {
                     dbService.cleanupOldData((ok) => {
-                        if (ok) console.log("🧹 Auto-cleanup Firestore (>24h) effectué.");
+                        if (ok) console.log("🧹 Auto-cleanup Cloudflare D1 (>24h) effectué.");
                     });
                 }
             }, 6000);
@@ -252,8 +252,8 @@ function triggerMatrixRepaint() {
 
     const zones = [
         { gridId: "gridSalon", start: 101, end: 115 },
-        { gridId: "gridLoge", start: 201, end: 223 },
-        { gridId: "gridTerrasse", start: 301, end: 324 }
+        { gridId: "gridLoge", start: 201, end: 219 },
+        { gridId: "gridTerrasse", start: 301, end: 323 }
     ];
 
     zones.forEach(zone => {
@@ -339,7 +339,7 @@ function updateKpiMetrics() {
     });
 
     const elTables = document.getElementById("metricActiveTables");
-    if (elTables) elTables.textContent = `${activeTablesSet.size} / 24`;
+    if (elTables) elTables.textContent = `${activeTablesSet.size} / 57`;
 
     const pendingCalls = activeCallsList.filter(c => c.status === "pending").length;
     const elCalls = document.getElementById("metricPendingCalls");
@@ -677,7 +677,7 @@ function renderAdminHistoryFeed() {
                         btnCredit.textContent = "Valider Points";
                         if (ok) {
                             order.loyaltyCredited = true;
-                            window.showGreyCornerNotice("✅ POINTS VALIDÉS", `+${added} points validés pour ${ph} !\nNouveau solde : ${newTot} / 500 pts`, "success");
+                            window.showGreyCornerNotice("✅ POINTS VALIDÉS", `+${added} points validés pour ${ph} !\nNouveau solde : ${newTot} pts`, "success");
                             renderAdminHistoryFeed();
                             if (dbService.syncMembersNow) dbService.syncMembersNow();
                             loadLoyaltyAlerts();
@@ -712,7 +712,7 @@ function renderAdminHistoryFeed() {
                                 order.loyaltyPhone = canonicalPh;
                                 order.loyaltyName = canonicalName;
                                 order.loyaltyCredited = true;
-                                window.showGreyCornerNotice("👑 POINTS VALIDÉS", `+${added} points validés pour ${canonicalName} (${canonicalPh}) !\nNouveau solde : ${newTot} / 500 pts`, "success");
+                                window.showGreyCornerNotice("👑 POINTS VALIDÉS", `+${added} points validés pour ${canonicalName} (${canonicalPh}) !\nNouveau solde : ${newTot} pts`, "success");
                                 renderAdminHistoryFeed();
                                 if (dbService.syncMembersNow) dbService.syncMembersNow();
                                 loadLoyaltyAlerts();
@@ -751,8 +751,7 @@ function initAdminLoyaltyDashboard() {
     const quickNote = document.getElementById("adminQuickNote");
 
     const btnCreditPts = document.getElementById("btnAdminCreditPoints");
-    const btnRedeemPts = document.getElementById("btnAdminRedeemReward");
-    const btnRedeemDrink = document.getElementById("btnAdminRedeemDrink");
+        const btnRedeemDrink = document.getElementById("btnAdminRedeemDrink");
     const btnRedeemJuice = document.getElementById("btnAdminRedeemJuice");
     const btnDeductPts = document.getElementById("btnAdminDeductPoints");
     const btnCreateMbr = document.getElementById("btnAdminCreateMember");
@@ -780,7 +779,7 @@ function initAdminLoyaltyDashboard() {
                 btnCreditPts.disabled = false;
                 btnCreditPts.textContent = "✅ Valider les Points (+1 DH = 1 pt)";
                 if (ok) {
-                    window.showGreyCornerNotice("✅ POINTS VALIDÉS", `Addition de ${amount} DH validée avec succès !\n\n+${added} points crédités à ${cleanPh}.\nNouveau solde : ${newTotal} / 500 pts.`, "success");
+                    window.showGreyCornerNotice("✅ POINTS VALIDÉS", `Addition de ${amount} DH validée avec succès !\n\n+${added} points crédités à ${cleanPh}.\nNouveau solde : ${newTotal} pts.`, "success");
                     quickAmount.value = "";
                     quickNote.value = "";
                     if (dbService.syncMembersNow) dbService.syncMembersNow();
@@ -824,9 +823,7 @@ function initAdminLoyaltyDashboard() {
     if (btnRedeemJuice && quickPhone) {
         btnRedeemJuice.addEventListener("click", () => handleAdminRedeem("juice", 1000, "1 Jus de Fruits Frais", btnRedeemJuice));
     }
-    if (btnRedeemPts && quickPhone) {
-        btnRedeemPts.addEventListener("click", () => handleAdminRedeem("hot_drink", 500, "1 Boisson Chaude", btnRedeemPts));
-    }
+// (Boutons individuels Boisson Chaude et Jus gérés ci-dessus)
 
     if (btnDeductPts && quickPhone) {
         btnDeductPts.addEventListener("click", () => {
@@ -880,7 +877,7 @@ function initAdminLoyaltyDashboard() {
                     if (isNew) {
                         window.showGreyCornerNotice("👑 Compte Créé", `Compte fidélité créé pour ${mbr.firstName} (${mbr.phone}) !\n+20 points de bienvenue offerts (Solde: ${mbr.points} pts).`, "success");
                     } else {
-                        window.showGreyCornerNotice("ℹ️ Compte Existant Retrouvé", `Ce numéro (${mbr.phone}) appartient déjà à ${mbr.firstName} !\nSolde actuel conservé : ${mbr.points} / 500 pts.`, "info");
+                        window.showGreyCornerNotice("ℹ️ Compte Existant Retrouvé", `Ce numéro (${mbr.phone}) appartient déjà à ${mbr.firstName} !\nSolde actuel conservé : ${mbr.points} pts.`, "info");
                     }
                 } else {
                     window.showGreyCornerNotice("❌ Erreur", "Erreur lors de la création du compte.", "error");
@@ -1168,7 +1165,7 @@ function initAdminLoyaltyDashboard() {
         if (filtered.length === 0) {
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="7" style="text-align:center; padding:30px; color:var(--muted);">
+                    <td colspan="8" style="text-align:center; padding:30px; color:var(--muted);">
                         ${q ? "Aucun membre trouvé pour cette recherche." : "Aucun membre inscrit au Club Fidélité pour le moment."}
                     </td>
                 </tr>
@@ -1242,7 +1239,7 @@ function initAdminLoyaltyDashboard() {
                     const table = prompt("Numéro de table (optionnel) :", "") || "";
                     dbService.creditLoyaltyPoints(m.phone, amt, table, "admin", null, false, (ok, added, newTotal, resObj) => {
                         if (ok) {
-                            window.showGreyCornerNotice("✅ POINTS CRÉDITÉS", `+${added} points crédités à ${m.firstName} (${m.phone}) !\nNouveau solde : ${newTotal} / 500 pts.`, "success");
+                            window.showGreyCornerNotice("✅ POINTS CRÉDITÉS", `+${added} points crédités à ${m.firstName} (${m.phone}) !\nNouveau solde : ${newTotal} pts.`, "success");
                             if (dbService.syncMembersNow) dbService.syncMembersNow();
                             loadLoyaltyAlerts();
                         } else {
@@ -1469,16 +1466,18 @@ function initAdminLoyaltyDashboard() {
     }
 
     function downloadMembersCSV(membersList, filename) {
-        let csv = "Prenom,Telephone,Points,Total_Gagne,Conso_Offertes,Source,Date_Inscription\n";
+        let csv = "Prenom,Rang_VIP,Telephone,Points,Total_Gagne,Conso_Offertes,Source,Date_Inscription\n";
         membersList.forEach(m => {
             const safeName = (m.firstName || "Client").replace(/"/g, '""');
             const safePhone = (m.phone || "").replace(/"/g, '""');
             const pts = m.points || 0;
+            const tier = (window.getVipTier ? window.getVipTier(pts) : null) || { name: (pts >= 1000 ? "Platine VIP" : (pts >= 500 ? "Gold VIP" : (pts >= 200 ? "Silver VIP" : "Bronze"))) };
+            const vipName = (tier.name || "Bronze").replace(/"/g, '""');
             const earned = m.totalEarned || pts;
             const rewards = m.rewardsClaimed || 0;
             const src = m.source || "qr_menu";
             const date = (m.createdAt || "").split("T")[0] || "";
-            csv += `"${safeName}","${safePhone}",${pts},${earned},${rewards},"${src}","${date}"\n`;
+            csv += `"${safeName}","${vipName}","${safePhone}",${pts},${earned},${rewards},"${src}","${date}"\n`;
         });
 
         const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
@@ -1505,7 +1504,7 @@ function startAdminApp() {
             if (typeof dbService !== "undefined") {
                 dbService.setSystemFreeze(!systemFrozen, (success, errorMsg) => {
                     if (!success) {
-                        alert("Erreur lors de la modification de l'état freeze :\n" + (errorMsg || "Erreur inconnue (Vérifiez votre connexion ou vos permissions Firebase)"));
+                        alert("Erreur lors de la modification de l'état freeze :\n" + (errorMsg || "Erreur inconnue (Vérifiez votre connexion ou vos clé secrète administrateur ou la connexion)"));
                     }
                 });
             }
@@ -1539,16 +1538,16 @@ function startAdminApp() {
 }
 
 // ============================================================================
-// 🔒 ADMIN AUTHENTICATION SECURITY LAYER (CODE: greycorner2024)
+// 🔒 ADMIN AUTHENTICATION SECURITY LAYER (VERIFICATION SERVEUR D1)
 // ============================================================================
-const ADMIN_AUTH_CODE = "greycorner2024";
 const ADMIN_AUTH_STORAGE_KEY = "gc_admin_authenticated";
+const ADMIN_KEY_STORAGE = "gc_admin_key";
 
 let adminAppInitialized = false;
 
 function isAdminAuthenticated() {
     try {
-        return sessionStorage.getItem(ADMIN_AUTH_STORAGE_KEY) === "true";
+        return sessionStorage.getItem(ADMIN_AUTH_STORAGE_KEY) === "true" && Boolean(sessionStorage.getItem(ADMIN_KEY_STORAGE));
     } catch (e) {
         return false;
     }
@@ -1596,20 +1595,45 @@ function handleAdminAuth(event) {
     const input = document.getElementById("adminAuthCodeInput");
     const errorEl = document.getElementById("adminAuthError");
     const card = document.getElementById("adminAuthCard");
+    const submitBtn = document.getElementById("adminAuthSubmitBtn");
     const enteredCode = input ? input.value.trim() : "";
 
-    if (enteredCode === ADMIN_AUTH_CODE) {
+    if (!enteredCode) {
+        if (errorEl) {
+            errorEl.style.display = "block";
+            errorEl.textContent = "Veuillez entrer le code d'accès administrateur.";
+        }
+        return;
+    }
+
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Vérification...";
+    }
+
+    const onAuthSuccess = () => {
         try {
             sessionStorage.setItem(ADMIN_AUTH_STORAGE_KEY, "true");
+            sessionStorage.setItem(ADMIN_KEY_STORAGE, enteredCode);
         } catch (e) {}
 
         if (errorEl) errorEl.style.display = "none";
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Accéder à la Console";
+        }
         unlockAdminUI();
         launchAdminAppSafely();
-    } else {
+    };
+
+    const onAuthFailure = (msg) => {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Accéder à la Console";
+        }
         if (errorEl) {
             errorEl.style.display = "block";
-            errorEl.textContent = "❌ Code d'accès incorrect. Veuillez réessayer.";
+            errorEl.textContent = "❌ " + (msg || "Code d'accès incorrect. Veuillez réessayer.");
         }
         if (card) {
             card.classList.remove("auth-shake");
@@ -1621,6 +1645,31 @@ function handleAdminAuth(event) {
             input.value = "";
             input.focus();
         }
+    };
+
+    if (typeof dbService !== "undefined" && dbService.verifyAdminKey) {
+        dbService.verifyAdminKey(enteredCode, (ok, err) => {
+            if (ok) {
+                onAuthSuccess();
+            } else {
+                onAuthFailure(err);
+            }
+        });
+    } else {
+        // Fallback direct vers l'API
+        fetch("/api/admin/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: enteredCode })
+        }).then(res => res.json()).then(data => {
+            if (data && data.success) {
+                onAuthSuccess();
+            } else {
+                onAuthFailure(data ? data.error : null);
+            }
+        }).catch(err => {
+            onAuthFailure(err.message);
+        });
     }
 }
 
@@ -1628,6 +1677,7 @@ function handleAdminLogout() {
     if (confirm("Voulez-vous verrouiller la console d'administration ?")) {
         try {
             sessionStorage.removeItem(ADMIN_AUTH_STORAGE_KEY);
+            sessionStorage.removeItem(ADMIN_KEY_STORAGE);
         } catch (e) {}
         location.reload();
     }

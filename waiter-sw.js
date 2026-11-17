@@ -8,6 +8,7 @@ const OFFLINE_ASSETS = [
   "/waiter.html",
   "/waiter.css",
   "/waiter.js",
+  "/firebase-config.js",
   "/images/logo-gold.webp",
   "/images/logo-gold.png",
   "/images/favicon.ico"
