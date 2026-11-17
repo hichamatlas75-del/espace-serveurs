@@ -5121,17 +5121,93 @@ header {
     max-width: 680px;
     margin: 14px auto 16px auto;
     padding: 0 14px;
+    animation: loyaltyBannerEntrance 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes loyaltyBannerEntrance {
+    0% {
+        opacity: 0;
+        transform: translateY(14px) scale(0.97);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 .loyalty-card-banner {
-    background: linear-gradient(135deg, rgba(24, 20, 16, 0.95) 0%, rgba(14, 12, 10, 0.98) 100%);
-    border: 1px solid rgba(201, 169, 110, 0.35);
-    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(28, 22, 16, 0.96) 0%, rgba(16, 13, 10, 0.98) 100%);
+    border: 1px solid rgba(201, 169, 110, 0.45);
+    border-radius: 18px;
     padding: 16px 18px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(201, 169, 110, 0.2);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45), 0 0 16px rgba(201, 169, 110, 0.2), inset 0 1px 0 rgba(201, 169, 110, 0.35);
     position: relative;
     overflow: hidden;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    animation: loyaltyBannerAura 4.5s infinite ease-in-out alternate;
+}
+
+@keyframes loyaltyBannerAura {
+    0% {
+        border-color: rgba(201, 169, 110, 0.38);
+        box-shadow: 0 8px 26px rgba(0, 0, 0, 0.4), 0 0 12px rgba(201, 169, 110, 0.18), inset 0 1px 0 rgba(201, 169, 110, 0.25);
+    }
+    50% {
+        border-color: rgba(255, 215, 0, 0.75);
+        box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5), 0 0 26px rgba(201, 169, 110, 0.45), inset 0 1px 1px rgba(255, 215, 0, 0.5);
+    }
+    100% {
+        border-color: rgba(201, 169, 110, 0.38);
+        box-shadow: 0 8px 26px rgba(0, 0, 0, 0.4), 0 0 12px rgba(201, 169, 110, 0.18), inset 0 1px 0 rgba(201, 169, 110, 0.25);
+    }
+}
+
+/* Faisceau lumineux qui balaie tout le bandeau fidélité pour capter le regard */
+.loyalty-card-ambient-sheen {
+    position: absolute;
+    top: -60%;
+    left: -120%;
+    width: 65%;
+    height: 220%;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 235, 175, 0.05) 20%,
+        rgba(255, 220, 130, 0.32) 50%,
+        rgba(255, 240, 190, 0.1) 80%,
+        transparent 100%
+    );
+    transform: rotate(25deg);
+    pointer-events: none;
+    z-index: 3;
+    animation: loyaltyBeamSweep 5s infinite cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes loyaltyBeamSweep {
+    0% {
+        left: -120%;
+        opacity: 0;
+    }
+    5% {
+        opacity: 1;
+    }
+    45% {
+        left: 200%;
+        opacity: 0.9;
+    }
+    50% {
+        left: 200%;
+        opacity: 0;
+    }
+    100% {
+        left: 200%;
+        opacity: 0;
+    }
+}
+
+.loyalty-view-box {
+    position: relative;
+    z-index: 5;
 }
 
 .loyalty-card-banner::before {
@@ -5169,15 +5245,50 @@ header {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: rgba(201, 169, 110, 0.14);
-    border: 1px solid rgba(201, 169, 110, 0.3);
-    color: #e2c98a;
+    background: rgba(201, 169, 110, 0.18);
+    border: 1px solid rgba(255, 215, 0, 0.45);
+    color: #ffd987;
     font-size: 0.76rem;
     font-weight: 700;
     letter-spacing: 0.05em;
     padding: 3px 10px;
     border-radius: 20px;
     text-transform: uppercase;
+    animation: badgeGlow 4s infinite alternate ease-in-out;
+}
+
+@keyframes badgeGlow {
+    0% {
+        box-shadow: 0 0 6px rgba(201, 169, 110, 0.2);
+    }
+    100% {
+        box-shadow: 0 0 14px rgba(255, 215, 0, 0.55);
+    }
+}
+
+.loyalty-crown-icon {
+    display: inline-block;
+    animation: crownSparkleFloat 3s infinite ease-in-out;
+    transform-origin: center bottom;
+}
+
+@keyframes crownSparkleFloat {
+    0%, 100% {
+        transform: translateY(0) rotate(0deg) scale(1);
+        filter: drop-shadow(0 0 0 rgba(255, 215, 0, 0));
+    }
+    20% {
+        transform: translateY(-3px) rotate(-6deg) scale(1.15);
+        filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.8));
+    }
+    40% {
+        transform: translateY(-1px) rotate(4deg) scale(1.1);
+        filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
+    }
+    60% {
+        transform: translateY(0) rotate(0deg) scale(1);
+        filter: drop-shadow(0 0 0 rgba(255, 215, 0, 0));
+    }
 }
 
 .loyalty-tagline {
@@ -5227,6 +5338,18 @@ header {
     align-items: center;
     justify-content: center;
     gap: 8px;
+    animation: loyaltyBtnPulse 3.5s infinite ease-in-out;
+}
+
+@keyframes loyaltyBtnPulse {
+    0%, 100% {
+        box-shadow: 0 4px 14px rgba(201, 169, 110, 0.35);
+        transform: translateY(0);
+    }
+    50% {
+        box-shadow: 0 6px 22px rgba(255, 215, 0, 0.65), 0 0 12px rgba(201, 169, 110, 0.45);
+        transform: translateY(-1px);
+    }
 }
 
 .loyalty-btn-cta:active {
