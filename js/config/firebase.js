@@ -152,7 +152,63 @@ export function normalizePhone(rawPhone) {
     return clean;
 }
 
-export function isSamePhone(p1, p2) {
+// Calcul des Paliers VIP Grey Corner basés sur le cumul à vie (totalEarned)
+// Règle d'or : Les paliers dépendent UNIQUEMENT de totalEarned, donc dépenser des points ne rétrograde JAMAIS le client !
+export function getVipTier(totalEarned) {
+    const earned = Math.max(0, parseInt(totalEarned, 10) || 0);
+    if (earned >= 1000) {
+        return {
+            id: "platine",
+            name: "Platine VIP",
+            icon: "💎",
+            ratio: 1.5,
+            bonusLabel: "+50% pts (x1.5)",
+            badgeClass: "vip-platine",
+            threshold: 1000,
+            nextTier: null,
+            ptsToNext: 0
+        };
+    }
+    if (earned >= 500) {
+        return {
+            id: "gold",
+            name: "Gold VIP",
+            icon: "🥇",
+            ratio: 1.25,
+            bonusLabel: "+25% pts (x1.25)",
+            badgeClass: "vip-gold",
+            threshold: 500,
+            nextTier: "Platine VIP",
+            ptsToNext: 1000 - earned
+        };
+    }
+    if (earned >= 200) {
+        return {
+            id: "silver",
+            name: "Silver VIP",
+            icon: "🥈",
+            ratio: 1.1,
+            bonusLabel: "+10% pts (x1.1)",
+            badgeClass: "vip-silver",
+            threshold: 200,
+            nextTier: "Gold VIP",
+            ptsToNext: 500 - earned
+        };
+    }
+    return {
+        id: "bronze",
+        name: "Bronze",
+        icon: "🥉",
+        ratio: 1.0,
+        bonusLabel: "Standard (x1.0)",
+        badgeClass: "vip-bronze",
+        threshold: 0,
+        nextTier: "Silver VIP",
+        ptsToNext: 200 - earned
+    };
+}
+
+function isSamePhone(p1, p2) {
     if (!p1 || !p2) return false;
     const c1 = normalizePhone(p1);
     const c2 = normalizePhone(p2);
@@ -724,13 +780,18 @@ export const dbService = {
         });
     },
 
-    redeemLoyaltyReward(rawPhone, waiterName, callback) {
+    redeemLoyaltyReward(rawPhone, waiterName, rewardType, callback) {
+        if (typeof rewardType === "function") {
+            callback = rewardType;
+            rewardType = "hot_drink";
+        }
         const phone = normalizePhone(rawPhone);
         if (!phone) { if (callback) callback(false, "Numéro invalide"); return; }
 
         apiFetch("/loyalty/redeem", "POST", {
             phone,
-            validatedBy: waiterName || "waiter"
+            validatedBy: waiterName || "waiter",
+            rewardType: rewardType || "hot_drink"
         }).then(res => {
             if (res && res.success) {
                 const newTotal = res.newTotal;
@@ -739,9 +800,9 @@ export const dbService = {
                 }
                 syncNow();
                 syncMembersNow();
-                if (callback) callback(true, newTotal);
+                if (callback) callback(true, newTotal, res);
             } else {
-                if (callback) callback(false, res ? res.error : "Solde insuffisant");
+                if (callback) callback(false, res ? res.error : "Solde insuffisant", res);
             }
         }).catch(err => {
             if (callback) callback(false, err.message || String(err));
@@ -886,12 +947,19 @@ export const dbService = {
             });
     },
 
-    claimLoyaltyRewardRequest(rawPhone, tableId, clientName, callback) {
+    claimLoyaltyRewardRequest(rawPhone, tableId, clientName, rewardType, callback) {
+        if (typeof rewardType === "function") {
+            callback = rewardType;
+            rewardType = "hot_drink";
+        }
         const phone = normalizePhone(rawPhone);
+        const isJuice = rewardType === "juice" || rewardType === "jus";
+        const label = isJuice ? "🍹 Jus de Fruits Frais (1 000 pts)" : "☕ Boisson Chaude (500 pts)";
         this.sendCall(tableId, "reward", {
             loyaltyPhone: phone,
             loyaltyName: clientName || "",
-            note: "🎁 Consommation Gratuite (500 pts)"
+            rewardType: isJuice ? "juice" : "hot_drink",
+            note: `🎁 ${label}`
         }, callback);
     }
 };
@@ -907,5 +975,6 @@ if (typeof window !== "undefined") {
     window.dbService = dbService;
     window.getTableZoneName = getTableZoneName;
     window.normalizePhone = normalizePhone;
+    window.getVipTier = getVipTier;
     window.sendFcmToWaiters = sendFcmToWaiters;
 }

@@ -1581,22 +1581,34 @@ function initDirectLoyaltyModule() {
 
     function renderMember(member, contentArea, suffix, lockInfo) {
         const pts = member.points || 0;
-        const target = 500;
-        const pct = Math.min(100, Math.round((pts / target) * 100));
-        const canRedeem = pts >= target;
+        const totalEarned = member.totalEarned || pts;
+        const tier = (window.getVipTier ? window.getVipTier(totalEarned) : null) || {
+            id: "bronze", name: "Bronze", icon: "🥉", ratio: 1.0, bonusLabel: "Standard (x1.0)", badgeClass: "vip-bronze", nextTier: "Silver VIP", ptsToNext: 200 - totalEarned
+        };
+
+        const canRedeemDrink = pts >= 500;
+        const canRedeemJuice = pts >= 1000;
         const isLocked2h = lockInfo && lockInfo.isLocked;
         const remainMin = lockInfo ? lockInfo.remainingMinutes : 0;
+
+        // Progress bar to 500 pts (Palier 1) or 1000 pts (Palier 2)
+        const targetPts = pts < 500 ? 500 : 1000;
+        const pct = Math.min(100, Math.round((pts / targetPts) * 100));
 
         contentArea.innerHTML = `
             <div class="waiter-member-card">
                 <div class="member-card-header">
                     <div>
-                        <div class="member-name">👑 ${member.firstName || "Client"}</div>
-                        <div class="member-phone">${member.phone}</div>
+                        <div class="member-name">👑 ${escapeHtml(member.firstName || "Client")}</div>
+                        <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+                            <span class="vip-badge-tag ${tier.badgeClass}">${tier.icon} ${tier.name} (${tier.bonusLabel})</span>
+                        </div>
+                        <div class="member-phone">${escapeHtml(member.phone)}</div>
                     </div>
                     <div class="member-score">
                         <span class="member-score-pts">${pts}</span>
-                        <span class="member-score-sub">/ 500 pts</span>
+                        <span class="member-score-sub">pts dispos</span>
+                        <div style="font-size:0.75rem; color:#64748B; margin-top:2px;">Cumul à vie: <strong>${totalEarned} pts</strong></div>
                     </div>
                 </div>
 
@@ -1605,19 +1617,28 @@ function initDirectLoyaltyModule() {
                 </div>
 
                 <div class="member-status-lbl">
-                    ${canRedeem 
-                        ? `<span style="color:#2ecc71; font-weight:700;">🎉 CE CLIENT A DROIT À 1 CONSOMMATION GRATUITE !</span>` 
-                        : `<span>Encore <strong>${target - pts} pts</strong> pour débloquer la boisson offerte</span>`
+                    ${canRedeemJuice 
+                        ? `<span style="color:#8B5CF6; font-weight:800;">🎉 CE CLIENT PEUT CHOISIR UN JUS FRAIS (-1 000 PTS) OU UNE BOISSON CHAUDE (-500 PTS) !</span>` 
+                        : (canRedeemDrink 
+                            ? `<span style="color:#2ecc71; font-weight:800;">🎉 1 BOISSON CHAUDE OFFERTE DISPONIBLE (-500 PTS) ! (Plus que ${1000 - pts} pts pour 1 Jus au choix)</span>` 
+                            : `<span>Encore <strong>${500 - pts} pts</strong> pour débloquer 1 Boisson Chaude offerte</span>`)
                     }
                 </div>
 
-                ${canRedeem ? `
-                    <div style="margin-top:14px;">
-                        <button type="button" class="btn-redeem-free-drink" id="btnRedeem_${suffix}">
-                            🎁 OFFRIR LA CONSOMMATION (-500 pts)
+                <!-- Boutons Récompenses Disponibles -->
+                <div style="margin-top:10px;">
+                    ${canRedeemJuice ? `
+                        <button type="button" class="btn-redeem-juice" id="btnRedeemJuice_${suffix}">
+                            🍹 OFFRIR 1 JUS AU CHOIX (-1 000 pts)
                         </button>
-                    </div>
-                ` : ""}
+                    ` : ""}
+
+                    ${canRedeemDrink ? `
+                        <button type="button" class="btn-redeem-hot-drink" id="btnRedeemDrink_${suffix}">
+                            ☕ OFFRIR 1 BOISSON CHAUDE (-500 pts)
+                        </button>
+                    ` : ""}
+                </div>
 
                 ${isLocked2h ? `
                     <div class="waiter-lock-banner" style="background:rgba(231,76,60,0.15); border:1px solid #e74c3c; border-radius:10px; padding:10px 12px; margin-top:14px; display:flex; align-items:center; gap:8px;">
@@ -1631,40 +1652,72 @@ function initDirectLoyaltyModule() {
                 ` : ""}
 
                 <div class="direct-credit-section">
-                    <div class="direct-credit-title">⚡ Encaissement Direct (Valider des points)</div>
+                    <div class="direct-credit-title">⚡ Encaissement Direct & Crédit Points (${tier.name} x${tier.ratio})</div>
                     <div class="direct-credit-inputs">
                         <input type="number" id="creditAmount_${suffix}" class="waiter-num-input" placeholder="Montant addition (DH)" min="1" step="1" />
                         <input type="text" id="creditTable_${suffix}" class="waiter-num-input" placeholder="Table (obligatoire si >100 pts)" style="max-width:140px;" />
                     </div>
+                    <div id="creditPreview_${suffix}" style="font-size:0.8rem; color:#16A34A; font-weight:700; margin-bottom:8px; display:none;"></div>
                     <button type="button" class="btn-credit-now" id="btnCredit_${suffix}" ${isLocked2h ? 'style="background:#475569; opacity:0.85; cursor:pointer;"' : ""}>
-                        ${isLocked2h ? `🔒 Crédit bloqué (Reste ${remainMin} min)` : "✅ Valider les points (1 DH = 1 pt)"}
+                        ${isLocked2h ? `🔒 Crédit bloqué (Reste ${remainMin} min)` : `✅ Valider les points (${tier.name} x${tier.ratio})`}
                     </button>
                 </div>
             </div>
         `;
 
-        if (canRedeem) {
-            const btnRedeem = document.getElementById(`btnRedeem_${suffix}`);
-            if (btnRedeem) {
-                btnRedeem.addEventListener("click", () => {
-                    if (confirm(`Confirmez-vous déduire 500 points pour offrir 1 consommation gratuite à ${member.firstName} (${member.phone}) ?`)) {
-                        btnRedeem.disabled = true;
-                        btnRedeem.textContent = "Déduction...";
-                        dbService.redeemLoyaltyReward(member.phone, activeWaiterId, (ok, newTotal) => {
+        // Événement Récompense Jus (-1000 pts)
+        if (canRedeemJuice) {
+            const btnRedeemJ = document.getElementById(`btnRedeemJuice_${suffix}`);
+            if (btnRedeemJ) {
+                btnRedeemJ.addEventListener("click", () => {
+                    if (confirm(`Confirmez-vous déduire 1 000 points pour offrir 1 Jus de Fruits Frais à ${member.firstName} (${member.phone}) ?`)) {
+                        btnRedeemJ.disabled = true;
+                        btnRedeemJ.textContent = "Déduction en cours...";
+                        dbService.redeemLoyaltyReward(member.phone, activeWaiterId, "juice", (ok, newTotal) => {
                             if (ok) {
                                 playAlertSound();
                                 triggerHapticVibrate();
                                 window.showGreyCornerNotice(
-                                    "🎉 CONSOMMATION OFFERTE",
-                                    `Consommation offerte accordée avec succès à ${member.firstName || 'Client'} !\nNouveau solde : ${newTotal} pts.`,
+                                    "🍹 JUS DE FRUITS OFFERT",
+                                    `1 Jus de Fruits Frais offert avec succès à ${member.firstName || 'Client'} !\nNouveau solde : ${newTotal} pts.`,
                                     "success"
                                 );
                                 member.points = newTotal;
                                 renderMember(member, contentArea, suffix);
                             } else {
-                                window.showGreyCornerNotice("❌ Solde insuffisant", "Solde insuffisant pour offrir une consommation (500 pts requis).", "error");
-                                btnRedeem.disabled = false;
-                                btnRedeem.textContent = "🎁 OFFRIR LA CONSOMMATION (-500 pts)";
+                                window.showGreyCornerNotice("❌ Solde insuffisant", "Solde insuffisant pour offrir un jus (1 000 pts requis).", "error");
+                                btnRedeemJ.disabled = false;
+                                btnRedeemJ.textContent = "🍹 OFFRIR 1 JUS AU CHOIX (-1 000 pts)";
+                            }
+                        });
+                    }
+                });
+            }
+        }
+
+        // Événement Récompense Boisson Chaude (-500 pts)
+        if (canRedeemDrink) {
+            const btnRedeemD = document.getElementById(`btnRedeemDrink_${suffix}`);
+            if (btnRedeemD) {
+                btnRedeemD.addEventListener("click", () => {
+                    if (confirm(`Confirmez-vous déduire 500 points pour offrir 1 Boisson Chaude à ${member.firstName} (${member.phone}) ?`)) {
+                        btnRedeemD.disabled = true;
+                        btnRedeemD.textContent = "Déduction en cours...";
+                        dbService.redeemLoyaltyReward(member.phone, activeWaiterId, "hot_drink", (ok, newTotal) => {
+                            if (ok) {
+                                playAlertSound();
+                                triggerHapticVibrate();
+                                window.showGreyCornerNotice(
+                                    "☕ BOISSON CHAUDE OFFERTE",
+                                    `1 Boisson Chaude offerte avec succès à ${member.firstName || 'Client'} !\nNouveau solde : ${newTotal} pts.`,
+                                    "success"
+                                );
+                                member.points = newTotal;
+                                renderMember(member, contentArea, suffix);
+                            } else {
+                                window.showGreyCornerNotice("❌ Solde insuffisant", "Solde insuffisant pour offrir une boisson (500 pts requis).", "error");
+                                btnRedeemD.disabled = false;
+                                btnRedeemD.textContent = "☕ OFFRIR 1 BOISSON CHAUDE (-500 pts)";
                             }
                         });
                     }
@@ -1675,6 +1728,20 @@ function initDirectLoyaltyModule() {
         const btnCreditNow = document.getElementById(`btnCredit_${suffix}`);
         const inputAmount = document.getElementById(`creditAmount_${suffix}`);
         const inputTable = document.getElementById(`creditTable_${suffix}`);
+        const previewEl = document.getElementById(`creditPreview_${suffix}`);
+
+        if (inputAmount && previewEl) {
+            inputAmount.addEventListener("input", () => {
+                const val = parseFloat(inputAmount.value) || 0;
+                if (val > 0) {
+                    const ptsCalc = Math.max(1, Math.round(val * tier.ratio));
+                    previewEl.style.display = "block";
+                    previewEl.innerHTML = `Addition ${val} DH ➔ <strong>+${ptsCalc} points</strong> attribués (${tier.name} x${tier.ratio})`;
+                } else {
+                    previewEl.style.display = "none";
+                }
+            });
+        }
 
         if (btnCreditNow && inputAmount) {
             btnCreditNow.addEventListener("click", () => {
@@ -1698,25 +1765,29 @@ function initDirectLoyaltyModule() {
 
                 dbService.creditLoyaltyPoints(member.phone, amount, tableNum, activeWaiterId, null, (ok, added, newTotal, resObj) => {
                     btnCreditNow.disabled = false;
-                    btnCreditNow.textContent = "✅ Valider les points (1 DH = 1 pt)";
+                    btnCreditNow.textContent = `✅ Valider les points (${tier.name} x${tier.ratio})`;
 
                     if (ok) {
                         playAlertSound();
                         triggerHapticVibrate();
+                        const tierInfo = (resObj && resObj.vipTier) ? resObj.vipTier : tier;
                         if (resObj && resObj.pendingAdminApproval) {
                             window.showGreyCornerNotice(
                                 "⏳ POINTS EN ATTENTE DE VALIDATION ADMIN",
-                                `✅ Addition de ${amount} DH enregistrée pour la Table ${tableNum || 'N/A'} !\n\n⚠️ Montant supérieur à 100 DH :\nLes ${added} points ont été transmis à l'administrateur et seront crédités sur le compte client après validation de la direction.`,
+                                `✅ Addition de ${amount} DH enregistrée pour la Table ${tableNum || 'N/A'} !\n\n⚠️ Montant supérieur à 100 DH :\nLes ${added} points (${tierInfo.name} x${tierInfo.ratio}) ont été transmis à l'administrateur et seront crédités sur le compte client après validation de la direction.`,
                                 "warning"
                             );
                         } else {
                             window.showGreyCornerNotice(
                                 "✅ POINTS VALIDÉS",
-                                `Addition de ${amount} DH encaissée !\n\n+${added} points crédités à ${member.firstName || "Client"} (Table ${tableNum || 'N/A'}).\nNouveau solde : ${newTotal} / 500 pts`,
+                                `Addition de ${amount} DH encaissée !\n\n+${added} points crédités à ${member.firstName || "Client"} [${tierInfo.name} x${tierInfo.ratio}] (Table ${tableNum || 'N/A'}).\nNouveau solde : ${newTotal} pts.`,
                                 "success"
                             );
                         }
                         member.points = newTotal;
+                        if (resObj && resObj.member) {
+                            member.totalEarned = resObj.member.totalEarned;
+                        }
                         renderMember(member, contentArea, suffix);
                     } else {
                         const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors de l'attribution des points.";
@@ -1726,7 +1797,6 @@ function initDirectLoyaltyModule() {
             });
         }
     }
-
     function renderCreate(phoneVal, contentArea, suffix) {
         contentArea.innerHTML = `
             <div class="waiter-member-card" style="border-color: rgba(201, 169, 110, 0.4);">

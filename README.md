@@ -77,15 +77,38 @@ Grey Corner dispose d'un écosystème web connecté en temps réel via Cloudflar
 ### 🎁 Règle 2 : Cadeau de Bienvenue
 - Dès l'inscription ou la première commande enregistrée sur un numéro, **+20 points de bienvenue** sont offerts automatiquement sur le compte.
 
-### 💰 Règle 3 : Ratio d'Attribution
-- **1 DH = 1 Point Fidélité.**
-- Exemple : Une addition de 85 DH rapporte **+85 points**.
+### 👑 Règle 3 : Les 4 Paliers VIP & Multiplicateurs de Points
+Pour valoriser la fidélité dans la durée et créer une dynamique d'émulation, les points sont attribués selon le **Rang VIP** du client.
+> [!IMPORTANT]
+> **RÈGLE DU STATUT ACQUIS À VIE :**  
+> Les paliers VIP sont calculés sur le **cumul total à vie des points gagnés (`totalEarned`)**.  
+> Par conséquent, **dépenser ses points pour s'offrir une boisson ne fait JAMAIS régresser le client dans son rang VIP** !
 
-### ☕ Règle 4 : Récompense (Consommation Offerte)
-- **500 Points = 1 Consommation Offerte** (Boisson chaude, fraîche, café de spécialité ou gourmandise).
-- Lorsque le client atteint 500 points :
-  - Le badge doré et le bouton festif **« 🎁 Demander ma consommation gratuite »** se débloquent sur son écran.
-  - Le serveur ou l'administrateur peut déduire les 500 points pour accorder la récompense.
+| Rang VIP | Points Cumulés à Vie (`totalEarned`) | Multiplicateur | Règle d'Attribution & Bonus |
+| :---: | :---: | :---: | :--- |
+| 🥉 **Bronze** | 0 à 199 pts | **x1.0** | **1 DH = 1.0 pt** (Ratio standard) |
+| 🥈 **Silver VIP** | 200 à 499 pts | **x1.1** | **1 DH = 1.1 pt** (+10% de points bonus) |
+| 🥇 **Gold VIP** | 500 à 999 pts | **x1.25** | **1 DH = 1.25 pt** (+25% de points bonus) |
+| 💎 **Platine VIP** | 1 000+ pts | **x1.5** | **1 DH = 1.5 pt** (+50% de points bonus) |
+
+*Exemple pratique :*  
+Pour une addition de 100 DH :
+- Un client **Bronze** reçoit **100 pts**
+- Un client **Silver** reçoit **110 pts**
+- Un client **Gold** reçoit **125 pts**
+- Un client **Platine** reçoit **150 pts**
+
+### ☕🍹 Règle 4 : Double Système de Récompenses (Paliers 500 & 1 000 pts)
+Deux niveaux de déblocage de récompenses sont accessibles selon le solde de points disponibles (`points`) :
+
+1. **Palier 1 (500 Points) : ☕ 1 Boisson Chaude au choix**
+   - Café, Espresso, Cappuccino, Thé à la menthe, Thé d'infusion, Chocolat chaud.
+   - Dès 500 points, le bouton doré **« ☕ Demander ma Boisson Chaude (-500 pts) »** s'active.
+
+2. **Palier 2 (1 000 Points) : 🍹 1 Jus de Fruits Frais au choix**
+   - Jus d'orange pressée minute, Cocktails détox, Smoothies signatures.
+   - Dès 1 000 points, le bouton violet **« 🍹 Demander mon Jus au choix (-1 000 pts) »** s'active.
+   - Le client garde la liberté totale : consommer sa boisson chaude à 500 pts, ou attendre 1 000 pts pour déguster un jus premium.
 
 ### 🛑 Règle 5 : Règle Antifraude Serveurs (< 2 Heures)
 - **Objectif :** Empêcher les abus ou attributions répétées de points sur le même numéro de téléphone lors d'un même service.
@@ -100,7 +123,7 @@ Grey Corner dispose d'un écosystème web connecté en temps réel via Cloudflar
 - **Mise en attente de validation direction :**
   - Si le montant saisi par un serveur est supérieur à **100 DH (> 100 pts)**, les points ne sont pas crédités instantanément.
   - La transaction est créée avec le statut :  
-    `⏳ [EN ATTENTE VALIDATION ADMIN >100 PTS] Encaissement X DH (+X pts) — Table Y`.
+    `⏳ [EN ATTENTE VALIDATION ADMIN >100 PTS] Encaissement X DH (+Y pts [Rang VIP xRatio]) — Table Z`.
   - Le serveur et le client reçoivent la confirmation :  
     *« ✅ Addition validée ! Les points (>100 pts) sont en attente de confirmation par la direction. »*
 - **Traitement par la Direction (`admin.html`) :**
@@ -120,8 +143,10 @@ L'administrateur dispose d'une **liberté totale et sans aucune restriction** po
 | :--- | :---: | :---: | :--- |
 | **Ajouter des points** | ❌ **Aucune** | ❌ **Aucun** | L'admin peut créditer n'importe quel montant (10 pts, 150 pts, 1000 pts) à tout moment, sans aucun délai d'attente. |
 | **Déduire des points** | ❌ **Aucune** | ❌ **Aucun** | L'admin peut déduire n'importe quel nombre de points (correction, remboursement, annulation) avec motif d'ajustement. |
-| **Offrir une consommation** | ❌ **Aucune** | ❌ **Aucun** | Déduction directe de 500 points pour accorder une consommation offerte. |
+| **Offrir une Boisson Chaude** | ❌ **Aucune** | ❌ **Aucun** | Déduction directe de 500 points pour accorder une boisson chaude offerte. |
+| **Offrir un Jus au choix** | ❌ **Aucune** | ❌ **Aucun** | Déduction directe de 1 000 points pour accorder un jus de fruits frais offert. |
 | **Rectifier un montant** | ❌ **Aucune** | ❌ **Aucun** | Correction en 1 clic des erreurs de saisie des serveurs. |
+| **Campagnes WhatsApp Ciblées** | ❌ **Aucune** | ❌ **Aucun** | Filtrage par rang VIP (Bronze, Silver, Gold, Platine) ou éligibilité cadeau (Jus vs Boisson). |
 
 ---
 

@@ -520,6 +520,59 @@
             box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25) !important;
         }
 
+        
+        .vip-badge-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.78rem;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 4px;
+        }
+        .vip-bronze { background: #E2E8F0; color: #475569; border: 1px solid #CBD5E1; }
+        .vip-silver { background: linear-gradient(135deg, #E2E8F0, #94A3B8); color: #0F172A; border: 1px solid #64748B; }
+        .vip-gold { background: linear-gradient(135deg, #FEF3C7, #F59E0B); color: #78350F; border: 1px solid #D97706; }
+        .vip-platine { background: linear-gradient(135deg, #E0E7FF, #818CF8); color: #1E1B4B; border: 1px solid #6366F1; box-shadow: 0 0 10px rgba(99, 102, 241, 0.35); }
+
+        .btn-redeem-juice {
+            width: 100% !important;
+            height: 48px !important;
+            background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%) !important;
+            color: #FFFFFF !important;
+            font-size: 0.95rem !important;
+            font-weight: 800 !important;
+            border: none !important;
+            border-radius: 12px !important;
+            cursor: pointer !important;
+            box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35) !important;
+            margin-bottom: 10px !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-redeem-hot-drink {
+            width: 100% !important;
+            height: 48px !important;
+            background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important;
+            color: #FFFFFF !important;
+            font-size: 0.95rem !important;
+            font-weight: 800 !important;
+            border: none !important;
+            border-radius: 12px !important;
+            cursor: pointer !important;
+            box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35) !important;
+            margin-bottom: 10px !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+    
         .btn-redeem-free-drink {
             width: 100% !important;
             height: 50px !important;
@@ -1274,10 +1327,10 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js"></script>
-    <script src="firebase-config.js?v=5.0"></script>
+    <script src="firebase-config.js?v=5.1"></script>
 
     <!-- Waiter Logic -->
-    <script src="waiter.js?v=5.0"></script>
+    <script src="waiter.js?v=5.1"></script>
 </body>
 
 </html>

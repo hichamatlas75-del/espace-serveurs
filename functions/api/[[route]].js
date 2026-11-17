@@ -47,6 +47,62 @@ function normalizePhone(raw) {
     return clean;
 }
 
+// Calcul des Paliers VIP Grey Corner basés sur le cumul à vie (totalEarned)
+// Règle d'or : Les paliers dépendent UNIQUEMENT de totalEarned, donc dépenser des points ne rétrograde JAMAIS le client !
+function getVipTier(totalEarned) {
+    const earned = Math.max(0, parseInt(totalEarned, 10) || 0);
+    if (earned >= 1000) {
+        return {
+            id: "platine",
+            name: "Platine VIP",
+            icon: "💎",
+            ratio: 1.5,
+            bonusLabel: "+50% pts (x1.5)",
+            badgeClass: "vip-platine",
+            threshold: 1000,
+            nextTier: null,
+            ptsToNext: 0
+        };
+    }
+    if (earned >= 500) {
+        return {
+            id: "gold",
+            name: "Gold VIP",
+            icon: "🥇",
+            ratio: 1.25,
+            bonusLabel: "+25% pts (x1.25)",
+            badgeClass: "vip-gold",
+            threshold: 500,
+            nextTier: "Platine VIP",
+            ptsToNext: 1000 - earned
+        };
+    }
+    if (earned >= 200) {
+        return {
+            id: "silver",
+            name: "Silver VIP",
+            icon: "🥈",
+            ratio: 1.1,
+            bonusLabel: "+10% pts (x1.1)",
+            badgeClass: "vip-silver",
+            threshold: 200,
+            nextTier: "Gold VIP",
+            ptsToNext: 500 - earned
+        };
+    }
+    return {
+        id: "bronze",
+        name: "Bronze",
+        icon: "🥉",
+        ratio: 1.0,
+        bonusLabel: "Standard (x1.0)",
+        badgeClass: "vip-bronze",
+        threshold: 0,
+        nextTier: "Silver VIP",
+        ptsToNext: 200 - earned
+    };
+}
+
 // Générateur d'identifiant unique
 function generateId(prefix = "id") {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -498,10 +554,12 @@ export async function onRequest(context) {
                     if (qPhone) {
                         const suffix9 = qPhone.length >= 9 ? qPhone.slice(-9) : qPhone;
                         const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(qPhone, `%${suffix9}`).first();
+                        if (member) member.vipTier = getVipTier(member.totalEarned);
                         return jsonResponse({ success: true, member: member || null });
                     }
                     const { results } = await db.prepare("SELECT * FROM loyalty_members ORDER BY points DESC").all();
-                    return jsonResponse({ success: true, members: results || [] });
+                    const enriched = (results || []).map(m => ({ ...m, vipTier: getVipTier(m.totalEarned) }));
+                    return jsonResponse({ success: true, members: enriched });
                 }
 
                 // GET /api/loyalty/members/:phone : Fiche individuelle
@@ -510,6 +568,8 @@ export async function onRequest(context) {
                     const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
                     const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(phone, `%${suffix9}`).first();
                     if (!member) return jsonResponse({ success: true, member: null });
+
+                    member.vipTier = getVipTier(member.totalEarned);
 
                     // Vérifier si le numéro a été crédité il y a moins de 2h
                     const canonicalPhone = member.phone;
@@ -551,6 +611,7 @@ export async function onRequest(context) {
                     const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
                     const existing = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(phone, `%${suffix9}`).first();
                     if (existing) {
+                        existing.vipTier = getVipTier(existing.totalEarned);
                         const canonicalPhone = existing.phone;
                         const recentEarn = await db.prepare(`
                             SELECT * FROM loyalty_transactions
@@ -591,6 +652,7 @@ export async function onRequest(context) {
                         totalEarned: welcomeBonus,
                         rewardsClaimed: 0,
                         source,
+                        vipTier: getVipTier(welcomeBonus),
                         createdAt: now,
                         updatedAt: now
                     };
@@ -611,7 +673,7 @@ export async function onRequest(context) {
                 }
             }
 
-            // B. Crédit de points (/api/loyalty/credit) — 1 DH = 1 pt
+            // B. Crédit de points (/api/loyalty/credit) — Calcul dynamique avec Paliers VIP
             if (sub === "credit" && request.method === "POST") {
                 const body = await request.json();
                 const phone = normalizePhone(body.phone);
@@ -619,7 +681,6 @@ export async function onRequest(context) {
 
                 const amountDH = parseFloat(body.amountDH || body.amount) || 0;
                 if (amountDH <= 0) return errorResponse("Montant de l'addition invalide (doit être supérieur à 0 DH).");
-                const pointsToAdd = Math.max(1, Math.round(amountDH));
                 const tableNumber = body.tableNumber ? String(body.tableNumber).trim() : "";
                 const orderId = body.orderId || "";
                 const validatedBy = body.validatedBy || "waiter";
@@ -666,16 +727,20 @@ export async function onRequest(context) {
                         INSERT INTO loyalty_members (phone, firstName, points, totalEarned, rewardsClaimed, source, createdAt, updatedAt)
                         VALUES (?, 'Client', 0, 0, 0, 'waiter_direct', ?, ?)
                     `).bind(phone, now, now).run();
-                    member = { phone, firstName: "Client", points: 0, totalEarned: 0 };
+                    member = { phone, firstName: "Client", points: 0, totalEarned: 0, rewardsClaimed: 0 };
                 }
                 const canonicalPhone = member.phone;
 
-                // 🚨 2. RÈGLE DE SÉCURITÉ DIRECTION : MONTANT > 100 DH (> 100 PTS) PAR UN SERVEUR
+                // 👑 PALIERS VIP : Déterminer le palier et appliquer le multiplicateur de points
+                const vipTier = getVipTier(member.totalEarned);
+                const pointsToAdd = Math.max(1, Math.round(amountDH * (vipTier.ratio || 1.0)));
+
+                // 🚨 2. RÈGLE DE SÉCURITÉ DIRECTION : MONTANT > 100 DH OU POINTS > 100 PTS PAR UN SERVEUR
                 // LE MONTANT PASSE TOUJOURS (encaissement validé), mais les points sont mis en attente de validation par l'administrateur !
-                const isPendingAdmin = pointsToAdd > 100 && !isAdmin;
+                const isPendingAdmin = (amountDH > 100 || pointsToAdd > 100) && !isAdmin;
 
                 if (isPendingAdmin) {
-                    const noteText = `⏳ [EN ATTENTE VALIDATION ADMIN >100 PTS] Encaissement ${amountDH} DH (+${pointsToAdd} pts) — Table ${tableNumber || 'Non renseignée'}`;
+                    const noteText = `⏳ [EN ATTENTE VALIDATION ADMIN >100 PTS] Encaissement ${amountDH} DH (+${pointsToAdd} pts [${vipTier.name} x${vipTier.ratio}]) — Table ${tableNumber || 'Non renseignée'}`;
                     const txId = generateId("tx");
                     await db.prepare(`
                         INSERT INTO loyalty_transactions (id, phone, type, pointsDelta, amountDH, tableNumber, orderId, validatedBy, note, createdAt)
@@ -697,9 +762,10 @@ export async function onRequest(context) {
                         success: true,
                         pendingAdminApproval: true,
                         pointsAdded: pointsToAdd,
+                        vipTier,
                         newTotal: member.points,
-                        member,
-                        message: `✅ Encaissement de ${amountDH} DH validé pour la Table ${tableNumber || 'N/A'} !\n\n⚠️ Montant supérieur à 100 DH :\nLes ${pointsToAdd} points sont en attente de validation par la direction et seront crédités sur le compte client après validation de l'administrateur.`
+                        member: { ...member, vipTier },
+                        message: `✅ Encaissement de ${amountDH} DH validé pour la Table ${tableNumber || 'N/A'} !\n\n⚠️ Montant supérieur à 100 DH :\nLes ${pointsToAdd} points (${vipTier.name} x${vipTier.ratio}) sont en attente de validation par la direction et seront crédités sur le compte client après validation de l'administrateur.`
                     }, 200);
                 }
 
@@ -713,7 +779,7 @@ export async function onRequest(context) {
                 member.totalEarned += pointsToAdd;
 
                 // Note avec flag explicite pour contrôle admin si forçage admin
-                let noteText = body.note ? String(body.note) : `Encaissement ${amountDH} DH (+${pointsToAdd} pts)`;
+                let noteText = body.note ? String(body.note) : `Encaissement ${amountDH} DH (+${pointsToAdd} pts [${vipTier.name} x${vipTier.ratio}])`;
                 if (body.forceAdmin) {
                     noteText = `⚠️ [FORÇAGE ADMIN <2H] ${noteText}`;
                 }
@@ -736,32 +802,44 @@ export async function onRequest(context) {
                     `).bind(canonicalPhone, member.firstName || 'Client', orderId).run();
                 }
 
+                const updatedVipTier = getVipTier(member.totalEarned);
+
                 return jsonResponse({
                     success: true,
                     pendingAdminApproval: false,
                     pointsAdded: pointsToAdd,
+                    vipTier: updatedVipTier,
                     newTotal: member.points,
-                    member,
-                    message: `✅ +${pointsToAdd} points validés pour ${member.firstName || 'Client'} !\nNouveau solde : ${member.points} / 500 pts.`
+                    member: { ...member, vipTier: updatedVipTier },
+                    message: `✅ +${pointsToAdd} points validés pour ${member.firstName || 'Client'} (${updatedVipTier.name}) !\nNouveau solde : ${member.points} pts.`
                 }, 200);
             }
 
-            // C. Déblocage récompense (/api/loyalty/redeem) — Déduire 500 points
+            // C. Déblocage récompense (/api/loyalty/redeem) — Palier 1 (500 pts Boisson Chaude) ou Palier 2 (1000 pts Jus Frais)
             if (sub === "redeem" && request.method === "POST") {
                 const body = await request.json();
                 const phone = normalizePhone(body.phone);
                 const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
-                const cost = 500;
+
+                const rewardType = (body.rewardType || body.reward || "").toLowerCase();
+                const isJuice = rewardType === "juice" || rewardType === "jus" || parseInt(body.points, 10) === 1000;
+                const cost = isJuice ? 1000 : 500;
+                const rewardTitle = isJuice ? "🍹 Jus de Fruits Frais au choix" : "☕ Boisson Chaude au choix";
+                const rewardNote = `${rewardTitle} accordée (-${cost} pts)`;
+
                 const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(phone, `%${suffix9}`).first();
 
                 if (!member || member.points < cost) {
-                    return errorResponse("Solde insuffisant pour débloquer une consommation (500 pts requis).", 400);
+                    const currentPts = member ? member.points : 0;
+                    return errorResponse(`Solde insuffisant pour débloquer ${rewardTitle} (${cost} pts requis, solde actuel: ${currentPts} pts).`, 400);
                 }
 
                 const canonicalPhone = member.phone;
                 const validatedBy = body.validatedBy || "waiter";
                 const now = new Date().toISOString();
 
+                // ATTENTION : On déduit UNIQUEMENT des points disponibles (member.points),
+                // totalEarned n'est PAS modifié afin de conserver à vie le palier VIP du client !
                 await db.prepare(`
                     UPDATE loyalty_members
                     SET points = points - ?, rewardsClaimed = rewardsClaimed + 1, updatedAt = ?
@@ -771,13 +849,23 @@ export async function onRequest(context) {
                 const txId = generateId("tx");
                 await db.prepare(`
                     INSERT INTO loyalty_transactions (id, phone, type, pointsDelta, amountDH, tableNumber, orderId, validatedBy, note, createdAt)
-                    VALUES (?, ?, 'REDEEM', ?, 0, '', '', ?, 'Consommation offerte accordée (-500 pts)', ?)
-                `).bind(txId, canonicalPhone, -cost, validatedBy, now).run();
+                    VALUES (?, ?, 'REDEEM', ?, 0, '', '', ?, ?, ?)
+                `).bind(txId, canonicalPhone, -cost, validatedBy, rewardNote, now).run();
+
+                const vipTier = getVipTier(member.totalEarned);
 
                 return jsonResponse({
                     success: true,
+                    cost,
+                    rewardType: isJuice ? "juice" : "hot_drink",
+                    rewardTitle,
                     newTotal: member.points - cost,
-                    member: { ...member, points: member.points - cost, rewardsClaimed: (member.rewardsClaimed || 0) + 1 }
+                    member: {
+                        ...member,
+                        points: member.points - cost,
+                        rewardsClaimed: (member.rewardsClaimed || 0) + 1,
+                        vipTier
+                    }
                 });
             }
 

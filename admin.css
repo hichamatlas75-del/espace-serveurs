@@ -2273,3 +2273,35 @@ button, input, select, .admin-tab-btn, .freeze-btn, .cleanup-btn {
 }
 
 
+
+
+/* ── BADGES PALIERS VIP & BOUTONS DOUBLE RÉCOMPENSE ADMIN ── */
+.badge-vip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.badge-vip.bronze { background: rgba(255, 255, 255, 0.08); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.15); }
+.badge-vip.silver { background: rgba(148, 163, 184, 0.15); color: #e2e8f0; border: 1px solid rgba(148, 163, 184, 0.35); }
+.badge-vip.gold { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); }
+.badge-vip.platine { background: rgba(129, 140, 248, 0.2); color: #c7d2fe; border: 1px solid rgba(129, 140, 248, 0.45); box-shadow: 0 0 10px rgba(129, 140, 248, 0.3); }
+
+.table-btn-redeem-juice {
+    background: #8b5cf6 !important;
+    border-color: #8b5cf6 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+}
+.table-btn-redeem-drink {
+    background: #d97706 !important;
+    border-color: #d97706 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+}

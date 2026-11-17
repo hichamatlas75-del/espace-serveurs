@@ -124,6 +124,59 @@
     }
     return clean;
   }
+  function getVipTier(totalEarned) {
+    const earned = Math.max(0, parseInt(totalEarned, 10) || 0);
+    if (earned >= 1e3) {
+      return {
+        id: "platine",
+        name: "Platine VIP",
+        icon: "\u{1F48E}",
+        ratio: 1.5,
+        bonusLabel: "+50% pts (x1.5)",
+        badgeClass: "vip-platine",
+        threshold: 1e3,
+        nextTier: null,
+        ptsToNext: 0
+      };
+    }
+    if (earned >= 500) {
+      return {
+        id: "gold",
+        name: "Gold VIP",
+        icon: "\u{1F947}",
+        ratio: 1.25,
+        bonusLabel: "+25% pts (x1.25)",
+        badgeClass: "vip-gold",
+        threshold: 500,
+        nextTier: "Platine VIP",
+        ptsToNext: 1e3 - earned
+      };
+    }
+    if (earned >= 200) {
+      return {
+        id: "silver",
+        name: "Silver VIP",
+        icon: "\u{1F948}",
+        ratio: 1.1,
+        bonusLabel: "+10% pts (x1.1)",
+        badgeClass: "vip-silver",
+        threshold: 200,
+        nextTier: "Gold VIP",
+        ptsToNext: 500 - earned
+      };
+    }
+    return {
+      id: "bronze",
+      name: "Bronze",
+      icon: "\u{1F949}",
+      ratio: 1,
+      bonusLabel: "Standard (x1.0)",
+      badgeClass: "vip-bronze",
+      threshold: 0,
+      nextTier: "Silver VIP",
+      ptsToNext: 200 - earned
+    };
+  }
   function isSamePhone(p1, p2) {
     if (!p1 || !p2) return false;
     const c1 = normalizePhone(p1);
@@ -692,7 +745,11 @@
         if (callback) callback(false, err.message || String(err));
       });
     },
-    redeemLoyaltyReward(rawPhone, waiterName, callback) {
+    redeemLoyaltyReward(rawPhone, waiterName, rewardType, callback) {
+      if (typeof rewardType === "function") {
+        callback = rewardType;
+        rewardType = "hot_drink";
+      }
       const phone = normalizePhone(rawPhone);
       if (!phone) {
         if (callback) callback(false, "Num\xE9ro invalide");
@@ -700,7 +757,8 @@
       }
       apiFetch("/loyalty/redeem", "POST", {
         phone,
-        validatedBy: waiterName || "waiter"
+        validatedBy: waiterName || "waiter",
+        rewardType: rewardType || "hot_drink"
       }).then((res) => {
         if (res && res.success) {
           const newTotal = res.newTotal;
@@ -712,9 +770,9 @@
           }
           syncNow();
           syncMembersNow();
-          if (callback) callback(true, newTotal);
+          if (callback) callback(true, newTotal, res);
         } else {
-          if (callback) callback(false, res ? res.error : "Solde insuffisant");
+          if (callback) callback(false, res ? res.error : "Solde insuffisant", res);
         }
       }).catch((err) => {
         if (callback) callback(false, err.message || String(err));
@@ -843,12 +901,19 @@
         if (callback) callback(false);
       });
     },
-    claimLoyaltyRewardRequest(rawPhone, tableId, clientName, callback) {
+    claimLoyaltyRewardRequest(rawPhone, tableId, clientName, rewardType, callback) {
+      if (typeof rewardType === "function") {
+        callback = rewardType;
+        rewardType = "hot_drink";
+      }
       const phone = normalizePhone(rawPhone);
+      const isJuice = rewardType === "juice" || rewardType === "jus";
+      const label = isJuice ? "\u{1F379} Jus de Fruits Frais (1 000 pts)" : "\u2615 Boisson Chaude (500 pts)";
       this.sendCall(tableId, "reward", {
         loyaltyPhone: phone,
         loyaltyName: clientName || "",
-        note: "\u{1F381} Consommation Gratuite (500 pts)"
+        rewardType: isJuice ? "juice" : "hot_drink",
+        note: `\u{1F381} ${label}`
       }, callback);
     }
   };
@@ -860,6 +925,7 @@
     window.dbService = dbService;
     window.getTableZoneName = getTableZoneName;
     window.normalizePhone = normalizePhone;
+    window.getVipTier = getVipTier;
     window.sendFcmToWaiters = sendFcmToWaiters;
   }
 
@@ -7903,75 +7969,95 @@ ${lines}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   var LOYALTY_I18N = {
     fr: {
       badge: "Club Fid\xE9lit\xE9",
-      tagline: "500 pts = 1 consommation offerte !",
+      tagline: "Paliers VIP & Boissons Offertes !",
       firstNamePlaceholder: "Votre pr\xE9nom",
       phonePlaceholder: "N\xB0 de t\xE9l\xE9phone (ex: 06...)",
       joinBtn: "\u{1F381} Rejoindre / Voir mes points (+20 pts offerts)",
       hello: "Bonjour",
-      pointsRemaining: "Plus que {rem} pts avant votre consommation offerte !",
-      rewardUnlocked: "\u{1F389} F\xE9licitations ! Votre consommation gratuite est disponible !",
-      claimBtn: "\u{1F381} Demander ma consommation gratuite (500 pts)",
-      claimSent: "Demande envoy\xE9e ! Le serveur arrive pour vous offrir votre boisson.",
+      pointsRemaining: "Plus que {rem} pts pour votre Boisson Chaude offerte (500 pts) !",
+      juiceRemaining: "Boisson Chaude disponible ! Plus que {rem} pts pour 1 Jus au choix (1 000 pts)",
+      claimDrinkBtn: "\u2615 Demander Boisson Chaude (-500 pts)",
+      claimJuiceBtn: "\u{1F379} Demander Jus au Choix (-1 000 pts)",
+      claimDrinkSent: "Demande de Boisson Chaude envoy\xE9e ! Le serveur arrive.",
+      claimJuiceSent: "Demande de Jus de Fruits envoy\xE9e ! Le serveur arrive.",
       switchAccount: "Changer de compte",
       phoneError: "Veuillez entrer un num\xE9ro de t\xE9l\xE9phone valide.",
       nameError: "Veuillez renseigner votre pr\xE9nom.",
-      tablePrompt: "Veuillez choisir votre num\xE9ro de table pour recevoir votre consommation gratuite.",
+      tablePrompt: "Veuillez choisir votre num\xE9ro de table pour recevoir votre boisson offerte.",
       welcomeToast: "\u{1F389} Bienvenue au Club ! +20 points offerts !",
-      welcomeBackToast: "\u{1F44B} Bon retour parmi nous {name} !"
+      welcomeBackToast: "\u{1F44B} Bon retour parmi nous {name} !",
+      multiplierLabel: "Multiplicateur {mult} ({tier})",
+      lifetimeLabel: "Cumul : {earned} pts",
+      nextTierHint: "Encore {rem} pts pour atteindre le rang {next} !"
     },
     ar: {
       badge: "\u0646\u0627\u062F\u064A \u0627\u0644\u0648\u0641\u0627\u0621",
-      tagline: "500 \u0646\u0642\u0637\u0629 = 1 \u0645\u0634\u0631\u0648\u0628 \u0645\u062C\u0627\u0646\u064A !",
+      tagline: "\u0645\u0633\u062A\u0648\u064A\u0627\u062A VIP \u0648\u0645\u0634\u0631\u0648\u0628\u0627\u062A \u0645\u062C\u0627\u0646\u064A\u0629 !",
       firstNamePlaceholder: "\u0627\u0644\u0627\u0633\u0645 \u0627\u0644\u0634\u062E\u0635\u064A",
       phonePlaceholder: "\u0631\u0642\u0645 \u0627\u0644\u0647\u0627\u062A\u0641 (\u0645\u062B\u0627\u0644: 06...)",
       joinBtn: "\u{1F381} \u0627\u0646\u0636\u0645\u0627\u0645 / \u0631\u0635\u064A\u062F \u0646\u0642\u0627\u0637\u064A (+20 \u0646\u0642\u0637\u0629 \u0647\u062F\u064A\u0629)",
       hello: "\u0645\u0631\u062D\u0628\u0627\u064B",
-      pointsRemaining: "\u0628\u0627\u0642\u064A {rem} \u0646\u0642\u0637\u0629 \u0641\u0642\u0637 \u0639\u0644\u0649 \u0645\u0634\u0631\u0648\u0628\u0643\u0645 \u0627\u0644\u0645\u062C\u0627\u0646\u064A !",
-      rewardUnlocked: "\u{1F389} \u062A\u0647\u0627\u0646\u064A\u0646\u0627 ! \u0645\u0634\u0631\u0648\u0628\u0643\u0645 \u0627\u0644\u0645\u062C\u0627\u0646\u064A \u062C\u0627\u0647\u0632 \u0644\u0644\u0637\u0644\u0628 \u0627\u0644\u0622\u0646 !",
-      claimBtn: "\u{1F381} \u0637\u0644\u0628 \u0645\u0634\u0631\u0648\u0628\u064A \u0627\u0644\u0645\u062C\u0627\u0646\u064A (500 \u0646\u0642\u0637\u0629)",
-      claimSent: "\u062A\u0645 \u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u0637\u0644\u0628 ! \u0627\u0644\u0646\u0627\u062F\u0644 \u0642\u0627\u062F\u0645 \u0644\u062A\u0642\u062F\u064A\u0645 \u0645\u0634\u0631\u0648\u0628\u0643\u0645 \u0627\u0644\u0645\u062C\u0627\u0646\u064A.",
+      pointsRemaining: "\u0628\u0627\u0642\u064A {rem} \u0646\u0642\u0637\u0629 \u0641\u0642\u0637 \u0639\u0644\u0649 \u0645\u0634\u0631\u0648\u0628\u0643\u0645 \u0627\u0644\u0633\u0627\u062E\u0646 \u0627\u0644\u0645\u062C\u0627\u0646\u064A (500 \u0646\u0642\u0637\u0629) !",
+      juiceRemaining: "\u0627\u0644\u0645\u0634\u0631\u0648\u0628 \u0627\u0644\u0633\u0627\u062E\u0646 \u062C\u0627\u0647\u0632 ! \u0628\u0627\u0642\u064A {rem} \u0646\u0642\u0637\u0629 \u0639\u0644\u0649 \u0639\u0635\u064A\u0631 \u0637\u0627\u0632\u062C \u0645\u062C\u0627\u0646\u064A (1000 \u0646\u0642\u0637\u0629)",
+      claimDrinkBtn: "\u2615 \u0637\u0644\u0628 \u0645\u0634\u0631\u0648\u0628 \u0633\u0627\u062E\u0646 \u0645\u062C\u0627\u0646\u064A (500 \u0646\u0642\u0637\u0629)",
+      claimJuiceBtn: "\u{1F379} \u0637\u0644\u0628 \u0639\u0635\u064A\u0631 \u0637\u0627\u0632\u062C \u0645\u0646 \u0627\u062E\u062A\u064A\u0627\u0631\u0643\u0645 (1000 \u0646\u0642\u0637\u0629)",
+      claimDrinkSent: "\u062A\u0645 \u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u0637\u0644\u0628 ! \u0627\u0644\u0646\u0627\u062F\u0644 \u0642\u0627\u062F\u0645 \u0644\u062A\u0642\u062F\u064A\u0645 \u0645\u0634\u0631\u0648\u0628\u0643\u0645 \u0627\u0644\u0633\u0627\u062E\u0646 \u0627\u0644\u0645\u062C\u0627\u0646\u064A.",
+      claimJuiceSent: "\u062A\u0645 \u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u0637\u0644\u0628 ! \u0627\u0644\u0646\u0627\u062F\u0644 \u0642\u0627\u062F\u0645 \u0644\u062A\u0642\u062F\u064A\u0645 \u0639\u0635\u064A\u0631\u0643\u0645 \u0627\u0644\u0637\u0627\u0632\u062C \u0627\u0644\u0645\u062C\u0627\u0646\u064A.",
       switchAccount: "\u062A\u063A\u064A\u064A\u0631 \u0627\u0644\u062D\u0633\u0627\u0628",
       phoneError: "\u064A\u0631\u062C\u0649 \u0625\u062F\u062E\u0627\u0644 \u0631\u0642\u0645 \u0647\u0627\u062A\u0641 \u0635\u062D\u064A\u062D.",
       nameError: "\u064A\u0631\u062C\u0649 \u0643\u062A\u0627\u0628\u0629 \u0627\u0644\u0627\u0633\u0645 \u0627\u0644\u0634\u062E\u0635\u064A.",
       tablePrompt: "\u064A\u0631\u062C\u0649 \u0627\u062E\u062A\u064A\u0627\u0631 \u0631\u0642\u0645 \u0627\u0644\u0637\u0627\u0648\u0644\u0629 \u0644\u0644\u062D\u0635\u0648\u0644 \u0639\u0644\u0649 \u0645\u0634\u0631\u0648\u0628\u0643\u0645 \u0627\u0644\u0645\u062C\u0627\u0646\u064A.",
       welcomeToast: "\u{1F389} \u0623\u0647\u0644\u0627\u064B \u0628\u0643\u0645 \u0641\u064A \u0646\u0627\u062F\u064A \u0627\u0644\u0648\u0641\u0627\u0621 ! +20 \u0646\u0642\u0637\u0629 \u0647\u062F\u064A\u0629 !",
-      welcomeBackToast: "\u{1F44B} \u0645\u0631\u062D\u0628\u0627\u064B \u0628\u0639\u0648\u062F\u062A\u0643\u0645 {name} !"
+      welcomeBackToast: "\u{1F44B} \u0645\u0631\u062D\u0628\u0627\u064B \u0628\u0639\u0648\u062F\u062A\u0643\u0645 {name} !",
+      multiplierLabel: "\u0645\u0636\u0627\u0639\u0641 \u0627\u0644\u0646\u0642\u0627\u0637 {mult} ({tier})",
+      lifetimeLabel: "\u0627\u0644\u0645\u062C\u0645\u0648\u0639 \u0627\u0644\u0643\u0644\u064A : {earned} \u0646\u0642\u0637\u0629",
+      nextTierHint: "\u0628\u0627\u0642\u064A {rem} \u0646\u0642\u0637\u0629 \u0644\u0644\u0648\u0635\u0648\u0644 \u0625\u0644\u0649 \u0645\u0633\u062A\u0648\u0649 {next} !"
     },
     en: {
       badge: "Loyalty Club",
-      tagline: "500 pts = 1 free drink!",
+      tagline: "VIP Tiers & Free Drinks!",
       firstNamePlaceholder: "Your first name",
       phonePlaceholder: "Phone number (e.g. 06...)",
       joinBtn: "\u{1F381} Join / Check Points (+20 pts bonus)",
       hello: "Hello",
-      pointsRemaining: "{rem} pts left before your free drink!",
-      rewardUnlocked: "\u{1F389} Congratulations! Your free drink is ready to claim!",
-      claimBtn: "\u{1F381} Claim my free drink (500 pts)",
-      claimSent: "Request sent! The waiter is on their way with your free drink.",
+      pointsRemaining: "{rem} pts left before your free hot drink (500 pts)!",
+      juiceRemaining: "Hot drink ready! {rem} pts left for a fresh juice (1000 pts)",
+      claimDrinkBtn: "\u2615 Claim Free Hot Drink (500 pts)",
+      claimJuiceBtn: "\u{1F379} Claim Free Fresh Juice (1000 pts)",
+      claimDrinkSent: "Hot drink request sent! The waiter is on their way.",
+      claimJuiceSent: "Fresh juice request sent! The waiter is on their way.",
       switchAccount: "Switch account",
       phoneError: "Please enter a valid phone number.",
       nameError: "Please enter your first name.",
       tablePrompt: "Please select your table number to receive your free drink.",
       welcomeToast: "\u{1F389} Welcome to the Club! +20 bonus points awarded!",
-      welcomeBackToast: "\u{1F44B} Welcome back {name}!"
+      welcomeBackToast: "\u{1F44B} Welcome back {name}!",
+      multiplierLabel: "Multiplier {mult} ({tier})",
+      lifetimeLabel: "Lifetime: {earned} pts",
+      nextTierHint: "{rem} pts left to reach {next}!"
     },
     de: {
       badge: "Treue-Club",
-      tagline: "500 Pkt = 1 Gratis-Getr\xE4nk!",
+      tagline: "VIP-Stufen & Gratis-Getr\xE4nke!",
       firstNamePlaceholder: "Ihr Vorname",
       phonePlaceholder: "Telefonnummer (z.B. 06...)",
       joinBtn: "\u{1F381} Beitreten / Punkte pr\xFCfen (+20 Pkt)",
       hello: "Hallo",
-      pointsRemaining: "Noch {rem} Pkt bis zum Gratis-Getr\xE4nk!",
-      rewardUnlocked: "\u{1F389} Gl\xFCckwunsch! Ihr Gratis-Getr\xE4nk ist abholbereit!",
-      claimBtn: "\u{1F381} Gratis-Getr\xE4nk anfordern (500 Pkt)",
-      claimSent: "Anfrage gesendet! Die Bedienung bringt Ihr Gratis-Getr\xE4nk.",
+      pointsRemaining: "Noch {rem} Pkt bis zum Gratis-Hei\xDFgetr\xE4nk (500 Pkt)!",
+      juiceRemaining: "Hei\xDFgetr\xE4nk bereit! Noch {rem} Pkt f\xFCr 1 frischen Saft (1000 Pkt)",
+      claimDrinkBtn: "\u2615 Gratis Hei\xDFgetr\xE4nk anfordern (500 Pkt)",
+      claimJuiceBtn: "\u{1F379} Gratis Frischen Saft anfordern (1000 Pkt)",
+      claimDrinkSent: "Hei\xDFgetr\xE4nk angefordert! Die Bedienung bringt es gleich.",
+      claimJuiceSent: "Frischer Saft angefordert! Die Bedienung bringt ihn gleich.",
       switchAccount: "Konto wechseln",
       phoneError: "Bitte geben Sie eine g\xFCltige Telefonnummer ein.",
       nameError: "Bitte geben Sie Ihren Vornamen ein.",
       tablePrompt: "Bitte w\xE4hlen Sie Ihre Tischnummer f\xFCr das Gratis-Getr\xE4nk.",
       welcomeToast: "\u{1F389} Willkommen im Club! +20 Punkte geschenkt!",
-      welcomeBackToast: "\u{1F44B} Willkommen zur\xFCck {name}!"
+      welcomeBackToast: "\u{1F44B} Willkommen zur\xFCck {name}!",
+      multiplierLabel: "Multiplikator {mult} ({tier})",
+      lifetimeLabel: "Gesamt: {earned} Pkt",
+      nextTierHint: "Noch {rem} Pkt bis zur Stufe {next}!"
     }
   };
   function getT() {
@@ -8034,35 +8120,84 @@ ${lines}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     const loggedInWrap = document.getElementById("loyaltyLoggedInView");
     if (loggedOutWrap) loggedOutWrap.style.display = "none";
     if (loggedInWrap) loggedInWrap.style.display = "block";
+    const pts = member.points || 0;
+    const totalEarned = member.totalEarned || pts;
+    const tier = (getVipTier ? getVipTier(totalEarned) : null) || {
+      id: "bronze",
+      name: "Bronze",
+      icon: "\u{1F949}",
+      ratio: 1,
+      bonusLabel: "+0%",
+      badgeClass: "vip-bronze",
+      nextTier: "Silver VIP",
+      ptsToNext: 200 - totalEarned
+    };
     const nameEl = document.getElementById("loyaltyMemberName");
     if (nameEl) nameEl.textContent = `${t2.hello} ${member.firstName || "Client"}`;
+    const vipBadgeEl = document.getElementById("loyaltyVipBadge");
+    if (vipBadgeEl) {
+      vipBadgeEl.className = `loyalty-vip-pill ${tier.badgeClass}`;
+      vipBadgeEl.textContent = `${tier.icon} ${tier.name}`;
+    }
     const ptsEl = document.getElementById("loyaltyPointsVal");
-    const pts = member.points || 0;
     if (ptsEl) ptsEl.textContent = pts;
-    const pct = Math.min(100, Math.max(0, pts / 500 * 100));
+    const multEl = document.getElementById("loyaltyVipMultiplierText");
+    if (multEl) {
+      multEl.textContent = t2.multiplierLabel.replace("{mult}", `x${tier.ratio}`).replace("{tier}", tier.bonusLabel);
+    }
+    const lifeEl = document.getElementById("loyaltyVipLifetimeText");
+    if (lifeEl) {
+      lifeEl.textContent = t2.lifetimeLabel.replace("{earned}", totalEarned);
+    }
+    const nextTarget = pts < 500 ? 500 : pts < 1e3 ? 1e3 : 1e3;
+    const pct = Math.min(100, Math.max(0, pts / nextTarget * 100));
     const fillEl = document.getElementById("loyaltyProgressFill");
     if (fillEl) fillEl.style.width = `${pct}%`;
-    const remaining = Math.max(0, 500 - pts);
     const statusEl = document.getElementById("loyaltyStatusText");
-    const claimBtn = document.getElementById("loyaltyClaimBtn");
+    const rewardsBox = document.getElementById("loyaltyRewardEligibleBox");
+    const claimDrinkBtn = document.getElementById("loyaltyClaimDrinkBtn");
+    const claimJuiceBtn = document.getElementById("loyaltyClaimJuiceBtn");
     const bannerWrap = document.getElementById("loyaltyCardBanner");
-    if (pts >= 500) {
+    const canDrink = pts >= 500;
+    const canJuice = pts >= 1e3;
+    if (canJuice) {
       if (statusEl) {
-        statusEl.textContent = t2.rewardUnlocked;
+        statusEl.textContent = "\u{1F389} 1 Jus de Fruits OU 1 Boisson Chaude disponible !";
         statusEl.classList.add("ready-celebrate");
       }
-      if (claimBtn) {
-        claimBtn.style.display = "inline-flex";
-        claimBtn.textContent = t2.claimBtn;
+      if (bannerWrap) bannerWrap.classList.add("reward-ready-border");
+      if (rewardsBox) rewardsBox.style.display = "flex";
+      if (claimJuiceBtn) {
+        claimJuiceBtn.style.display = "inline-flex";
+        claimJuiceBtn.textContent = t2.claimJuiceBtn;
+      }
+      if (claimDrinkBtn) {
+        claimDrinkBtn.style.display = "inline-flex";
+        claimDrinkBtn.textContent = t2.claimDrinkBtn;
+      }
+    } else if (canDrink) {
+      if (statusEl) {
+        const remJuice = Math.max(0, 1e3 - pts);
+        statusEl.textContent = t2.juiceRemaining.replace("{rem}", remJuice);
+        statusEl.classList.add("ready-celebrate");
       }
       if (bannerWrap) bannerWrap.classList.add("reward-ready-border");
+      if (rewardsBox) rewardsBox.style.display = "flex";
+      if (claimJuiceBtn) claimJuiceBtn.style.display = "none";
+      if (claimDrinkBtn) {
+        claimDrinkBtn.style.display = "inline-flex";
+        claimDrinkBtn.textContent = t2.claimDrinkBtn;
+      }
     } else {
+      const remDrink = Math.max(0, 500 - pts);
       if (statusEl) {
-        statusEl.textContent = t2.pointsRemaining.replace("{rem}", remaining);
+        statusEl.textContent = t2.pointsRemaining.replace("{rem}", remDrink);
         statusEl.classList.remove("ready-celebrate");
       }
-      if (claimBtn) claimBtn.style.display = "none";
       if (bannerWrap) bannerWrap.classList.remove("reward-ready-border");
+      if (rewardsBox) rewardsBox.style.display = "none";
+      if (claimDrinkBtn) claimDrinkBtn.style.display = "none";
+      if (claimJuiceBtn) claimJuiceBtn.style.display = "none";
     }
     const switchBtn = document.getElementById("loyaltySwitchAccountBtn");
     if (switchBtn) switchBtn.textContent = t2.switchAccount;
@@ -8103,22 +8238,40 @@ ${lines}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
         });
       });
     }
-    const claimBtn = document.getElementById("loyaltyClaimBtn");
-    if (claimBtn && !claimBtn._hasLoyaltyEvent) {
-      claimBtn._hasLoyaltyEvent = true;
-      claimBtn.addEventListener("click", () => {
+    const claimDrinkBtn = document.getElementById("loyaltyClaimDrinkBtn");
+    if (claimDrinkBtn && !claimDrinkBtn._hasLoyaltyEvent) {
+      claimDrinkBtn._hasLoyaltyEvent = true;
+      claimDrinkBtn.addEventListener("click", () => {
         const t2 = getT();
         const phone = getStoredLoyaltyPhone();
         const name = getStoredLoyaltyName();
         if (!clientTable) {
           showToast(t2.tablePrompt);
           setPendingActionAfterTableSelect(() => {
-            triggerRewardClaim(phone, name, t2);
+            triggerRewardClaim(phone, name, "hot_drink", t2.claimDrinkSent);
           });
           showTableSelectorModal();
           return;
         }
-        triggerRewardClaim(phone, name, t2);
+        triggerRewardClaim(phone, name, "hot_drink", t2.claimDrinkSent);
+      });
+    }
+    const claimJuiceBtn = document.getElementById("loyaltyClaimJuiceBtn");
+    if (claimJuiceBtn && !claimJuiceBtn._hasLoyaltyEvent) {
+      claimJuiceBtn._hasLoyaltyEvent = true;
+      claimJuiceBtn.addEventListener("click", () => {
+        const t2 = getT();
+        const phone = getStoredLoyaltyPhone();
+        const name = getStoredLoyaltyName();
+        if (!clientTable) {
+          showToast(t2.tablePrompt);
+          setPendingActionAfterTableSelect(() => {
+            triggerRewardClaim(phone, name, "juice", t2.claimJuiceSent);
+          });
+          showTableSelectorModal();
+          return;
+        }
+        triggerRewardClaim(phone, name, "juice", t2.claimJuiceSent);
       });
     }
     const switchBtn = document.getElementById("loyaltySwitchAccountBtn");
@@ -8139,11 +8292,11 @@ ${lines}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
       });
     }
   }
-  function triggerRewardClaim(phone, name, t2) {
-    const claimBtn = document.getElementById("loyaltyClaimBtn");
-    if (claimBtn) claimBtn.disabled = true;
-    dbService.claimLoyaltyRewardRequest(phone, clientTable, name, (success) => {
-      if (claimBtn) claimBtn.disabled = false;
+  function triggerRewardClaim(phone, name, rewardType, successMsg) {
+    const btn = rewardType === "juice" ? document.getElementById("loyaltyClaimJuiceBtn") : document.getElementById("loyaltyClaimDrinkBtn");
+    if (btn) btn.disabled = true;
+    dbService.claimLoyaltyRewardRequest(phone, clientTable, name, rewardType, (success) => {
+      if (btn) btn.disabled = false;
       if (success) {
         try {
           const chime = new Audio("https://assets.mixkit.co/active_storage/sfx/911/911-200.wav");
@@ -8151,7 +8304,7 @@ ${lines}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
           chime.play();
         } catch (e) {
         }
-        showToast(t2.claimSent);
+        showToast(successMsg);
       } else {
         showToast("Erreur de connexion. Veuillez r\xE9essayer.");
       }
