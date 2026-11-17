@@ -5143,21 +5143,45 @@ header {
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45), 0 0 16px rgba(201, 169, 110, 0.2), inset 0 1px 0 rgba(201, 169, 110, 0.35);
     position: relative;
     overflow: hidden;
-    transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
-    animation: loyaltyBannerAura 4.5s infinite ease-in-out alternate;
+    transform-origin: center center;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    animation: loyaltyHeartbeat 3.2s infinite ease-in-out;
 }
 
-@keyframes loyaltyBannerAura {
+/* ── EFFET BATTEMENT DE CŒUR (HEARTBEAT) SUR TOUT LE BANDEAU ── */
+@keyframes loyaltyHeartbeat {
     0% {
-        border-color: rgba(201, 169, 110, 0.38);
+        transform: scale(1);
+        border-color: rgba(201, 169, 110, 0.4);
         box-shadow: 0 8px 26px rgba(0, 0, 0, 0.4), 0 0 12px rgba(201, 169, 110, 0.18), inset 0 1px 0 rgba(201, 169, 110, 0.25);
     }
-    50% {
-        border-color: rgba(255, 215, 0, 0.75);
-        box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5), 0 0 26px rgba(201, 169, 110, 0.45), inset 0 1px 1px rgba(255, 215, 0, 0.5);
+    12% {
+        /* Premier battement */
+        transform: scale(1.025);
+        border-color: rgba(255, 215, 0, 0.7);
+        box-shadow: 0 12px 34px rgba(0, 0, 0, 0.48), 0 0 24px rgba(255, 215, 0, 0.5), inset 0 1px 2px rgba(255, 215, 0, 0.4);
+    }
+    24% {
+        /* Relâchement intermédiaire */
+        transform: scale(0.995);
+        border-color: rgba(201, 169, 110, 0.4);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 12px rgba(201, 169, 110, 0.2);
+    }
+    38% {
+        /* Deuxième battement plus prononcé */
+        transform: scale(1.04);
+        border-color: rgba(255, 220, 100, 0.9);
+        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55), 0 0 32px rgba(255, 215, 0, 0.7), inset 0 1px 3px rgba(255, 220, 100, 0.55);
+    }
+    60% {
+        /* Retour progressif au calme */
+        transform: scale(1);
+        border-color: rgba(201, 169, 110, 0.45);
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), 0 0 14px rgba(201, 169, 110, 0.2);
     }
     100% {
-        border-color: rgba(201, 169, 110, 0.38);
+        transform: scale(1);
+        border-color: rgba(201, 169, 110, 0.4);
         box-shadow: 0 8px 26px rgba(0, 0, 0, 0.4), 0 0 12px rgba(201, 169, 110, 0.18), inset 0 1px 0 rgba(201, 169, 110, 0.25);
     }
 }
