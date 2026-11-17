@@ -744,6 +744,22 @@
         if (callback) callback(false, err.message || String(err));
       });
     },
+    getAllLoyaltyMembers(callback) {
+      if (_cachedMembers && _cachedMembers.length > 0) {
+        if (callback) callback(_cachedMembers);
+      }
+      apiFetch("/loyalty/members").then((res) => {
+        if (res && res.success && Array.isArray(res.members)) {
+          _cachedMembers = res.members;
+          setLocalCollection("loyalty_members", _cachedMembers);
+          if (callback) callback(_cachedMembers);
+        } else if (callback) {
+          callback(_cachedMembers || []);
+        }
+      }).catch(() => {
+        if (callback) callback(_cachedMembers || []);
+      });
+    },
     onAllLoyaltyMembersChange(callback) {
       if (callback) {
         _allMembersListeners.add(callback);

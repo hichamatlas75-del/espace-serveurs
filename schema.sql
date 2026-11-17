@@ -54,8 +54,8 @@ CREATE INDEX IF NOT EXISTS idx_orders_table ON pre_orders(tableNum);
 CREATE TABLE IF NOT EXISTS loyalty_members (
     phone TEXT PRIMARY KEY,
     firstName TEXT NOT NULL,
-    points INTEGER DEFAULT 50,
-    totalEarned INTEGER DEFAULT 50,
+    points INTEGER DEFAULT 20,
+    totalEarned INTEGER DEFAULT 20,
     rewardsClaimed INTEGER DEFAULT 0,
     source TEXT DEFAULT 'qr_menu',
     createdAt TEXT NOT NULL,

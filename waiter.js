@@ -1549,7 +1549,7 @@ function initDirectLoyaltyModule() {
                     }
                 });
             } else {
-                dbService.onAllLoyaltyMembersChange((allMembers) => {
+                dbService.getAllLoyaltyMembers((allMembers) => {
                     // Priorité absolue au numéro de téléphone (recherche par les 4+ derniers chiffres)
                     const queryDigits = query.replace(/\D/g, "");
                     let match = null;

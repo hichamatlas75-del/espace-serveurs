@@ -121,8 +121,8 @@ const DB_SCHEMA_STATEMENTS = [
     `CREATE TABLE IF NOT EXISTS loyalty_members (
         phone TEXT PRIMARY KEY,
         firstName TEXT NOT NULL,
-        points INTEGER DEFAULT 50,
-        totalEarned INTEGER DEFAULT 50,
+        points INTEGER DEFAULT 20,
+        totalEarned INTEGER DEFAULT 20,
         rewardsClaimed INTEGER DEFAULT 0,
         source TEXT DEFAULT 'qr_menu',
         createdAt TEXT NOT NULL,
@@ -492,8 +492,14 @@ export async function onRequest(context) {
 
             // A. Membres (/api/loyalty/members)
             if (sub === "members") {
-                // GET /api/loyalty/members : Liste tous les membres (pour Admin)
+                // GET /api/loyalty/members : Liste tous les membres (pour Admin) OU fiche individuelle si ?phone=...
                 if (request.method === "GET" && segments.length === 2) {
+                    const qPhone = normalizePhone(url.searchParams.get("phone") || "");
+                    if (qPhone) {
+                        const suffix9 = qPhone.length >= 9 ? qPhone.slice(-9) : qPhone;
+                        const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(qPhone, `%${suffix9}`).first();
+                        return jsonResponse({ success: true, member: member || null });
+                    }
                     const { results } = await db.prepare("SELECT * FROM loyalty_members ORDER BY points DESC").all();
                     return jsonResponse({ success: true, members: results || [] });
                 }
@@ -678,7 +684,13 @@ export async function onRequest(context) {
 
                     // Si lié à une commande, marquer comme crédité pour clore la commande
                     if (orderId) {
-                        await db.prepare("UPDATE pre_orders SET loyaltyCredited = 1 WHERE id = ?").bind(orderId).run();
+                        await db.prepare(`
+                            UPDATE pre_orders 
+                            SET loyaltyCredited = 1,
+                                loyaltyPhone = CASE WHEN loyaltyPhone IS NULL OR loyaltyPhone = '' THEN ? ELSE loyaltyPhone END,
+                                loyaltyName = CASE WHEN loyaltyName IS NULL OR loyaltyName = '' THEN ? ELSE loyaltyName END
+                            WHERE id = ?
+                        `).bind(canonicalPhone, member.firstName || 'Client', orderId).run();
                     }
 
                     return jsonResponse({
@@ -715,7 +727,13 @@ export async function onRequest(context) {
 
                 // Si lié à une commande, marquer comme crédité
                 if (orderId) {
-                    await db.prepare("UPDATE pre_orders SET loyaltyCredited = 1 WHERE id = ?").bind(orderId).run();
+                    await db.prepare(`
+                        UPDATE pre_orders 
+                        SET loyaltyCredited = 1,
+                            loyaltyPhone = CASE WHEN loyaltyPhone IS NULL OR loyaltyPhone = '' THEN ? ELSE loyaltyPhone END,
+                            loyaltyName = CASE WHEN loyaltyName IS NULL OR loyaltyName = '' THEN ? ELSE loyaltyName END
+                        WHERE id = ?
+                    `).bind(canonicalPhone, member.firstName || 'Client', orderId).run();
                 }
 
                 return jsonResponse({
@@ -872,8 +890,8 @@ export async function onRequest(context) {
                         const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(tx.phone, `%${suffix9}`).first();
                         if (!member) {
                             await db.prepare(`
-                                INSERT INTO loyalty_members (phone, firstName, points, totalEarned, visitsCount, createdAt, updatedAt)
-                                VALUES (?, 'Client', ?, ?, 1, ?, ?)
+                                INSERT INTO loyalty_members (phone, firstName, points, totalEarned, rewardsClaimed, source, createdAt, updatedAt)
+                                VALUES (?, 'Client', ?, ?, 0, 'waiter_direct', ?, ?)
                             `).bind(tx.phone, tx.pointsDelta, tx.pointsDelta, now, now).run();
                         } else {
                             await db.prepare(`
@@ -897,8 +915,8 @@ export async function onRequest(context) {
                             const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(tx.phone, `%${suffix9}`).first();
                             if (!member) {
                                 await db.prepare(`
-                                    INSERT INTO loyalty_members (phone, firstName, points, totalEarned, visitsCount, createdAt, updatedAt)
-                                    VALUES (?, 'Client', ?, ?, 1, ?, ?)
+                                    INSERT INTO loyalty_members (phone, firstName, points, totalEarned, rewardsClaimed, source, createdAt, updatedAt)
+                                    VALUES (?, 'Client', ?, ?, 0, 'waiter_direct', ?, ?)
                                 `).bind(tx.phone, newPoints, newPoints, now, now).run();
                             } else {
                                 await db.prepare(`
@@ -913,7 +931,7 @@ export async function onRequest(context) {
                             SET pointsDelta = ?,
                                 amountDH = ?,
                                 validatedBy = validatedBy || ' [RECTIFIÉ & CRÉDITÉ ADMIN]',
-                                note = '[RECTIFIÉ & CRÉDITÉ ADMIN +' || ? || ' PTS] (Initialement demandé: ' || ? || ' pts) — ' || COALESCE(note, '')
+                                note = '[RECTIFIÉ & CRÉDITÉ ADMIN +' || ? || ' PTS] (Initialement demandé: ' || ? || ' pts) — ' || REPLACE(COALESCE(note, ''), '[EN ATTENTE VALIDATION ADMIN >100 PTS]', '[RECTIFIÉ]')
                             WHERE id = ?
                         `).bind(newPoints, newPoints, newPoints, tx.pointsDelta, txId).run();
                         return jsonResponse({ success: true, message: `✅ Transaction rectifiée : +${newPoints} points crédités au client.` });
