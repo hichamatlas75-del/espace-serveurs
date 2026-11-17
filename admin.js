@@ -752,6 +752,8 @@ function initAdminLoyaltyDashboard() {
 
     const btnCreditPts = document.getElementById("btnAdminCreditPoints");
     const btnRedeemPts = document.getElementById("btnAdminRedeemReward");
+    const btnRedeemDrink = document.getElementById("btnAdminRedeemDrink");
+    const btnRedeemJuice = document.getElementById("btnAdminRedeemJuice");
     const btnDeductPts = document.getElementById("btnAdminDeductPoints");
     const btnCreateMbr = document.getElementById("btnAdminCreateMember");
 
@@ -791,31 +793,39 @@ function initAdminLoyaltyDashboard() {
         });
     }
 
+    function handleAdminRedeem(rewardType, cost, label, btnEl) {
+        if (!quickPhone) return;
+        const raw = (quickPhone.value || "").trim();
+        const cleanPh = window.normalizePhone ? window.normalizePhone(raw) : raw.replace(/\D/g, "");
+        if (cleanPh.length < 8) {
+            window.showGreyCornerNotice("Numéro invalide", "Veuillez saisir un numéro de téléphone valide.", "warning");
+            quickPhone.focus();
+            return;
+        }
+        if (confirm(`Confirmez-vous déduire ${cost} points pour offrir ${label} à ${cleanPh} ?`)) {
+            const origText = btnEl ? btnEl.textContent : "";
+            if (btnEl) { btnEl.disabled = true; btnEl.textContent = "Déduction..."; }
+            dbService.redeemLoyaltyReward(cleanPh, "admin", rewardType, (ok, newTotal) => {
+                if (btnEl) { btnEl.disabled = false; btnEl.textContent = origText; }
+                if (ok) {
+                    window.showGreyCornerNotice("🎉 RÉCOMPENSE ACCORDÉE", `${label} accordée avec succès à ${cleanPh} !\nNouveau solde : ${newTotal} points.`, "success");
+                    if (dbService.syncMembersNow) dbService.syncMembersNow();
+                    loadLoyaltyAlerts();
+                } else {
+                    window.showGreyCornerNotice("❌ Solde insuffisant", `Solde insuffisant (minimum ${cost} points requis) ou compte introuvable.`, "error");
+                }
+            });
+        }
+    }
+
+    if (btnRedeemDrink && quickPhone) {
+        btnRedeemDrink.addEventListener("click", () => handleAdminRedeem("hot_drink", 500, "1 Boisson Chaude", btnRedeemDrink));
+    }
+    if (btnRedeemJuice && quickPhone) {
+        btnRedeemJuice.addEventListener("click", () => handleAdminRedeem("juice", 1000, "1 Jus de Fruits Frais", btnRedeemJuice));
+    }
     if (btnRedeemPts && quickPhone) {
-        btnRedeemPts.addEventListener("click", () => {
-            const raw = (quickPhone.value || "").trim();
-            const cleanPh = window.normalizePhone ? window.normalizePhone(raw) : raw.replace(/\D/g, "");
-            if (cleanPh.length < 8) {
-                window.showGreyCornerNotice("Numéro invalide", "Veuillez saisir un numéro de téléphone valide.", "warning");
-                quickPhone.focus();
-                return;
-            }
-            if (confirm(`Confirmez-vous déduire 500 points pour offrir 1 consommation gratuite à ${cleanPh} ?`)) {
-                btnRedeemPts.disabled = true;
-                btnRedeemPts.textContent = "Déduction...";
-                dbService.redeemLoyaltyReward(cleanPh, "admin", (ok, newTotal) => {
-                    btnRedeemPts.disabled = false;
-                    btnRedeemPts.textContent = "🎁 Valider Conso Offerte (-500 pts)";
-                    if (ok) {
-                        window.showGreyCornerNotice("🎉 CONSOMMATION OFFERTE", `Consommation offerte accordée avec succès à ${cleanPh} !\nNouveau solde : ${newTotal} points.`, "success");
-                        if (dbService.syncMembersNow) dbService.syncMembersNow();
-                        loadLoyaltyAlerts();
-                    } else {
-                        window.showGreyCornerNotice("❌ Solde insuffisant", "Solde insuffisant (minimum 500 points requis) ou compte introuvable.", "error");
-                    }
-                });
-            }
-        });
+        btnRedeemPts.addEventListener("click", () => handleAdminRedeem("hot_drink", 500, "1 Boisson Chaude", btnRedeemPts));
     }
 
     if (btnDeductPts && quickPhone) {
@@ -1113,23 +1123,35 @@ function initAdminLoyaltyDashboard() {
         let waiterCount = 0;
         let totalPts = 0;
         let totalRewards = 0;
+        let bronzeCount = 0;
+        let silverCount = 0;
+        let goldCount = 0;
+        let platineCount = 0;
 
         members.forEach(m => {
             if (m.source === "qr_menu") qrCount++;
             else if (m.source === "waiter_direct") waiterCount++;
             totalPts += (m.points || 0);
             totalRewards += (m.rewardsClaimed || 0);
+
+            const earned = Math.max(0, parseInt(m.totalEarned, 10) || (m.points || 0));
+            if (earned >= 1000) platineCount++;
+            else if (earned >= 500) goldCount++;
+            else if (earned >= 200) silverCount++;
+            else bronzeCount++;
         });
 
         const elTotal = document.getElementById("kpiLoyaltyTotalMembers");
         const elRatio = document.getElementById("kpiLoyaltySourceRatio");
         const elPts = document.getElementById("kpiLoyaltyTotalPoints");
         const elRewards = document.getElementById("kpiLoyaltyRewardsClaimed");
+        const elVip = document.getElementById("kpiLoyaltyVipTiers");
 
         if (elTotal) elTotal.textContent = total;
         if (elRatio) elRatio.textContent = `QR: ${qrCount} • Serveur: ${waiterCount}`;
         if (elPts) elPts.textContent = totalPts.toLocaleString();
         if (elRewards) elRewards.textContent = totalRewards;
+        if (elVip) elVip.textContent = `🥉 ${bronzeCount} • 🥈 ${silverCount} • 🥇 ${goldCount} • 💎 ${platineCount}`;
     }
 
     function renderLoyaltyMembersTable() {
@@ -1178,22 +1200,29 @@ function initAdminLoyaltyDashboard() {
             const waDefaultMsg = encodeURIComponent(`Bonjour ${m.firstName || "cher client"} ! ☕ Votre salon Grey Corner vous informe que vous disposez actuellement de ${pts} points sur votre carte fidélité.`);
             const waLink = `https://wa.me/${waPhone}?text=${waDefaultMsg}`;
 
+            const earned = Math.max(0, parseInt(m.totalEarned, 10) || pts);
+            const tier = (window.getVipTier ? window.getVipTier(earned) : null) || {
+                id: "bronze", name: "Bronze", icon: "🥉", ratio: 1.0, bonusLabel: "+0%", badgeClass: "bronze"
+            };
+
             tr.innerHTML = `
                 <td><strong>${escapeHtml(m.firstName || "Client")}</strong> ${alertBadge}</td>
+                <td><span class="badge-vip ${tier.id}">${tier.icon} ${tier.name}</span></td>
                 <td><code style="color:var(--gold);">${escapeHtml(m.phone)}</code></td>
                 <td>
-                    <span style="font-weight:700; ${pts >= 500 ? "color:#2ecc71;" : ""}">${pts} / 500</span>
+                    <span style="font-weight:700; ${pts >= 1000 ? "color:#8b5cf6;" : (pts >= 500 ? "color:#2ecc71;" : "")}">${pts} pts</span>
                     <div style="width:70px; height:5px; background:rgba(255,255,255,0.1); border-radius:4px; margin-top:4px;">
-                        <div style="height:100%; width:${Math.min(100, (pts/500)*100)}%; background:${pts >= 500 ? "#2ecc71" : "var(--gold)"}; border-radius:4px;"></div>
+                        <div style="height:100%; width:${Math.min(100, (pts/1000)*100)}%; background:${pts >= 1000 ? "#8b5cf6" : (pts >= 500 ? "#2ecc71" : "var(--gold)")}; border-radius:4px;"></div>
                     </div>
                 </td>
-                <td>${m.totalEarned || pts} pts</td>
+                <td><strong>${earned} pts</strong></td>
                 <td style="color:#2ecc71; font-weight:700;">${m.rewardsClaimed || 0} 🎁</td>
                 <td><span class="badge-source ${sourceClass}">${sourceLabel}</span></td>
                 <td>
-                    <button type="button" class="table-btn-action btn-credit-pts" data-phone="${m.phone}" data-name="${m.firstName}" style="background:#27ae60; border-color:#27ae60; color:#fff; font-weight:700;">➕ Valider Pts</button>
+                    <button type="button" class="table-btn-action btn-credit-pts" data-phone="${m.phone}" data-name="${m.firstName}" style="background:#27ae60; border-color:#27ae60; color:#fff; font-weight:700;" title="Créditer addition (+DH/pts)">➕ Pts</button>
                     <button type="button" class="table-btn-action btn-adjust-pts" data-phone="${m.phone}" data-name="${m.firstName}">➖ Déduire</button>
-                    ${pts >= 500 ? `<button type="button" class="table-btn-action table-btn-redeem btn-redeem-pts" data-phone="${m.phone}" data-name="${m.firstName}">🎁 Offrir Conso</button>` : ""}
+                    ${pts >= 1000 ? `<button type="button" class="table-btn-action table-btn-redeem-juice btn-redeem-juice-row" data-phone="${m.phone}" data-name="${m.firstName}">🍹 -1000</button>` : ""}
+                    ${pts >= 500 ? `<button type="button" class="table-btn-action table-btn-redeem-drink btn-redeem-drink-row" data-phone="${m.phone}" data-name="${m.firstName}">☕ -500</button>` : ""}
                     <button type="button" class="table-btn-action btn-history-pts" data-phone="${m.phone}" data-name="${m.firstName}">📜 Tx</button>
                     <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="table-btn-action" style="background:#25D366; border-color:#25D366; color:#fff; text-decoration:none; font-weight:700; display:inline-flex; align-items:center; gap:3px;" title="Discuter sur WhatsApp">💬 WA</a>
                 </td>
@@ -1249,14 +1278,32 @@ function initAdminLoyaltyDashboard() {
                 });
             }
 
-            // Action Offrir Conso
-            const btnRedeem = tr.querySelector(".btn-redeem-pts");
-            if (btnRedeem) {
-                btnRedeem.addEventListener("click", () => {
-                    if (confirm(`Déduire 500 points pour accorder une consommation gratuite à ${m.firstName} (${m.phone}) ?`)) {
-                        dbService.redeemLoyaltyReward(m.phone, "admin", (ok, newTotal) => {
+            // Action Offrir Jus (-1000 pts)
+            const btnRedeemJ = tr.querySelector(".btn-redeem-juice-row");
+            if (btnRedeemJ) {
+                btnRedeemJ.addEventListener("click", () => {
+                    if (confirm(`Déduire 1 000 points pour accorder 1 Jus de Fruits Frais à ${m.firstName} (${m.phone}) ?`)) {
+                        dbService.redeemLoyaltyReward(m.phone, "admin", "juice", (ok, newTotal) => {
                             if (ok) {
-                                window.showGreyCornerNotice("🎉 CONSOMMATION OFFERTE", `Consommation gratuite accordée avec succès !\nNouveau solde de ${m.firstName} : ${newTotal} points.`, "success");
+                                window.showGreyCornerNotice("🍹 JUS OFFERT", `1 Jus de Fruits Frais accordé avec succès !\nNouveau solde de ${m.firstName} : ${newTotal} points.`, "success");
+                                if (dbService.syncMembersNow) dbService.syncMembersNow();
+                                loadLoyaltyAlerts();
+                            } else {
+                                window.showGreyCornerNotice("❌ Solde insuffisant", "Solde insuffisant (minimum 1 000 points requis) ou compte introuvable.", "error");
+                            }
+                        });
+                    }
+                });
+            }
+
+            // Action Offrir Boisson Chaude (-500 pts)
+            const btnRedeemD = tr.querySelector(".btn-redeem-drink-row");
+            if (btnRedeemD) {
+                btnRedeemD.addEventListener("click", () => {
+                    if (confirm(`Déduire 500 points pour accorder 1 Boisson Chaude à ${m.firstName} (${m.phone}) ?`)) {
+                        dbService.redeemLoyaltyReward(m.phone, "admin", "hot_drink", (ok, newTotal) => {
+                            if (ok) {
+                                window.showGreyCornerNotice("☕ BOISSON CHAUDE OFFERTE", `1 Boisson Chaude accordée avec succès !\nNouveau solde de ${m.firstName} : ${newTotal} points.`, "success");
                                 if (dbService.syncMembersNow) dbService.syncMembersNow();
                                 loadLoyaltyAlerts();
                             } else {
@@ -1353,9 +1400,15 @@ function initAdminLoyaltyDashboard() {
         const mode = waTargetSelect ? waTargetSelect.value : "all";
         return (cachedAdminLoyaltyMembers || []).filter(m => {
             const pts = m.points || 0;
-            if (mode === "active") return pts > 100;
+            const lifetime = Math.max(0, parseInt(m.totalEarned, 10) || parseInt(m.lifetimePoints, 10) || pts);
+            const tier = typeof window.getVipTier === "function" ? window.getVipTier(lifetime) : { id: 'bronze' };
+            if (mode === "vip_platine") return tier.id === "platine";
+            if (mode === "vip_gold") return tier.id === "gold";
+            if (mode === "vip_silver") return tier.id === "silver";
+            if (mode === "vip_bronze") return tier.id === "bronze";
+            if (mode === "reward_juice") return pts >= 1000;
+            if (mode === "reward_drink") return pts >= 500;
             if (mode === "near_reward") return pts >= 400 && pts < 500;
-            if (mode === "reward_unlocked") return pts >= 500;
             if (mode === "new") return pts <= 50;
             return true;
         });

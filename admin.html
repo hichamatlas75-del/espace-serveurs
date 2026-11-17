@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#07060a"/>
 <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png"/>
 <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png"/>
-<link rel="stylesheet" href="admin.css?v=5.1"/>
+<link rel="stylesheet" href="admin.css?v=5.2"/>
 
 </head>
 
@@ -191,10 +191,13 @@
 
                 <div class="validate-actions">
                     <button type="button" id="btnAdminCreditPoints" class="btn-validate-credit">
-                        ✅ Valider les Points (+1 DH = 1 pt)
+                        ✅ Valider Points (+DH/pts)
                     </button>
-                    <button type="button" id="btnAdminRedeemReward" class="btn-validate-redeem">
-                        🎁 Valider Conso Offerte (-500 pts)
+                    <button type="button" id="btnAdminRedeemDrink" class="btn-validate-redeem" style="background:linear-gradient(135deg, #d97706, #b45309);">
+                        ☕ Conso Offerte (-500 pts)
+                    </button>
+                    <button type="button" id="btnAdminRedeemJuice" class="btn-validate-redeem" style="background:linear-gradient(135deg, #7c3aed, #6d28d9);">
+                        🍹 Jus Offert (-1000 pts)
                     </button>
                     <button type="button" id="btnAdminDeductPoints" class="btn-validate-deduct">
                         ➖ Déduire des Points
@@ -221,8 +224,12 @@
                 <span class="kpi-val" id="kpiLoyaltyTotalPoints" style="color:var(--gold,#C9A96E);">0</span>
             </div>
             <div class="loyalty-kpi-card">
-                <span class="kpi-label">Conso. Offertes (-500)</span>
+                <span class="kpi-label">Conso. Offertes</span>
                 <span class="kpi-val" id="kpiLoyaltyRewardsClaimed" style="color:#2ecc71;">0</span>
+            </div>
+            <div class="loyalty-kpi-card">
+                <span class="kpi-label">Paliers VIP</span>
+                <span class="kpi-subval" id="kpiLoyaltyVipTiers" style="color:var(--gold,#C9A96E); font-size:0.82rem; font-weight:700;">🥉 0 • 🥈 0 • 🥇 0 • 💎 0</span>
             </div>
         </div>
 
@@ -292,8 +299,9 @@
                     <thead>
                         <tr>
                             <th>Prénom</th>
+                            <th>Rang VIP</th>
                             <th>Téléphone</th>
-                            <th>Points (X / 500)</th>
+                            <th>Points Dispos</th>
                             <th>Cumul Gagné</th>
                             <th>Conso. Offertes</th>
                             <th>Source</th>
@@ -359,9 +367,13 @@
                 <label style="font-size:0.85rem; color:#cbd5e1; font-weight:700;">1. Ciblage des Clients :</label>
                 <select id="waTargetSelect" style="width:100%; height:40px; margin-top:6px; background:#1e293b; color:#fff; border:1px solid #334155; border-radius:8px; padding:0 10px; font-weight:600;">
                     <option value="all">Tous les membres inscrits</option>
-                    <option value="active">Membres actifs (> 100 pts)</option>
-                    <option value="near_reward">Membres proches du cadeau (≥ 400 pts)</option>
-                    <option value="reward_unlocked">Membres éligibles boisson offerte (≥ 500 pts)</option>
+                    <option value="vip_platine">💎 Membres Platine VIP (≥ 1 000 pts cumulés)</option>
+                    <option value="vip_gold">🥇 Membres Gold VIP (≥ 500 pts cumulés)</option>
+                    <option value="vip_silver">🥈 Membres Silver VIP (≥ 200 pts cumulés)</option>
+                    <option value="vip_bronze">🥉 Membres Bronze (&lt; 200 pts cumulés)</option>
+                    <option value="reward_juice">🍹 Éligibles Jus au Choix (≥ 1 000 pts dispos)</option>
+                    <option value="reward_drink">☕ Éligibles Boisson Chaude (≥ 500 pts dispos)</option>
+                    <option value="near_reward">🎯 Proches d'un cadeau (≥ 400 pts)</option>
                     <option value="new">Nouveaux inscrits (≤ 50 pts)</option>
                 </select>
                 <div id="waTargetCountLabel" style="font-size:0.82rem; color:var(--gold,#C9A96E); margin-top:6px; font-weight:700;">0 client(s) sélectionné(s)</div>
@@ -395,8 +407,8 @@
 </div>
 
 <!-- Grey Corner Admin Scripts -->
-<script src="firebase-config.js?v=5.1"></script>
-<script src="admin.js?v=5.1"></script>
+<script src="firebase-config.js?v=5.2"></script>
+<script src="admin.js?v=5.2"></script>
 
 </body>
 </html>
