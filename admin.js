@@ -1151,6 +1151,21 @@ function initAdminLoyaltyDashboard() {
         if (elVip) elVip.textContent = `🥉 ${bronzeCount} • 🥈 ${silverCount} • 🥇 ${goldCount} • 💎 ${platineCount}`;
     }
 
+    
+    function formatAdhesionDate(isoString) {
+        if (!isoString) return "-";
+        try {
+            const d = new Date(isoString);
+            if (isNaN(d.getTime())) return String(isoString).split("T")[0] || "-";
+            const day = String(d.getDate()).padStart(2, "0");
+            const month = String(d.getMonth() + 1).padStart(2, "0");
+            const year = d.getFullYear();
+            return `${day}/${month}/${year}`;
+        } catch (e) {
+            return "-";
+        }
+    }
+
     function renderLoyaltyMembersTable() {
         if (!tableBody) return;
         const q = (searchInput && searchInput.value ? searchInput.value : "").trim().toLowerCase();
@@ -1165,7 +1180,7 @@ function initAdminLoyaltyDashboard() {
         if (filtered.length === 0) {
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="8" style="text-align:center; padding:30px; color:var(--muted);">
+                    <td colspan="9" style="text-align:center; padding:30px; color:var(--muted);">
                         ${q ? "Aucun membre trouvé pour cette recherche." : "Aucun membre inscrit au Club Fidélité pour le moment."}
                     </td>
                 </tr>
@@ -1202,10 +1217,16 @@ function initAdminLoyaltyDashboard() {
                 id: "bronze", name: "Bronze", icon: "🥉", ratio: 1.0, bonusLabel: "+0%", badgeClass: "bronze"
             };
 
+            const dateStr = formatAdhesionDate(m.createdAt);
+
             tr.innerHTML = `
-                <td><strong>${escapeHtml(m.firstName || "Client")}</strong> ${alertBadge}</td>
+                <td>
+                    <strong>${escapeHtml(m.firstName || "Client")}</strong> ${alertBadge}
+                    <div style="font-size:0.72rem; color:var(--muted); margin-top:2px;">Inscrit le ${dateStr}</div>
+                </td>
                 <td><span class="badge-vip ${tier.id}">${tier.icon} ${tier.name}</span></td>
                 <td><code style="color:var(--gold);">${escapeHtml(m.phone)}</code></td>
+                <td><span style="color:var(--muted); font-size:0.8rem; white-space:nowrap;" title="${escapeHtml(m.createdAt || '')}">📅 ${dateStr}</span></td>
                 <td>
                     <span style="font-weight:700; ${pts >= 1000 ? "color:#8b5cf6;" : (pts >= 500 ? "color:#2ecc71;" : "")}">${pts} pts</span>
                     <div style="width:70px; height:5px; background:rgba(255,255,255,0.1); border-radius:4px; margin-top:4px;">
