@@ -283,7 +283,6 @@ async function syncNow() {
 
 // Synchronisation des membres fidélité (pour page Admin)
 async function syncMembersNow() {
-    if (_allMembersListeners.size === 0 && _memberListeners.size === 0) return;
     try {
         const data = await apiFetch("/loyalty/members");
         if (data && data.success && Array.isArray(data.members)) {
@@ -292,7 +291,8 @@ async function syncMembersNow() {
             _allMembersListeners.forEach(cb => { try { cb(_cachedMembers); } catch(e) {} });
 
             _memberListeners.forEach((callbacks, phone) => {
-                const found = _cachedMembers.find(m => m.phone === phone);
+                const suffix = phone.length >= 9 ? phone.slice(-9) : phone;
+                const found = _cachedMembers.find(m => m.phone === phone || (m.phone && m.phone.endsWith(suffix)));
                 if (found) callbacks.forEach(cb => { try { cb(found); } catch(e) {} });
             });
         }
@@ -341,6 +341,8 @@ function startSyncLoop() {
 
 // ── SERVICE GLOBAL : DBSERVICE ──────────────────────────────────────────────
 export const dbService = {
+    syncNow() { return syncNow(); },
+    syncMembersNow() { return syncMembersNow(); },
     isCloud() { return true; },
     getWaiters(callback) { return this.onWaitersChange(callback); },
     getTables(callback) { return this.onTablesChange(callback); },
@@ -670,10 +672,25 @@ export const dbService = {
             });
     },
 
-    creditLoyaltyPoints(rawPhone, amountDH, tableNumber, validatedBy, orderId, callback) {
+    creditLoyaltyPoints(rawPhone, amountDH, tableNumber, validatedBy, orderId, forceAdmin, callback) {
         if (typeof orderId === "function") {
             callback = orderId;
             orderId = null;
+            forceAdmin = false;
+        } else if (typeof forceAdmin === "function") {
+            callback = forceAdmin;
+            forceAdmin = false;
+        } else if (typeof validatedBy === "function") {
+            callback = validatedBy;
+            validatedBy = "waiter";
+            orderId = null;
+            forceAdmin = false;
+        } else if (typeof tableNumber === "function") {
+            callback = tableNumber;
+            tableNumber = "";
+            validatedBy = "waiter";
+            orderId = null;
+            forceAdmin = false;
         }
         const phone = normalizePhone(rawPhone);
         if (!phone) { if (callback) callback(false, "Numéro invalide"); return; }
@@ -684,7 +701,8 @@ export const dbService = {
             amountDH: amount,
             tableNumber: tableNumber ? String(tableNumber) : "",
             orderId: orderId || "",
-            validatedBy: validatedBy || "waiter"
+            validatedBy: validatedBy || "waiter",
+            forceAdmin: forceAdmin === true
         }).then(res => {
             if (res && res.success) {
                 const newTotal = res.newTotal;
@@ -696,9 +714,10 @@ export const dbService = {
 
                 syncNow();
                 syncMembersNow();
-                if (callback) callback(true, pointsAdded, newTotal, res.member);
+                if (callback) callback(true, pointsAdded, newTotal, { ...(res.member || {}), ...res });
             } else {
-                if (callback) callback(false, res ? res.error : "Erreur de crédit");
+                const errMsg = res ? (res.error || res.message) : "Erreur de crédit";
+                if (callback) callback(false, errMsg, null, res);
             }
         }).catch(err => {
             if (callback) callback(false, err.message || String(err));
@@ -770,6 +789,58 @@ export const dbService = {
             })
             .catch(() => {
                 if (callback) callback([]);
+            });
+    },
+
+    getLoyaltyAlerts(callback) {
+        apiFetch("/loyalty/alerts", "GET")
+            .then(res => {
+                if (callback) callback(res && res.alerts ? res.alerts : []);
+            })
+            .catch(() => {
+                if (callback) callback([]);
+            });
+    },
+
+    verifyLoyaltyAlert(txId, callback) {
+        apiFetch("/loyalty/alerts", "POST", { txId, action: "verify" })
+            .then(res => {
+                if (res && res.success) {
+                    syncNow();
+                    syncMembersNow();
+                }
+                if (callback) callback(res && res.success, res ? res.message : null);
+            })
+            .catch(err => {
+                if (callback) callback(false, err.message || String(err));
+            });
+    },
+
+    rejectLoyaltyAlert(txId, callback) {
+        apiFetch("/loyalty/alerts", "POST", { txId, action: "reject" })
+            .then(res => {
+                if (res && res.success) {
+                    syncNow();
+                    syncMembersNow();
+                }
+                if (callback) callback(res && res.success, res ? res.message : null);
+            })
+            .catch(err => {
+                if (callback) callback(false, err.message || String(err));
+            });
+    },
+
+    rectifyLoyaltyAlert(txId, newPoints, callback) {
+        apiFetch("/loyalty/alerts", "POST", { txId, action: "rectify", newPoints })
+            .then(res => {
+                if (res && res.success) {
+                    syncNow();
+                    syncMembersNow();
+                }
+                if (callback) callback(res && res.success, res ? res.message : null);
+            })
+            .catch(err => {
+                if (callback) callback(false, err.message || String(err));
             });
     },
 

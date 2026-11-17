@@ -275,7 +275,6 @@
     }
 
     async function syncMembersNow() {
-        if (_allMembersListeners.size === 0 && _memberListeners.size === 0) return;
         try {
             const data = await apiFetch("/loyalty/members");
             if (data && data.success && Array.isArray(data.members)) {
@@ -284,7 +283,8 @@
                 _allMembersListeners.forEach(cb => { try { cb(_cachedMembers); } catch(e) {} });
 
                 _memberListeners.forEach((callbacks, phone) => {
-                    const found = _cachedMembers.find(m => m.phone === phone);
+                    const suffix = phone.length >= 9 ? phone.slice(-9) : phone;
+                    const found = _cachedMembers.find(m => m.phone === phone || (m.phone && m.phone.endsWith(suffix)));
                     if (found) callbacks.forEach(cb => { try { cb(found); } catch(e) {} });
                 });
             }
@@ -331,6 +331,8 @@
     }
 
     const dbService = {
+        syncNow() { return syncNow(); },
+        syncMembersNow() { return syncMembersNow(); },
         isCloud() { return true; },
         getWaiters(callback) { return this.onWaitersChange(callback); },
         getTables(callback) { return this.onTablesChange(callback); },
@@ -701,7 +703,7 @@
 
                     syncNow();
                     syncMembersNow();
-                    if (callback) callback(true, pointsAdded, newTotal, res.member);
+                    if (callback) callback(true, pointsAdded, newTotal, { ...(res.member || {}), ...res });
                 } else {
                     const errMsg = res ? (res.error || res.message) : "Erreur de crédit";
                     if (callback) callback(false, errMsg, null, res);
@@ -792,20 +794,42 @@
         verifyLoyaltyAlert(txId, callback) {
             apiFetch("/loyalty/alerts", "POST", { txId, action: "verify" })
                 .then(res => {
-                    if (callback) callback(res && res.success);
+                    if (res && res.success) {
+                        syncNow();
+                        syncMembersNow();
+                    }
+                    if (callback) callback(res && res.success, res ? res.message : null);
                 })
-                .catch(() => {
-                    if (callback) callback(false);
+                .catch(err => {
+                    if (callback) callback(false, err.message || String(err));
                 });
         },
 
         rejectLoyaltyAlert(txId, callback) {
             apiFetch("/loyalty/alerts", "POST", { txId, action: "reject" })
                 .then(res => {
-                    if (callback) callback(res && res.success);
+                    if (res && res.success) {
+                        syncNow();
+                        syncMembersNow();
+                    }
+                    if (callback) callback(res && res.success, res ? res.message : null);
                 })
-                .catch(() => {
-                    if (callback) callback(false);
+                .catch(err => {
+                    if (callback) callback(false, err.message || String(err));
+                });
+        },
+
+        rectifyLoyaltyAlert(txId, newPoints, callback) {
+            apiFetch("/loyalty/alerts", "POST", { txId, action: "rectify", newPoints })
+                .then(res => {
+                    if (res && res.success) {
+                        syncNow();
+                        syncMembersNow();
+                    }
+                    if (callback) callback(res && res.success, res ? res.message : null);
+                })
+                .catch(err => {
+                    if (callback) callback(false, err.message || String(err));
                 });
         },
 

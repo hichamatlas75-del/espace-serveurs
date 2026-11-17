@@ -1121,9 +1121,6 @@ button, input, select, .hub-tab, .call-action-btn, .order-action-btn {
     justify-content: center;
     gap: 8px;
 }
-    justify-content: center;
-    gap: 8px;
-}
 
 .btn-direct-credit:active {
     transform: scale(0.98);

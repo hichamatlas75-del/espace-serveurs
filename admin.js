@@ -4,6 +4,16 @@
  * ============================================================================
  */
 
+function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 let globalWaiters = [];
 let activeCallsList = [];
 
@@ -510,6 +520,10 @@ function initAdminNavigation() {
             if (secId === "sectionHistory") {
                 renderAdminHistoryFeed();
             }
+            if (secId === "sectionLoyalty") {
+                if (typeof loadLoyaltyAlerts === "function") loadLoyaltyAlerts();
+                if (typeof dbService !== "undefined" && dbService.syncMembersNow) dbService.syncMembersNow();
+            }
         });
     });
 }
@@ -641,7 +655,7 @@ function renderAdminHistoryFeed() {
                 </div>
                 <div class="admin-history-items-list">
                     ${itemsHtml}
-                    ${order.note ? `<div style="font-size: 0.78rem; color: var(--muted); margin-top: 6px; font-style: italic; border-top: 1px solid rgba(255, 255, 255, 0.03); padding-top: 4px;">Note: ${order.note}</div>` : ""}
+                    ${order.note ? `<div style="font-size: 0.78rem; color: var(--muted); margin-top: 6px; font-style: italic; border-top: 1px solid rgba(255, 255, 255, 0.03); padding-top: 4px;">Note: ${escapeHtml(order.note)}</div>` : ""}
                     <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255, 255, 255, 0.03); padding-top: 6px; margin-top: 4px; font-weight: 600; font-size: 0.8rem;">
                         <span style="color: var(--muted);">Total</span>
                         <span style="color: var(--gold);">${order.totalPrice} MAD</span>
@@ -665,23 +679,8 @@ function renderAdminHistoryFeed() {
                             order.loyaltyCredited = true;
                             window.showGreyCornerNotice("✅ POINTS VALIDÉS", `+${added} points validés pour ${ph} !\nNouveau solde : ${newTot} / 500 pts`, "success");
                             renderAdminHistoryFeed();
-                        } else if (resObj && resObj.requiresAdminForce) {
-                            window.showGreyCornerNotice(
-                                "⚠️ DÉLAI ANTIFRAUDE (Moins de 2h)",
-                                `Ce client a déjà reçu des points il y a moins de 2 heures (${resObj.remainingMinutes} min restantes).\n\nEn tant qu'administrateur, souhaitez-vous forcer exceptionnellement la validation ?`,
-                                "warning",
-                                () => {
-                                    dbService.creditLoyaltyPoints(ph, amt, order.table, "admin", order.id, true, (okF, addF, newTotF) => {
-                                        if (okF) {
-                                            order.loyaltyCredited = true;
-                                            window.showGreyCornerNotice("✅ POINTS FORCÉS", `Points forcés avec succès !\n+${addF} points crédités à ${ph}.\nNouveau solde : ${newTotF} / 500 pts.`, "success");
-                                            renderAdminHistoryFeed();
-                                        } else {
-                                            window.showGreyCornerNotice("❌ Erreur", "Erreur lors du forçage.", "error");
-                                        }
-                                    });
-                                }
-                            );
+                            if (dbService.syncMembersNow) dbService.syncMembersNow();
+                            loadLoyaltyAlerts();
                         } else {
                             const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors de la validation des points.";
                             window.showGreyCornerNotice("⛔ CRÉDIT REFUSÉ", msg, "error");
@@ -715,26 +714,10 @@ function renderAdminHistoryFeed() {
                                 order.loyaltyCredited = true;
                                 window.showGreyCornerNotice("👑 POINTS VALIDÉS", `+${added} points validés pour ${canonicalName} (${canonicalPh}) !\nNouveau solde : ${newTot} / 500 pts`, "success");
                                 renderAdminHistoryFeed();
-                            } else if (resObj && resObj.requiresAdminForce) {
-                                window.showGreyCornerNotice(
-                                    "⚠️ DÉLAI ANTIFRAUDE (Moins de 2h)",
-                                    `Ce client a déjà reçu des points il y a moins de 2 heures (${resObj.remainingMinutes} min restantes).\n\nEn tant qu'administrateur, souhaitez-vous forcer exceptionnellement la validation ?`,
-                                    "warning",
-                                    () => {
-                                        dbService.creditLoyaltyPoints(cleanPh, order.totalPrice, order.table, "admin", order.id, true, (okF, addF, newTotF) => {
-                                            if (okF) {
-                                                order.loyaltyPhone = cleanPh;
-                                                order.loyaltyCredited = true;
-                                                window.showGreyCornerNotice("👑 POINTS FORCÉS", `+${addF} points forcés avec succès pour ${cleanPh} !\nNouveau solde : ${newTotF} / 500 pts`, "success");
-                                                renderAdminHistoryFeed();
-                                            } else {
-                                                window.showGreyCornerNotice("❌ Erreur", "Erreur lors du forçage.", "error");
-                                            }
-                                        });
-                                    }
-                                );
+                                if (dbService.syncMembersNow) dbService.syncMembersNow();
+                                loadLoyaltyAlerts();
                             } else {
-                                const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors de la validation des points.";
+                                const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors de l'attribution des points.";
                                 window.showGreyCornerNotice("⛔ CRÉDIT REFUSÉ", msg, "error");
                             }
                         });
@@ -791,42 +774,19 @@ function initAdminLoyaltyDashboard() {
             btnCreditPts.disabled = true;
             btnCreditPts.textContent = "Validation en cours...";
 
-            dbService.createOrGetLoyaltyMember(cleanPh, "Client", "admin", (okM, mbr) => {
-                dbService.creditLoyaltyPoints(cleanPh, amount, tableNum, "admin", null, false, (ok, added, newTotal, resObj) => {
-                    btnCreditPts.disabled = false;
-                    btnCreditPts.textContent = "✅ Valider les Points (+1 DH = 1 pt)";
-                    if (ok) {
-                        window.showGreyCornerNotice("✅ POINTS VALIDÉS", `Addition de ${amount} DH validée avec succès !\n\n+${added} points crédités à ${cleanPh}.\nNouveau solde : ${newTotal} / 500 pts.`, "success");
-                        quickAmount.value = "";
-                        quickNote.value = "";
-                        loadLoyaltyAlerts();
-                    } else if (resObj && resObj.requiresAdminForce) {
-                        window.showGreyCornerNotice(
-                            "⚠️ DÉLAI ANTIFRAUDE (Moins de 2h)",
-                            `Ce numéro a déjà reçu des points il y a moins de 2 heures (${resObj.remainingMinutes} min restantes).\n\nEn tant qu'administrateur, confirmez-vous pour forcer l'attribution exceptionnelle des points ?`,
-                            "warning",
-                            () => {
-                                btnCreditPts.disabled = true;
-                                btnCreditPts.textContent = "Forçage en cours...";
-                                dbService.creditLoyaltyPoints(cleanPh, amount, tableNum, "admin", null, true, (okForce, addedF, newTotF) => {
-                                    btnCreditPts.disabled = false;
-                                    btnCreditPts.textContent = "✅ Valider les Points (+1 DH = 1 pt)";
-                                    if (okForce) {
-                                        window.showGreyCornerNotice("✅ POINTS FORCÉS", `Points forcés avec succès !\n+${addedF} points crédités à ${cleanPh}.\nNouveau solde : ${newTotF} / 500 pts.`, "success");
-                                        quickAmount.value = "";
-                                        quickNote.value = "";
-                                        loadLoyaltyAlerts();
-                                    } else {
-                                        window.showGreyCornerNotice("❌ Erreur", "Erreur lors du forçage des points.", "error");
-                                    }
-                                });
-                            }
-                        );
-                    } else {
-                        const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors de la validation des points.";
-                        window.showGreyCornerNotice("⛔ CRÉDIT REFUSÉ", msg, "error");
-                    }
-                });
+            dbService.creditLoyaltyPoints(cleanPh, amount, tableNum, "admin", null, false, (ok, added, newTotal, resObj) => {
+                btnCreditPts.disabled = false;
+                btnCreditPts.textContent = "✅ Valider les Points (+1 DH = 1 pt)";
+                if (ok) {
+                    window.showGreyCornerNotice("✅ POINTS VALIDÉS", `Addition de ${amount} DH validée avec succès !\n\n+${added} points crédités à ${cleanPh}.\nNouveau solde : ${newTotal} / 500 pts.`, "success");
+                    quickAmount.value = "";
+                    quickNote.value = "";
+                    if (dbService.syncMembersNow) dbService.syncMembersNow();
+                    loadLoyaltyAlerts();
+                } else {
+                    const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors de la validation des points.";
+                    window.showGreyCornerNotice("⛔ CRÉDIT REFUSÉ", msg, "error");
+                }
             });
         });
     }
@@ -836,7 +796,7 @@ function initAdminLoyaltyDashboard() {
             const raw = (quickPhone.value || "").trim();
             const cleanPh = window.normalizePhone ? window.normalizePhone(raw) : raw.replace(/\D/g, "");
             if (cleanPh.length < 8) {
-                alert("Veuillez saisir un numéro de téléphone valide.");
+                window.showGreyCornerNotice("Numéro invalide", "Veuillez saisir un numéro de téléphone valide.", "warning");
                 quickPhone.focus();
                 return;
             }
@@ -847,9 +807,11 @@ function initAdminLoyaltyDashboard() {
                     btnRedeemPts.disabled = false;
                     btnRedeemPts.textContent = "🎁 Valider Conso Offerte (-500 pts)";
                     if (ok) {
-                        alert(`🎉 Consommation offerte accordée avec succès !\nNouveau solde : ${newTotal} points.`);
+                        window.showGreyCornerNotice("🎉 CONSOMMATION OFFERTE", `Consommation offerte accordée avec succès à ${cleanPh} !\nNouveau solde : ${newTotal} points.`, "success");
+                        if (dbService.syncMembersNow) dbService.syncMembersNow();
+                        loadLoyaltyAlerts();
                     } else {
-                        alert("❌ Solde insuffisant (minimum 500 points requis) ou compte introuvable.");
+                        window.showGreyCornerNotice("❌ Solde insuffisant", "Solde insuffisant (minimum 500 points requis) ou compte introuvable.", "error");
                     }
                 });
             }
@@ -861,13 +823,13 @@ function initAdminLoyaltyDashboard() {
             const raw = (quickPhone.value || "").trim();
             const cleanPh = window.normalizePhone ? window.normalizePhone(raw) : raw.replace(/\D/g, "");
             if (cleanPh.length < 8) {
-                alert("Veuillez saisir un numéro de téléphone valide.");
+                window.showGreyCornerNotice("Numéro invalide", "Veuillez saisir un numéro de téléphone valide.", "warning");
                 quickPhone.focus();
                 return;
             }
             const pts = parseInt(quickAmount.value, 10) || 0;
             if (pts <= 0) {
-                alert("Veuillez indiquer le nombre de points à déduire dans le champ Montant.");
+                window.showGreyCornerNotice("Nombre invalide", "Veuillez indiquer le nombre de points à déduire dans le champ Montant.", "warning");
                 quickAmount.focus();
                 return;
             }
@@ -877,10 +839,12 @@ function initAdminLoyaltyDashboard() {
                 dbService.adjustLoyaltyPoints(cleanPh, -pts, note, "admin", (ok, newTotal) => {
                     btnDeductPts.disabled = false;
                     if (ok) {
-                        alert(`✅ ${pts} points déduits.\nNouveau solde : ${newTotal} points.`);
+                        window.showGreyCornerNotice("✅ POINTS DÉDUITS", `-${pts} points déduits avec succès !\nNouveau solde : ${newTotal} points.`, "success");
                         quickAmount.value = "";
+                        if (dbService.syncMembersNow) dbService.syncMembersNow();
+                        loadLoyaltyAlerts();
                     } else {
-                        alert("❌ Erreur lors de la déduction.");
+                        window.showGreyCornerNotice("❌ Erreur", "Erreur lors de la déduction des points.", "error");
                     }
                 });
             }
@@ -901,6 +865,8 @@ function initAdminLoyaltyDashboard() {
             dbService.createOrGetLoyaltyMember(cleanPh, name, "admin", (ok, mbr, isNew) => {
                 btnCreateMbr.disabled = false;
                 if (ok && mbr) {
+                    if (dbService.syncMembersNow) dbService.syncMembersNow();
+                    loadLoyaltyAlerts();
                     if (isNew) {
                         window.showGreyCornerNotice("👑 Compte Créé", `Compte fidélité créé pour ${mbr.firstName} (${mbr.phone}) !\n+20 points de bienvenue offerts (Solde: ${mbr.points} pts).`, "success");
                     } else {
@@ -1054,6 +1020,7 @@ function initAdminLoyaltyDashboard() {
                                     `Les +${tx.pointsDelta} points ont été validés et crédités avec succès sur le compte de ${memberName} (${tx.phone}) !`,
                                     "success"
                                 );
+                                if (dbService.syncMembersNow) dbService.syncMembersNow();
                                 loadLoyaltyAlerts();
                             } else {
                                 window.showGreyCornerNotice("❌ Erreur", "Erreur lors de la validation des points.", "error");
@@ -1073,6 +1040,7 @@ function initAdminLoyaltyDashboard() {
                             dbService.rejectLoyaltyAlert(tx.id, (ok) => {
                                 if (ok) {
                                     window.showGreyCornerNotice("Transaction Rejetée", `La demande de ${tx.pointsDelta} points a été rejetée. Aucun point n'a été crédité.`, "info");
+                                    if (dbService.syncMembersNow) dbService.syncMembersNow();
                                     loadLoyaltyAlerts();
                                 } else {
                                     window.showGreyCornerNotice("❌ Erreur", "Erreur lors du rejet.", "error");
@@ -1083,36 +1051,40 @@ function initAdminLoyaltyDashboard() {
                     });
                 }
 
-                // Action 2: Rectifier / Déduire des points en cas d'erreur du serveur
+                // Action 2: Rectifier le montant / les points en cas d'erreur de saisie du serveur
                 const btnRectify = card.querySelector(".btn-alert-rectify");
                 if (btnRectify) {
                     btnRectify.addEventListener("click", () => {
                         const currentPts = tx.pointsDelta;
-                        const deductStr = prompt(
-                            `⚠️ RECTIFICATION ERREUR SERVEUR (${tx.validatedBy} - ${tableStr}) :\n\n` +
-                            `Le serveur a saisi une demande de +${currentPts} points pour ${memberName} (${tx.phone}).\n\n` +
-                            `Combien de points souhaitez-vous DÉDUIRE ?\n` +
-                            `(Exemple: si l'addition réelle était de 50 DH au lieu de 500 DH, entrez 450 pour déduire 450 pts) :`,
+                        const rectifyStr = prompt(
+                            `⚠️ RECTIFICATION DE L'ADDITION (${tx.validatedBy} - ${tableStr}) :\n\n` +
+                            `Demande initiale du serveur : +${currentPts} points (${tx.amountDH || currentPts} DH) pour ${memberName} (${tx.phone}).\n\n` +
+                            `Entrez le MONTANT RÉEL de l'addition en DH (= points exacts à créditer au client) :\n` +
+                            `(Exemple : si l'addition réelle était de 50 DH au lieu de 500 DH, entrez 50) :`,
                             String(currentPts)
                         );
-                        if (deductStr === null) return;
-                        const deductVal = parseInt(deductStr, 10);
-                        if (isNaN(deductVal) || deductVal <= 0) {
-                            alert("Montant de déduction invalide.");
+                        if (rectifyStr === null) return;
+                        const newPts = parseInt(rectifyStr, 10);
+                        if (isNaN(newPts) || newPts < 0) {
+                            window.showGreyCornerNotice("Montant invalide", "Veuillez saisir un montant d'addition valide en DH (nombre entier >= 0).", "warning");
                             return;
                         }
 
-                        const reason = `Correction erreur saisie serveur (${tx.validatedBy}) - ${tableStr}`;
                         btnRectify.disabled = true;
-                        dbService.adjustLoyaltyPoints(tx.phone, -deductVal, reason, "admin", (ok, newTotal) => {
+                        btnRectify.textContent = "Rectification...";
+                        dbService.rectifyLoyaltyAlert(tx.id, newPts, (ok, msg) => {
                             if (ok) {
-                                dbService.verifyLoyaltyAlert(tx.id, () => {
-                                    window.showGreyCornerNotice("✅ Rectification effectuée", `-${deductVal} points déduits.\nNouveau solde de ${memberName} : ${newTotal} points.`, "success");
-                                    loadLoyaltyAlerts();
-                                });
+                                window.showGreyCornerNotice(
+                                    "✅ RECTIFICATION EFFECTUÉE",
+                                    `L'addition a été rectifiée à ${newPts} DH.\n+${newPts} points ont été validés et crédités au client ${memberName} (${tx.phone}) !`,
+                                    "success"
+                                );
+                                if (dbService.syncMembersNow) dbService.syncMembersNow();
+                                loadLoyaltyAlerts();
                             } else {
-                                window.showGreyCornerNotice("❌ Erreur", "Erreur lors de la déduction des points.", "error");
+                                window.showGreyCornerNotice("❌ Erreur", msg || "Erreur lors de la rectification des points.", "error");
                                 btnRectify.disabled = false;
+                                btnRectify.textContent = "✏️ Rectifier";
                             }
                         });
                     });
@@ -1123,8 +1095,9 @@ function initAdminLoyaltyDashboard() {
         }
     }
 
-    // Charger les alertes immédiatement
+    // Charger les alertes immédiatement et écoute temps réel continue
     loadLoyaltyAlerts();
+    setInterval(loadLoyaltyAlerts, 3000);
 
     // 3. Écoute temps réel des membres
     dbService.onAllLoyaltyMembersChange((members) => {
@@ -1190,7 +1163,7 @@ function initAdminLoyaltyDashboard() {
             const sourceLabel = m.source === "qr_menu" ? "Menu QR" : (m.source === "waiter_direct" ? "Serveur" : "Admin");
 
             // Vérifier si ce membre a une alerte active > 100 pts
-            const hasAlert = cachedLoyaltyAlerts.filter(a => a.phone === m.phone);
+            const hasAlert = cachedLoyaltyAlerts.filter(a => (window.isSamePhone ? window.isSamePhone(a.phone, m.phone) : a.phone === m.phone));
             const alertBadge = hasAlert.length > 0 
                 ? `<span class="badge-row-alert" title="Alerte : saisie serveur > 100 pts (${hasAlert[0].tableNumber ? 'Table ' + hasAlert[0].tableNumber : 'Table ?'})">⚠️ Contrôle requis</span>` 
                 : "";
@@ -1206,8 +1179,8 @@ function initAdminLoyaltyDashboard() {
             const waLink = `https://wa.me/${waPhone}?text=${waDefaultMsg}`;
 
             tr.innerHTML = `
-                <td><strong>${m.firstName || "Client"}</strong> ${alertBadge}</td>
-                <td><code style="color:var(--gold);">${m.phone}</code></td>
+                <td><strong>${escapeHtml(m.firstName || "Client")}</strong> ${alertBadge}</td>
+                <td><code style="color:var(--gold);">${escapeHtml(m.phone)}</code></td>
                 <td>
                     <span style="font-weight:700; ${pts >= 500 ? "color:#2ecc71;" : ""}">${pts} / 500</span>
                     <div style="width:70px; height:5px; background:rgba(255,255,255,0.1); border-radius:4px; margin-top:4px;">
@@ -1234,32 +1207,17 @@ function initAdminLoyaltyDashboard() {
                     if (amtStr === null) return;
                     const amt = parseFloat(amtStr);
                     if (isNaN(amt) || amt <= 0) {
-                        alert("Montant invalide.");
+                        window.showGreyCornerNotice("Montant invalide", "Veuillez saisir un montant d'addition valide en DH.", "warning");
                         return;
                     }
                     const table = prompt("Numéro de table (optionnel) :", "") || "";
                     dbService.creditLoyaltyPoints(m.phone, amt, table, "admin", null, false, (ok, added, newTotal, resObj) => {
                         if (ok) {
-                            window.showGreyCornerNotice("✅ POINTS VALIDÉS", `+${added} points validés pour ${m.firstName} !\nNouveau solde : ${newTotal} / 500 pts.`, "success");
+                            window.showGreyCornerNotice("✅ POINTS CRÉDITÉS", `+${added} points crédités à ${m.firstName} (${m.phone}) !\nNouveau solde : ${newTotal} / 500 pts.`, "success");
+                            if (dbService.syncMembersNow) dbService.syncMembersNow();
                             loadLoyaltyAlerts();
-                        } else if (resObj && resObj.requiresAdminForce) {
-                            window.showGreyCornerNotice(
-                                "⚠️ DÉLAI ANTIFRAUDE (Moins de 2h)",
-                                `Ce client a déjà reçu des points il y a moins de 2 heures (${resObj.remainingMinutes} min restantes).\n\nEn tant qu'administrateur, souhaitez-vous forcer exceptionnellement la validation ?`,
-                                "warning",
-                                () => {
-                                    dbService.creditLoyaltyPoints(m.phone, amt, table, "admin", null, true, (okF, addF, newTotF) => {
-                                        if (okF) {
-                                            window.showGreyCornerNotice("✅ POINTS FORCÉS", `Points forcés avec succès pour ${m.firstName} !\nNouveau solde : ${newTotF} / 500 pts.`, "success");
-                                            loadLoyaltyAlerts();
-                                        } else {
-                                            window.showGreyCornerNotice("❌ Erreur", "Erreur lors du forçage.", "error");
-                                        }
-                                    });
-                                }
-                            );
                         } else {
-                            const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors de la validation des points.";
+                            const msg = (resObj && (resObj.error || resObj.message)) || added || "❌ Erreur lors du crédit des points.";
                             window.showGreyCornerNotice("⛔ CRÉDIT REFUSÉ", msg, "error");
                         }
                     });
@@ -1274,16 +1232,18 @@ function initAdminLoyaltyDashboard() {
                     if (deltaStr === null) return;
                     const delta = parseInt(deltaStr, 10);
                     if (isNaN(delta) || delta <= 0) {
-                        alert("Nombre de points invalide.");
+                        window.showGreyCornerNotice("Nombre invalide", "Veuillez saisir un nombre entier de points valide supérieur à 0.", "warning");
                         return;
                     }
                     const reason = prompt("Motif de la déduction (ex: Correction addition, remboursement) :") || "Déduction administrateur";
 
                     dbService.adjustLoyaltyPoints(m.phone, -delta, reason, "admin", (ok, newTotal) => {
                         if (ok) {
-                            alert(`✅ ${delta} points déduits avec succès !\nNouveau solde de ${m.firstName} : ${newTotal} points.`);
+                            window.showGreyCornerNotice("✅ POINTS DÉDUITS", `-${delta} points déduits avec succès !\nNouveau solde de ${m.firstName} : ${newTotal} points.`, "success");
+                            if (dbService.syncMembersNow) dbService.syncMembersNow();
+                            loadLoyaltyAlerts();
                         } else {
-                            alert("❌ Erreur lors de la déduction des points.");
+                            window.showGreyCornerNotice("❌ Erreur", "Erreur lors de la déduction des points.", "error");
                         }
                     });
                 });
@@ -1296,9 +1256,11 @@ function initAdminLoyaltyDashboard() {
                     if (confirm(`Déduire 500 points pour accorder une consommation gratuite à ${m.firstName} (${m.phone}) ?`)) {
                         dbService.redeemLoyaltyReward(m.phone, "admin", (ok, newTotal) => {
                             if (ok) {
-                                alert(`🎉 Consommation gratuite accordée !\nNouveau solde : ${newTotal} points.`);
+                                window.showGreyCornerNotice("🎉 CONSOMMATION OFFERTE", `Consommation gratuite accordée avec succès !\nNouveau solde de ${m.firstName} : ${newTotal} points.`, "success");
+                                if (dbService.syncMembersNow) dbService.syncMembersNow();
+                                loadLoyaltyAlerts();
                             } else {
-                                alert("❌ Erreur lors de l'attribution de la récompense.");
+                                window.showGreyCornerNotice("❌ Solde insuffisant", "Solde insuffisant (minimum 500 points requis) ou compte introuvable.", "error");
                             }
                         });
                     }

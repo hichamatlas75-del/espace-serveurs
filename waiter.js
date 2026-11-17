@@ -21,6 +21,29 @@ if (typeof firebase !== "undefined" && !firebase.apps.length) {
     }
 }
 
+function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+// ── DEVICE IDENTITY (Haut du fichier pour éviter tout problème de TDZ) ─────────
+const myDeviceId = (() => {
+    let id = localStorage.getItem("waiter_device_id");
+    if (!id) {
+        id = "srv_" + Math.random().toString(36).substring(2, 9);
+        localStorage.setItem("waiter_device_id", id);
+    }
+    return id;
+})();
+
+const activeWaiterId = myDeviceId;
+const activeWaiterName = "Serveur";
+
 let waiterSwRegistration = null;
 let currentFcmToken = null;
 
@@ -325,21 +348,6 @@ async function registerFcmToken(swReg, showSuccessFeedback = false) {
     }
 }
 
-// ============================================================================
-// DEVICE IDENTITY — ID anonyme persistant pour le verrouillage coopératif
-// ============================================================================
-
-const myDeviceId = (() => {
-    let id = localStorage.getItem("waiter_device_id");
-    if (!id) {
-        id = "srv_" + Math.random().toString(36).substring(2, 9);
-        localStorage.setItem("waiter_device_id", id);
-    }
-    return id;
-})();
-
-const activeWaiterId = myDeviceId;
-const activeWaiterName = "Serveur";
 
 // ============================================================================
 // STATE — Listeners Firestore actifs
@@ -875,7 +883,7 @@ function processCallsFeed(calls) {
         const badgeClasses = { waiter: "badge-waiter", water: "badge-water", bill: "badge-bill", reward: "badge-reward" };
 
         const rewardClientInfo = (call.type === "reward" && call.loyaltyPhone) 
-            ? `<div style="font-size:0.82rem; color:#2ecc71; margin-top:4px; font-weight:600;">👑 Client: ${call.loyaltyName || ""} (${call.loyaltyPhone})</div>` 
+            ? `<div style="font-size:0.82rem; color:#2ecc71; margin-top:4px; font-weight:600;">👑 Client: ${escapeHtml(call.loyaltyName || "")} (${escapeHtml(call.loyaltyPhone)})</div>` 
             : "";
 
         card.innerHTML = `
@@ -1042,8 +1050,8 @@ function processPreOrdersFeed(orders) {
             loyaltySnippet = `
                 <div class="order-loyalty-banner" style="background:rgba(201,169,110,0.1); border:1px solid rgba(201,169,110,0.3); padding:8px 10px; border-radius:8px; margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
                     <div>
-                        <span style="font-weight:700; color:var(--gold);">👑 ${order.loyaltyName || "Client Club"}</span>
-                        <span style="font-size:0.75rem; color:var(--muted); margin-left:4px;">(${order.loyaltyPhone})</span>
+                        <span style="font-weight:700; color:var(--gold);">👑 ${escapeHtml(order.loyaltyName || "Client Club")}</span>
+                        <span style="font-size:0.75rem; color:var(--muted); margin-left:4px;">(${escapeHtml(order.loyaltyPhone)})</span>
                     </div>
                     <div id="loyaltyPointsBadge_${order.id}">
                         ${order.loyaltyCredited 
@@ -1079,7 +1087,7 @@ function processPreOrdersFeed(orders) {
             </div>
             <div class="order-items-list">
                 ${itemsHtml}
-                ${order.note ? `<div class="order-comments"><strong>Note :</strong> ${order.note}</div>` : ""}
+                ${order.note ? `<div class="order-comments"><strong>Note :</strong> ${escapeHtml(order.note)}</div>` : ""}
                 <div class="order-total-bar">
                     <span>Total</span>
                     <span class="order-total-price">${order.totalPrice} MAD</span>
@@ -1120,8 +1128,14 @@ function processPreOrdersFeed(orders) {
                             if (resObj && resObj.pendingAdminApproval) {
                                 window.showGreyCornerNotice(
                                     "⏳ POINTS EN ATTENTE DE VALIDATION ADMIN",
-                                    `✅ Commande Table ${order.table} terminée (${order.totalPrice} DH) !\n\n⚠️ Montant supérieur à 100 DH :\nLes ${ptsToAdd} points ont été transmis à la direction et seront crédités au client après validation administrateur.`,
+                                    `✅ Commande Table ${order.table} terminée (${order.totalPrice} DH) !\n\n⚠️ Montant supérieur à 100 DH :\nLes ${added} points ont été transmis à la direction et seront crédités au client après validation administrateur.`,
                                     "warning"
+                                );
+                            } else {
+                                window.showGreyCornerNotice(
+                                    "👑 POINTS VALIDÉS",
+                                    `✅ Commande Table ${order.table} terminée !\n\n+${added} points crédités pour ${order.loyaltyPhone}.\nNouveau solde : ${newTotal} / 500 pts`,
+                                    "success"
                                 );
                             }
                         } else {
@@ -1341,7 +1355,7 @@ function renderHistoryFeed() {
             </div>
             <div class="order-items-list">
                 ${itemsHtml}
-                ${order.note ? `<div class="order-comments"><strong>Note :</strong> ${order.note}</div>` : ""}
+                ${order.note ? `<div class="order-comments"><strong>Note :</strong> ${escapeHtml(order.note)}</div>` : ""}
                 <div class="order-total-bar">
                     <span>Total</span>
                     <span class="order-total-price">${order.totalPrice} MAD</span>

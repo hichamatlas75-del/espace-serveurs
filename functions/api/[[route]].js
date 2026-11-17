@@ -36,7 +36,9 @@ function normalizePhone(raw) {
     let clean = String(raw).replace(/[^\d+]/g, "").trim();
     if (clean.startsWith("+2120")) clean = clean.substring(4);
     else if (clean.startsWith("+212")) clean = "0" + clean.substring(4);
+    else if (clean.startsWith("002120")) clean = clean.substring(5);
     else if (clean.startsWith("00212")) clean = "0" + clean.substring(5);
+    else if (clean.startsWith("2120") && clean.length >= 12) clean = clean.substring(3);
     else if (clean.startsWith("212") && clean.length >= 11) clean = "0" + clean.substring(3);
     clean = clean.replace(/\D/g, "");
     if (clean.length === 9 && (clean.startsWith("6") || clean.startsWith("7") || clean.startsWith("5"))) {
@@ -507,7 +509,7 @@ export async function onRequest(context) {
                     const canonicalPhone = member.phone;
                     const recentEarn = await db.prepare(`
                         SELECT * FROM loyalty_transactions
-                        WHERE (phone = ? OR phone LIKE ?) AND type = 'EARN'
+                        WHERE (phone = ? OR phone LIKE ?) AND type = 'EARN' AND validatedBy NOT LIKE '%REJETÉ%'
                         ORDER BY createdAt DESC
                         LIMIT 1
                     `).bind(canonicalPhone, `%${suffix9}`).first();
@@ -546,7 +548,7 @@ export async function onRequest(context) {
                         const canonicalPhone = existing.phone;
                         const recentEarn = await db.prepare(`
                             SELECT * FROM loyalty_transactions
-                            WHERE (phone = ? OR phone LIKE ?) AND type = 'EARN'
+                            WHERE (phone = ? OR phone LIKE ?) AND type = 'EARN' AND validatedBy NOT LIKE '%REJETÉ%'
                             ORDER BY createdAt DESC
                             LIMIT 1
                         `).bind(canonicalPhone, `%${suffix9}`).first();
@@ -610,52 +612,42 @@ export async function onRequest(context) {
                 if (!phone || phone.length < 8) return errorResponse("Numéro de téléphone invalide.");
 
                 const amountDH = parseFloat(body.amountDH || body.amount) || 0;
+                if (amountDH <= 0) return errorResponse("Montant de l'addition invalide (doit être supérieur à 0 DH).");
                 const pointsToAdd = Math.max(1, Math.round(amountDH));
                 const tableNumber = body.tableNumber ? String(body.tableNumber).trim() : "";
                 const orderId = body.orderId || "";
                 const validatedBy = body.validatedBy || "waiter";
                 const now = new Date().toISOString();
 
-                // 🛑 1. RÈGLE ANTIFRAUDE INFRANCHISSABLE : BLOQUER LE MÊME NUMÉRO SI MOINS DE 2 HEURES (< 120 min)
+                // 🛑 1. RÈGLE ANTIFRAUDE INFRANCHISSABLE POUR LES SERVEURS ET CLIENTS (< 2h)
+                // L'ADMINISTRATEUR A LES PLEINS POUVOIRS ET CRÉDITE/DÉDUIT LIBREMENT SANS AUCUNE RESTRICTION
                 const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
-                const lastEarn = await db.prepare(`
-                    SELECT * FROM loyalty_transactions
-                    WHERE (phone = ? OR phone LIKE ?) AND type = 'EARN'
-                    ORDER BY createdAt DESC
-                    LIMIT 1
-                `).bind(phone, `%${suffix9}`).first();
+                const isAdmin = String(validatedBy).toLowerCase().includes("admin");
+                if (!isAdmin) {
+                    const lastEarn = await db.prepare(`
+                        SELECT * FROM loyalty_transactions
+                        WHERE (phone = ? OR phone LIKE ?) AND type = 'EARN' AND validatedBy NOT LIKE '%REJETÉ%'
+                        ORDER BY createdAt DESC
+                        LIMIT 1
+                    `).bind(phone, `%${suffix9}`).first();
 
-                if (lastEarn && lastEarn.createdAt) {
-                    const lastTime = new Date(lastEarn.createdAt).getTime();
-                    const nowMs = Date.now();
-                    const elapsedMs = nowMs - lastTime;
-                    const TWO_HOURS_MS = 2 * 60 * 60 * 1000; // 120 minutes
+                    if (lastEarn && lastEarn.createdAt) {
+                        const lastTime = new Date(lastEarn.createdAt).getTime();
+                        const nowMs = Date.now();
+                        const elapsedMs = nowMs - lastTime;
+                        const TWO_HOURS_MS = 2 * 60 * 60 * 1000; // 120 minutes
 
-                    if (!isNaN(lastTime) && elapsedMs < TWO_HOURS_MS && elapsedMs >= 0) {
-                        const remainingMin = Math.max(1, Math.ceil((TWO_HOURS_MS - elapsedMs) / 60000));
-                        const tableInfo = lastEarn.tableNumber ? ` (Table ${lastEarn.tableNumber})` : "";
-                        const byInfo = lastEarn.validatedBy ? ` par ${lastEarn.validatedBy}` : "";
+                        if (!isNaN(lastTime) && elapsedMs < TWO_HOURS_MS && elapsedMs >= 0) {
+                            const remainingMin = Math.max(1, Math.ceil((TWO_HOURS_MS - elapsedMs) / 60000));
+                            const tableInfo = lastEarn.tableNumber ? ` (Table ${lastEarn.tableNumber})` : "";
+                            const byInfo = lastEarn.validatedBy ? ` par ${lastEarn.validatedBy}` : "";
 
-                        // Serveurs (et QR clients) : BLOCAGE STRICT INFRANCHISSABLE
-                        if (validatedBy !== "admin") {
                             return jsonResponse({
                                 success: false,
                                 blocked2h: true,
                                 remainingMinutes: remainingMin,
                                 error: `⛔ BLOCAGE ANTIFRAUDE (Moins de 2h) :\nCe numéro a déjà été crédité il y a moins de 2 heures${tableInfo}${byInfo}.\nNouveau crédit autorisé dans ${remainingMin} minute(s).`,
                                 message: `⛔ BLOCAGE ANTIFRAUDE (Moins de 2h) :\nCe numéro a déjà été crédité il y a moins de 2 heures${tableInfo}${byInfo}.\nNouveau crédit autorisé dans ${remainingMin} minute(s).`
-                            }, 200);
-                        }
-
-                        // Admin : avertissement bloquant avec possibilité de forcer via forceAdmin: true
-                        if (validatedBy === "admin" && !body.forceAdmin) {
-                            return jsonResponse({
-                                success: false,
-                                blocked2h: true,
-                                requiresAdminForce: true,
-                                remainingMinutes: remainingMin,
-                                error: `⚠️ DÉLAI ANTIFRAUDE (Moins de 2h) :\nCe numéro a déjà reçu des points il y a moins de 2 heures${tableInfo}${byInfo} (${remainingMin} min restantes).`,
-                                message: `⚠️ DÉLAI ANTIFRAUDE (Moins de 2h) :\nCe numéro a déjà reçu des points il y a moins de 2 heures${tableInfo}${byInfo} (${remainingMin} min restantes).\n\nConfirmez pour forcer l'attribution exceptionnelle.`
                             }, 200);
                         }
                     }
@@ -674,7 +666,7 @@ export async function onRequest(context) {
 
                 // 🚨 2. RÈGLE DE SÉCURITÉ DIRECTION : MONTANT > 100 DH (> 100 PTS) PAR UN SERVEUR
                 // LE MONTANT PASSE TOUJOURS (encaissement validé), mais les points sont mis en attente de validation par l'administrateur !
-                const isPendingAdmin = pointsToAdd > 100 && validatedBy !== "admin";
+                const isPendingAdmin = pointsToAdd > 100 && !isAdmin;
 
                 if (isPendingAdmin) {
                     const noteText = `⏳ [EN ATTENTE VALIDATION ADMIN >100 PTS] Encaissement ${amountDH} DH (+${pointsToAdd} pts) — Table ${tableNumber || 'Non renseignée'}`;
@@ -786,7 +778,12 @@ export async function onRequest(context) {
                 const by = body.by || "admin";
                 const now = new Date().toISOString();
 
-                if (member) {
+                if (!member) {
+                    await db.prepare(`
+                        INSERT INTO loyalty_members (phone, firstName, points, totalEarned, rewardsClaimed, source, createdAt, updatedAt)
+                        VALUES (?, 'Client', MAX(0, ?), CASE WHEN ? > 0 THEN ? ELSE 0 END, 0, 'admin_adjust', ?, ?)
+                    `).bind(canonicalPhone, delta, delta, delta, now, now).run();
+                } else {
                     await db.prepare(`
                         UPDATE loyalty_members
                         SET points = MAX(0, points + ?),
@@ -843,11 +840,13 @@ export async function onRequest(context) {
                     const rows = (await db.prepare(`
                         SELECT t.*, m.firstName as memberName
                         FROM loyalty_transactions t
-                        LEFT JOIN loyalty_members m ON t.phone = m.phone
+                        LEFT JOIN loyalty_members m ON (t.phone = m.phone OR m.phone LIKE '%' || SUBSTR(t.phone, -9))
                         WHERE t.pointsDelta > 100 
-                          AND t.validatedBy NOT LIKE '%admin%' 
+                          AND t.validatedBy NOT LIKE '%admin%'
                           AND t.validatedBy NOT LIKE '%VÉRIFIÉ%'
-                          AND t.note NOT LIKE '%[RECTIFIÉ]%'
+                          AND t.validatedBy NOT LIKE '%RECTIFIÉ%'
+                          AND t.validatedBy NOT LIKE '%REJETÉ%'
+                          AND t.type != 'REJECTED'
                         ORDER BY t.createdAt DESC
                         LIMIT 50
                     `).all()).results;
@@ -857,36 +856,81 @@ export async function onRequest(context) {
                     const body = await request.json();
                     const txId = body.txId;
                     const action = body.action || "verify";
-                    if (txId && action === "verify") {
-                        const tx = await db.prepare("SELECT * FROM loyalty_transactions WHERE id = ?").bind(txId).first();
-                        if (tx) {
-                            if (tx.note && tx.note.includes("[EN ATTENTE VALIDATION ADMIN")) {
-                                const suffix9 = tx.phone.length >= 9 ? tx.phone.slice(-9) : tx.phone;
+                    if (!txId) return errorResponse("ID de transaction manquant.");
+
+                    const tx = await db.prepare("SELECT * FROM loyalty_transactions WHERE id = ?").bind(txId).first();
+                    if (!tx) return errorResponse("Transaction introuvable.");
+
+                    if (tx.validatedBy && (tx.validatedBy.includes("VÉRIFIÉ") || tx.validatedBy.includes("RECTIFIÉ") || tx.validatedBy.includes("REJETÉ"))) {
+                        return errorResponse("Cette transaction a déjà été traitée par la direction.");
+                    }
+
+                    const suffix9 = tx.phone.length >= 9 ? tx.phone.slice(-9) : tx.phone;
+                    const now = new Date().toISOString();
+
+                    if (action === "verify") {
+                        const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(tx.phone, `%${suffix9}`).first();
+                        if (!member) {
+                            await db.prepare(`
+                                INSERT INTO loyalty_members (phone, firstName, points, totalEarned, visitsCount, createdAt, updatedAt)
+                                VALUES (?, 'Client', ?, ?, 1, ?, ?)
+                            `).bind(tx.phone, tx.pointsDelta, tx.pointsDelta, now, now).run();
+                        } else {
+                            await db.prepare(`
+                                UPDATE loyalty_members
+                                SET points = points + ?, totalEarned = totalEarned + ?, updatedAt = ?
+                                WHERE phone = ? OR phone LIKE ?
+                            `).bind(tx.pointsDelta, tx.pointsDelta, now, tx.phone, `%${suffix9}`).run();
+                        }
+                        await db.prepare(`
+                            UPDATE loyalty_transactions 
+                            SET validatedBy = validatedBy || ' [VÉRIFIÉ & CRÉDITÉ ADMIN]',
+                                note = REPLACE(COALESCE(note, ''), '[EN ATTENTE VALIDATION ADMIN >100 PTS]', '[VALIDÉ & CRÉDITÉ ADMIN]')
+                            WHERE id = ?
+                        `).bind(txId).run();
+                        return jsonResponse({ success: true, message: `✅ Transaction validée : +${tx.pointsDelta} points crédités au client.` });
+                    }
+
+                    if (action === "rectify") {
+                        const newPoints = Math.max(0, parseInt(body.newPoints, 10) || 0);
+                        if (newPoints > 0) {
+                            const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(tx.phone, `%${suffix9}`).first();
+                            if (!member) {
+                                await db.prepare(`
+                                    INSERT INTO loyalty_members (phone, firstName, points, totalEarned, visitsCount, createdAt, updatedAt)
+                                    VALUES (?, 'Client', ?, ?, 1, ?, ?)
+                                `).bind(tx.phone, newPoints, newPoints, now, now).run();
+                            } else {
                                 await db.prepare(`
                                     UPDATE loyalty_members
                                     SET points = points + ?, totalEarned = totalEarned + ?, updatedAt = ?
                                     WHERE phone = ? OR phone LIKE ?
-                                `).bind(tx.pointsDelta, tx.pointsDelta, new Date().toISOString(), tx.phone, `%${suffix9}`).run();
+                                `).bind(newPoints, newPoints, now, tx.phone, `%${suffix9}`).run();
                             }
-                            await db.prepare(`
-                                UPDATE loyalty_transactions 
-                                SET validatedBy = validatedBy || ' [VÉRIFIÉ & CRÉDITÉ ADMIN]',
-                                    note = REPLACE(note, '[EN ATTENTE VALIDATION ADMIN >100 PTS]', '[VALIDÉ & CRÉDITÉ ADMIN]')
-                                WHERE id = ?
-                            `).bind(txId).run();
-                            return jsonResponse({ success: true, message: "Transaction validée et points crédités au client." });
                         }
-                    }
-                    if (txId && action === "reject") {
                         await db.prepare(`
                             UPDATE loyalty_transactions 
-                            SET validatedBy = validatedBy || ' [REJETÉ ADMIN]',
-                                note = REPLACE(note, '[EN ATTENTE VALIDATION ADMIN >100 PTS]', '[REJETÉ ADMIN]')
+                            SET pointsDelta = ?,
+                                amountDH = ?,
+                                validatedBy = validatedBy || ' [RECTIFIÉ & CRÉDITÉ ADMIN]',
+                                note = '[RECTIFIÉ & CRÉDITÉ ADMIN +' || ? || ' PTS] (Initialement demandé: ' || ? || ' pts) — ' || COALESCE(note, '')
+                            WHERE id = ?
+                        `).bind(newPoints, newPoints, newPoints, tx.pointsDelta, txId).run();
+                        return jsonResponse({ success: true, message: `✅ Transaction rectifiée : +${newPoints} points crédités au client.` });
+                    }
+
+                    if (action === "reject") {
+                        await db.prepare(`
+                            UPDATE loyalty_transactions 
+                            SET type = 'REJECTED',
+                                validatedBy = validatedBy || ' [REJETÉ ADMIN]',
+                                note = REPLACE(COALESCE(note, ''), '[EN ATTENTE VALIDATION ADMIN >100 PTS]', '[REJETÉ ADMIN]')
                             WHERE id = ?
                         `).bind(txId).run();
                         return jsonResponse({ success: true, message: "Transaction rejetée sans attribution de points." });
                     }
-                    return errorResponse("Action ou ID de transaction manquant.");
+
+                    return errorResponse("Action inconnue.");
                 }
             }
         }
