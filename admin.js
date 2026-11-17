@@ -1134,10 +1134,10 @@ function initAdminLoyaltyDashboard() {
             totalPts += (m.points || 0);
             totalRewards += (m.rewardsClaimed || 0);
 
-            const earned = Math.max(0, parseInt(m.totalEarned, 10) || (m.points || 0));
-            if (earned >= 1000) platineCount++;
-            else if (earned >= 500) goldCount++;
-            else if (earned >= 200) silverCount++;
+            const pts = m.points || 0;
+            if (pts >= 1000) platineCount++;
+            else if (pts >= 500) goldCount++;
+            else if (pts >= 200) silverCount++;
             else bronzeCount++;
         });
 
@@ -1201,7 +1201,7 @@ function initAdminLoyaltyDashboard() {
             const waLink = `https://wa.me/${waPhone}?text=${waDefaultMsg}`;
 
             const earned = Math.max(0, parseInt(m.totalEarned, 10) || pts);
-            const tier = (window.getVipTier ? window.getVipTier(earned) : null) || {
+            const tier = (window.getVipTier ? window.getVipTier(pts) : null) || {
                 id: "bronze", name: "Bronze", icon: "🥉", ratio: 1.0, bonusLabel: "+0%", badgeClass: "bronze"
             };
 
@@ -1400,8 +1400,7 @@ function initAdminLoyaltyDashboard() {
         const mode = waTargetSelect ? waTargetSelect.value : "all";
         return (cachedAdminLoyaltyMembers || []).filter(m => {
             const pts = m.points || 0;
-            const lifetime = Math.max(0, parseInt(m.totalEarned, 10) || parseInt(m.lifetimePoints, 10) || pts);
-            const tier = typeof window.getVipTier === "function" ? window.getVipTier(lifetime) : { id: 'bronze' };
+            const tier = typeof window.getVipTier === "function" ? window.getVipTier(pts) : { id: 'bronze' };
             if (mode === "vip_platine") return tier.id === "platine";
             if (mode === "vip_gold") return tier.id === "gold";
             if (mode === "vip_silver") return tier.id === "silver";

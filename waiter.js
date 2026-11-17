@@ -1582,8 +1582,8 @@ function initDirectLoyaltyModule() {
     function renderMember(member, contentArea, suffix, lockInfo) {
         const pts = member.points || 0;
         const totalEarned = member.totalEarned || pts;
-        const tier = (window.getVipTier ? window.getVipTier(totalEarned) : null) || {
-            id: "bronze", name: "Bronze", icon: "🥉", ratio: 1.0, bonusLabel: "Standard (x1.0)", badgeClass: "vip-bronze", nextTier: "Silver VIP", ptsToNext: 200 - totalEarned
+        const tier = (window.getVipTier ? window.getVipTier(pts) : null) || {
+            id: "bronze", name: "Bronze", icon: "🥉", ratio: 1.0, bonusLabel: "Standard (x1.0)", badgeClass: "vip-bronze", nextTier: "Silver VIP", ptsToNext: 200 - pts
         };
 
         const canRedeemDrink = pts >= 500;

@@ -148,11 +148,12 @@
     }
 
     
-// Calcul des Paliers VIP Grey Corner basés sur le cumul à vie (totalEarned)
-// Règle d'or : Les paliers dépendent UNIQUEMENT de totalEarned, donc dépenser des points ne rétrograde JAMAIS le client !
-function getVipTier(totalEarned) {
-    const earned = Math.max(0, parseInt(totalEarned, 10) || 0);
-    if (earned >= 1000) {
+// Calcul des Paliers VIP Grey Corner basés sur le solde de points actuel (points)
+// Règle : Si le client consomme sa récompense et que ses points redescendent (< 200 pts),
+// le multiplicateur se réinitialise immédiatement à x1.0 (Bronze) !
+function getVipTier(points) {
+    const pts = Math.max(0, parseInt(points, 10) || 0);
+    if (pts >= 1000) {
         return {
             id: "platine",
             name: "Platine VIP",
@@ -165,7 +166,7 @@ function getVipTier(totalEarned) {
             ptsToNext: 0
         };
     }
-    if (earned >= 500) {
+    if (pts >= 500) {
         return {
             id: "gold",
             name: "Gold VIP",
@@ -175,10 +176,10 @@ function getVipTier(totalEarned) {
             badgeClass: "vip-gold",
             threshold: 500,
             nextTier: "Platine VIP",
-            ptsToNext: 1000 - earned
+            ptsToNext: 1000 - pts
         };
     }
-    if (earned >= 200) {
+    if (pts >= 200) {
         return {
             id: "silver",
             name: "Silver VIP",
@@ -188,7 +189,7 @@ function getVipTier(totalEarned) {
             badgeClass: "vip-silver",
             threshold: 200,
             nextTier: "Gold VIP",
-            ptsToNext: 500 - earned
+            ptsToNext: 500 - pts
         };
     }
     return {
@@ -200,7 +201,7 @@ function getVipTier(totalEarned) {
         badgeClass: "vip-bronze",
         threshold: 0,
         nextTier: "Silver VIP",
-        ptsToNext: 200 - earned
+        ptsToNext: 200 - pts
     };
 }
 

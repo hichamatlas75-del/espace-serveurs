@@ -47,11 +47,12 @@ function normalizePhone(raw) {
     return clean;
 }
 
-// Calcul des Paliers VIP Grey Corner basés sur le cumul à vie (totalEarned)
-// Règle d'or : Les paliers dépendent UNIQUEMENT de totalEarned, donc dépenser des points ne rétrograde JAMAIS le client !
-function getVipTier(totalEarned) {
-    const earned = Math.max(0, parseInt(totalEarned, 10) || 0);
-    if (earned >= 1000) {
+// Calcul des Paliers VIP Grey Corner basés sur le solde de points actuel (points)
+// Règle : Si le client consomme sa récompense et que ses points redescendent (< 200 pts),
+// le multiplicateur se réinitialise immédiatement à x1.0 (Bronze) !
+function getVipTier(points) {
+    const pts = Math.max(0, parseInt(points, 10) || 0);
+    if (pts >= 1000) {
         return {
             id: "platine",
             name: "Platine VIP",
@@ -64,7 +65,7 @@ function getVipTier(totalEarned) {
             ptsToNext: 0
         };
     }
-    if (earned >= 500) {
+    if (pts >= 500) {
         return {
             id: "gold",
             name: "Gold VIP",
@@ -74,10 +75,10 @@ function getVipTier(totalEarned) {
             badgeClass: "vip-gold",
             threshold: 500,
             nextTier: "Platine VIP",
-            ptsToNext: 1000 - earned
+            ptsToNext: 1000 - pts
         };
     }
-    if (earned >= 200) {
+    if (pts >= 200) {
         return {
             id: "silver",
             name: "Silver VIP",
@@ -87,7 +88,7 @@ function getVipTier(totalEarned) {
             badgeClass: "vip-silver",
             threshold: 200,
             nextTier: "Gold VIP",
-            ptsToNext: 500 - earned
+            ptsToNext: 500 - pts
         };
     }
     return {
@@ -99,7 +100,7 @@ function getVipTier(totalEarned) {
         badgeClass: "vip-bronze",
         threshold: 0,
         nextTier: "Silver VIP",
-        ptsToNext: 200 - earned
+        ptsToNext: 200 - pts
     };
 }
 
@@ -554,11 +555,11 @@ export async function onRequest(context) {
                     if (qPhone) {
                         const suffix9 = qPhone.length >= 9 ? qPhone.slice(-9) : qPhone;
                         const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(qPhone, `%${suffix9}`).first();
-                        if (member) member.vipTier = getVipTier(member.totalEarned);
+                        if (member) member.vipTier = getVipTier(member.points);
                         return jsonResponse({ success: true, member: member || null });
                     }
                     const { results } = await db.prepare("SELECT * FROM loyalty_members ORDER BY points DESC").all();
-                    const enriched = (results || []).map(m => ({ ...m, vipTier: getVipTier(m.totalEarned) }));
+                    const enriched = (results || []).map(m => ({ ...m, vipTier: getVipTier(m.points) }));
                     return jsonResponse({ success: true, members: enriched });
                 }
 
@@ -569,7 +570,7 @@ export async function onRequest(context) {
                     const member = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(phone, `%${suffix9}`).first();
                     if (!member) return jsonResponse({ success: true, member: null });
 
-                    member.vipTier = getVipTier(member.totalEarned);
+                    member.vipTier = getVipTier(member.points);
 
                     // Vérifier si le numéro a été crédité il y a moins de 2h
                     const canonicalPhone = member.phone;
@@ -611,7 +612,7 @@ export async function onRequest(context) {
                     const suffix9 = phone.length >= 9 ? phone.slice(-9) : phone;
                     const existing = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ? OR phone LIKE ? LIMIT 1").bind(phone, `%${suffix9}`).first();
                     if (existing) {
-                        existing.vipTier = getVipTier(existing.totalEarned);
+                        existing.vipTier = getVipTier(existing.points);
                         const canonicalPhone = existing.phone;
                         const recentEarn = await db.prepare(`
                             SELECT * FROM loyalty_transactions
@@ -731,8 +732,8 @@ export async function onRequest(context) {
                 }
                 const canonicalPhone = member.phone;
 
-                // 👑 PALIERS VIP : Déterminer le palier et appliquer le multiplicateur de points
-                const vipTier = getVipTier(member.totalEarned);
+                // 👑 PALIERS VIP : Déterminer le palier et appliquer le multiplicateur de points selon le solde de points actuel
+                const vipTier = getVipTier(member.points);
                 const pointsToAdd = Math.max(1, Math.round(amountDH * (vipTier.ratio || 1.0)));
 
                 // 🚨 2. RÈGLE DE SÉCURITÉ DIRECTION : MONTANT > 100 DH OU POINTS > 100 PTS PAR UN SERVEUR
@@ -802,7 +803,7 @@ export async function onRequest(context) {
                     `).bind(canonicalPhone, member.firstName || 'Client', orderId).run();
                 }
 
-                const updatedVipTier = getVipTier(member.totalEarned);
+                const updatedVipTier = getVipTier(member.points);
 
                 return jsonResponse({
                     success: true,
@@ -838,8 +839,8 @@ export async function onRequest(context) {
                 const validatedBy = body.validatedBy || "waiter";
                 const now = new Date().toISOString();
 
-                // ATTENTION : On déduit UNIQUEMENT des points disponibles (member.points),
-                // totalEarned n'est PAS modifié afin de conserver à vie le palier VIP du client !
+                // Le palier VIP et le multiplicateur se recalculent immédiatement sur le nouveau solde de points (newTotal).
+                // Si le solde redescend (< 200 pts), le statut repasse en Bronze et le multiplicateur est réinitialisé à x1.0 !
                 await db.prepare(`
                     UPDATE loyalty_members
                     SET points = points - ?, rewardsClaimed = rewardsClaimed + 1, updatedAt = ?
@@ -852,17 +853,18 @@ export async function onRequest(context) {
                     VALUES (?, ?, 'REDEEM', ?, 0, '', '', ?, ?, ?)
                 `).bind(txId, canonicalPhone, -cost, validatedBy, rewardNote, now).run();
 
-                const vipTier = getVipTier(member.totalEarned);
+                const newTotal = member.points - cost;
+                const vipTier = getVipTier(newTotal);
 
                 return jsonResponse({
                     success: true,
                     cost,
                     rewardType: isJuice ? "juice" : "hot_drink",
                     rewardTitle,
-                    newTotal: member.points - cost,
+                    newTotal,
                     member: {
                         ...member,
-                        points: member.points - cost,
+                        points: newTotal,
                         rewardsClaimed: (member.rewardsClaimed || 0) + 1,
                         vipTier
                     }

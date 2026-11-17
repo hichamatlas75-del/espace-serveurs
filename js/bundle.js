@@ -124,9 +124,9 @@
     }
     return clean;
   }
-  function getVipTier(totalEarned) {
-    const earned = Math.max(0, parseInt(totalEarned, 10) || 0);
-    if (earned >= 1e3) {
+  function getVipTier(points) {
+    const pts = Math.max(0, parseInt(points, 10) || 0);
+    if (pts >= 1e3) {
       return {
         id: "platine",
         name: "Platine VIP",
@@ -139,7 +139,7 @@
         ptsToNext: 0
       };
     }
-    if (earned >= 500) {
+    if (pts >= 500) {
       return {
         id: "gold",
         name: "Gold VIP",
@@ -149,10 +149,10 @@
         badgeClass: "vip-gold",
         threshold: 500,
         nextTier: "Platine VIP",
-        ptsToNext: 1e3 - earned
+        ptsToNext: 1e3 - pts
       };
     }
-    if (earned >= 200) {
+    if (pts >= 200) {
       return {
         id: "silver",
         name: "Silver VIP",
@@ -162,7 +162,7 @@
         badgeClass: "vip-silver",
         threshold: 200,
         nextTier: "Gold VIP",
-        ptsToNext: 500 - earned
+        ptsToNext: 500 - pts
       };
     }
     return {
@@ -174,7 +174,7 @@
       badgeClass: "vip-bronze",
       threshold: 0,
       nextTier: "Silver VIP",
-      ptsToNext: 200 - earned
+      ptsToNext: 200 - pts
     };
   }
   function isSamePhone(p1, p2) {
@@ -8122,7 +8122,7 @@ ${lines}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     if (loggedInWrap) loggedInWrap.style.display = "block";
     const pts = member.points || 0;
     const totalEarned = member.totalEarned || pts;
-    const tier = (getVipTier ? getVipTier(totalEarned) : null) || {
+    const tier = (getVipTier ? getVipTier(pts) : null) || {
       id: "bronze",
       name: "Bronze",
       icon: "\u{1F949}",
@@ -8130,7 +8130,7 @@ ${lines}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
       bonusLabel: "+0%",
       badgeClass: "vip-bronze",
       nextTier: "Silver VIP",
-      ptsToNext: 200 - totalEarned
+      ptsToNext: 200 - pts
     };
     const nameEl = document.getElementById("loyaltyMemberName");
     if (nameEl) nameEl.textContent = `${t2.hello} ${member.firstName || "Client"}`;

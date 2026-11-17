@@ -184,8 +184,8 @@ export function renderLoggedInUI(member) {
 
   const pts = member.points || 0;
   const totalEarned = member.totalEarned || pts;
-  const tier = (getVipTier ? getVipTier(totalEarned) : null) || {
-    id: "bronze", name: "Bronze", icon: "🥉", ratio: 1.0, bonusLabel: "+0%", badgeClass: "vip-bronze", nextTier: "Silver VIP", ptsToNext: 200 - totalEarned
+  const tier = (getVipTier ? getVipTier(pts) : null) || {
+    id: "bronze", name: "Bronze", icon: "🥉", ratio: 1.0, bonusLabel: "+0%", badgeClass: "vip-bronze", nextTier: "Silver VIP", ptsToNext: 200 - pts
   };
 
   const nameEl = document.getElementById("loyaltyMemberName");

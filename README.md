@@ -77,26 +77,26 @@ Grey Corner dispose d'un écosystème web connecté en temps réel via Cloudflar
 ### 🎁 Règle 2 : Cadeau de Bienvenue
 - Dès l'inscription ou la première commande enregistrée sur un numéro, **+20 points de bienvenue** sont offerts automatiquement sur le compte.
 
-### 👑 Règle 3 : Les 4 Paliers VIP & Multiplicateurs de Points
-Pour valoriser la fidélité dans la durée et créer une dynamique d'émulation, les points sont attribués selon le **Rang VIP** du client.
+### 👑 Règle 3 : Les 4 Paliers VIP & Multiplicateurs de Points (Calcul Dynamique)
+Pour valoriser la fidélité et inciter à la consommation, les points sont attribués selon le **Rang VIP** actif du client.
 > [!IMPORTANT]
-> **RÈGLE DU STATUT ACQUIS À VIE :**  
-> Les paliers VIP sont calculés sur le **cumul total à vie des points gagnés (`totalEarned`)**.  
-> Par conséquent, **dépenser ses points pour s'offrir une boisson ne fait JAMAIS régresser le client dans son rang VIP** !
+> **RÈGLE DU STATUT DYNAMIQUE LIÉ AU SOLDE DE POINTS :**  
+> Les paliers VIP et le multiplicateur de points sont calculés sur le **solde de points actif et disponible (`points`)**.  
+> Par conséquent :
+> - **Si le client consomme sa récompense (-500 pts ou -1 000 pts)** et que ses points redescendent sous le seuil d'un palier, son statut et son multiplicateur s'ajustent immédiatement.
+> - **Si son solde redescend en dessous de 200 points, le multiplicateur se réinitialise à x1.0 (Rang Bronze)** jusqu'à ce qu'il cumule à nouveau des points !
 
-| Rang VIP | Points Cumulés à Vie (`totalEarned`) | Multiplicateur | Règle d'Attribution & Bonus |
+| Rang VIP | Solde de Points Actuel (`points`) | Multiplicateur | Règle d'Attribution & Bonus |
 | :---: | :---: | :---: | :--- |
-| 🥉 **Bronze** | 0 à 199 pts | **x1.0** | **1 DH = 1.0 pt** (Ratio standard) |
+| 🥉 **Bronze** | 0 à 199 pts | **x1.0** | **1 DH = 1.0 pt** (Ratio standard / réinitialisation après cadeau) |
 | 🥈 **Silver VIP** | 200 à 499 pts | **x1.1** | **1 DH = 1.1 pt** (+10% de points bonus) |
 | 🥇 **Gold VIP** | 500 à 999 pts | **x1.25** | **1 DH = 1.25 pt** (+25% de points bonus) |
 | 💎 **Platine VIP** | 1 000+ pts | **x1.5** | **1 DH = 1.5 pt** (+50% de points bonus) |
 
 *Exemple pratique :*  
-Pour une addition de 100 DH :
-- Un client **Bronze** reçoit **100 pts**
-- Un client **Silver** reçoit **110 pts**
-- Un client **Gold** reçoit **125 pts**
-- Un client **Platine** reçoit **150 pts**
+- Un client accumule 1 000 points ➔ Il est **Platine VIP (x1.5)**.
+- Il débloque 1 Jus au choix (-1 000 pts) ➔ Son solde devient 0 pt. Son rang repasse en **Bronze** et son multiplicateur est **réinitialisé à x1.0**.
+- À sa prochaine addition de 50 DH, il reçoit 50 points (x1.0). Dès qu'il franchira 200 pts, il repassera en Silver (x1.1), et ainsi de suite.
 
 ### ☕🍹 Règle 4 : Double Système de Récompenses (Paliers 500 & 1 000 pts)
 Deux niveaux de déblocage de récompenses sont accessibles selon le solde de points disponibles (`points`) :
