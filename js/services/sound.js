@@ -182,6 +182,19 @@ export function playOrderSuccessSound() {
 /**
  * Basculer l'état muet / sonore
  */
+
+/**
+ * 6. GAIN DE POINTS FIDÉLITÉ (Sparkling Golden Arpeggio)
+ * Arpège brillant et raffiné : Ré5 -> Fa#5 -> La5 -> Ré6
+ */
+export function playPointsGainedSound() {
+  playTone({ freq: 587.33, duration: 0.22, gain: 0.20, delay: 0.00 }); // Re5
+  playTone({ freq: 739.99, duration: 0.25, gain: 0.22, delay: 0.08 }); // Fa#5
+  playTone({ freq: 880.00, duration: 0.28, gain: 0.24, delay: 0.16 }); // La5
+  playTone({ freq: 1174.66, duration: 0.45, gain: 0.28, delay: 0.24 }); // Re6
+  triggerHaptic([20, 40, 20]);
+}
+
 export function toggleSoundMute() {
   isMuted = !isMuted;
 
@@ -238,6 +251,7 @@ if (typeof window !== "undefined") {
     playTableSelect: playTableSelectSound,
     playServiceCall: playServiceCallSound,
     playOrderSuccess: playOrderSuccessSound,
+    playPointsGained: playPointsGainedSound,
     toggleMute: toggleSoundMute,
     isMuted: isSoundMuted,
     updateUI: updateSoundUI

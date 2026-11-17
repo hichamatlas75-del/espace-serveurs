@@ -9,6 +9,7 @@
 import { currentLang } from './i18n.js';
 import { dbService, normalizePhone, getVipTier } from '../config/firebase.js';
 import { showToast } from './cart.js';
+import { playPointsGainedSound } from './sound.js';
 import { clientTable, showTableSelectorModal, setPendingActionAfterTableSelect } from '../ui/modals.js';
 
 let loyaltyListenerUnsub = null;
@@ -174,6 +175,77 @@ export function renderLoggedOutUI() {
   if (badgeEl) badgeEl.textContent = t.badge;
 }
 
+
+let lastRenderedPoints = null;
+let lastRenderedPhone = null;
+
+function animatePointsCounter(el, startVal, endVal, duration = 1200) {
+  if (!el) return;
+  const startTime = performance.now();
+  const range = endVal - startVal;
+  function step(now) {
+    const progress = Math.min((now - startTime) / duration, 1);
+    const easeOut = 1 - Math.pow(1 - progress, 3);
+    const current = Math.round(startVal + range * easeOut);
+    el.textContent = current;
+    if (progress < 1) {
+      requestAnimationFrame(step);
+    } else {
+      el.textContent = endVal;
+    }
+  }
+  requestAnimationFrame(step);
+}
+
+function triggerPointsAnimation(delta, currentPoints) {
+  const badgeWrap = document.querySelector(".loyalty-score-badge");
+  const bannerWrap = document.getElementById("loyaltyCardBanner");
+
+  if (badgeWrap) {
+    // 1. Badge flottant de delta (+XX pts / -XX pts)
+    const floatEl = document.createElement("div");
+    floatEl.className = `loyalty-points-floating-delta ${delta > 0 ? "gain" : "deduct"}`;
+    floatEl.textContent = delta > 0 ? `+${delta} pts ✨` : `${delta} pts`;
+    badgeWrap.appendChild(floatEl);
+    setTimeout(() => { floatEl.remove(); }, 1700);
+
+    // 2. Pulse d'aura dorée sur le score
+    badgeWrap.classList.remove("pts-updated");
+    void badgeWrap.offsetWidth;
+    badgeWrap.classList.add("pts-updated");
+    setTimeout(() => { badgeWrap.classList.remove("pts-updated"); }, 1300);
+
+    // 3. Gerbe de particules étoiles scintillantes (lors d'un gain)
+    if (delta > 0) {
+      const sparkleIcons = ["✨", "⭐", "🌟", "💛", "✨", "✦"];
+      const angles = [0, 45, 90, 135, 180, 225, 270, 315];
+      for (let i = 0; i < 6; i++) {
+        const p = document.createElement("span");
+        p.className = "loyalty-sparkle-particle";
+        p.textContent = sparkleIcons[i % sparkleIcons.length];
+        const rad = (angles[i] * Math.PI) / 180;
+        const dist = 28 + Math.random() * 22;
+        const dx = `${Math.cos(rad) * dist}px`;
+        const dy = `${Math.sin(rad) * dist - 12}px`;
+        p.style.setProperty("--dx", dx);
+        p.style.setProperty("--dy", dy);
+        p.style.right = "8px";
+        p.style.top = "-4px";
+        badgeWrap.appendChild(p);
+        setTimeout(() => { p.remove(); }, 1300);
+      }
+    }
+  }
+
+  // 4. Balayage scintillant sur toute la carte fidélité
+  if (bannerWrap && delta > 0) {
+    bannerWrap.classList.remove("pts-celebrate");
+    void bannerWrap.offsetWidth;
+    bannerWrap.classList.add("pts-celebrate");
+    setTimeout(() => { bannerWrap.classList.remove("pts-celebrate"); }, 1400);
+  }
+}
+
 export function renderLoggedInUI(member) {
   const t = getT();
   const loggedOutWrap = document.getElementById("loyaltyLoggedOutView");
@@ -198,7 +270,34 @@ export function renderLoggedInUI(member) {
   }
 
   const ptsEl = document.getElementById("loyaltyPointsVal");
-  if (ptsEl) ptsEl.textContent = pts;
+  const phone = member.phone;
+
+  // Détection mise à jour des points et déclenchement de l'animation
+  if (lastRenderedPhone === phone && lastRenderedPoints !== null && pts !== lastRenderedPoints) {
+    const delta = pts - lastRenderedPoints;
+    const oldVal = lastRenderedPoints;
+
+    triggerPointsAnimation(delta, pts);
+
+    if (delta > 0) {
+      try { playPointsGainedSound(); } catch (e) {}
+      const toastMsgs = {
+        fr: `🎉 +${delta} points crédités ! Nouveau solde : ${pts} pts`,
+        en: `🎉 +${delta} points credited! New balance: ${pts} pts`,
+        de: `🎉 +${delta} Punkte gutgeschrieben! Neuer Stand: ${pts} Pkt`,
+        es: `🎉 ¡+${delta} puntos acreditados! Nuevo saldo: ${pts} pts`,
+        ar: `🎉 تم إضافة +${delta} نقطة ! رصيدكم الجديد: ${pts} نقطة`
+      };
+      showToast(toastMsgs[currentLang] || toastMsgs.fr);
+    }
+
+    animatePointsCounter(ptsEl, oldVal, pts, 1200);
+  } else {
+    if (ptsEl) ptsEl.textContent = pts;
+  }
+
+  lastRenderedPoints = pts;
+  lastRenderedPhone = phone;
 
   const multEl = document.getElementById("loyaltyVipMultiplierText");
   if (multEl) {

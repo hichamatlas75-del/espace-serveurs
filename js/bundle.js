@@ -5045,6 +5045,13 @@
     playTone({ freq: 1046.5, duration: 0.6, gain: 0.26, delay: 0.27 });
     triggerHaptic([25, 35, 25]);
   }
+  function playPointsGainedSound() {
+    playTone({ freq: 587.33, duration: 0.22, gain: 0.2, delay: 0 });
+    playTone({ freq: 739.99, duration: 0.25, gain: 0.22, delay: 0.08 });
+    playTone({ freq: 880, duration: 0.28, gain: 0.24, delay: 0.16 });
+    playTone({ freq: 1174.66, duration: 0.45, gain: 0.28, delay: 0.24 });
+    triggerHaptic([20, 40, 20]);
+  }
   function toggleSoundMute() {
     isMuted = !isMuted;
     try {
@@ -5087,6 +5094,7 @@
       playTableSelect: playTableSelectSound,
       playServiceCall: playServiceCallSound,
       playOrderSuccess: playOrderSuccessSound,
+      playPointsGained: playPointsGainedSound,
       toggleMute: toggleSoundMute,
       isMuted: isSoundMuted,
       updateUI: updateSoundUI
@@ -8141,6 +8149,73 @@ ${lines}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     const badgeEl = document.getElementById("loyaltyBadgeText");
     if (badgeEl) badgeEl.textContent = t2.badge;
   }
+  var lastRenderedPoints = null;
+  var lastRenderedPhone = null;
+  function animatePointsCounter(el, startVal, endVal, duration = 1200) {
+    if (!el) return;
+    const startTime = performance.now();
+    const range = endVal - startVal;
+    function step(now) {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round(startVal + range * easeOut);
+      el.textContent = current;
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      } else {
+        el.textContent = endVal;
+      }
+    }
+    requestAnimationFrame(step);
+  }
+  function triggerPointsAnimation(delta, currentPoints) {
+    const badgeWrap = document.querySelector(".loyalty-score-badge");
+    const bannerWrap = document.getElementById("loyaltyCardBanner");
+    if (badgeWrap) {
+      const floatEl = document.createElement("div");
+      floatEl.className = `loyalty-points-floating-delta ${delta > 0 ? "gain" : "deduct"}`;
+      floatEl.textContent = delta > 0 ? `+${delta} pts \u2728` : `${delta} pts`;
+      badgeWrap.appendChild(floatEl);
+      setTimeout(() => {
+        floatEl.remove();
+      }, 1700);
+      badgeWrap.classList.remove("pts-updated");
+      void badgeWrap.offsetWidth;
+      badgeWrap.classList.add("pts-updated");
+      setTimeout(() => {
+        badgeWrap.classList.remove("pts-updated");
+      }, 1300);
+      if (delta > 0) {
+        const sparkleIcons = ["\u2728", "\u2B50", "\u{1F31F}", "\u{1F49B}", "\u2728", "\u2726"];
+        const angles = [0, 45, 90, 135, 180, 225, 270, 315];
+        for (let i = 0; i < 6; i++) {
+          const p = document.createElement("span");
+          p.className = "loyalty-sparkle-particle";
+          p.textContent = sparkleIcons[i % sparkleIcons.length];
+          const rad = angles[i] * Math.PI / 180;
+          const dist = 28 + Math.random() * 22;
+          const dx = `${Math.cos(rad) * dist}px`;
+          const dy = `${Math.sin(rad) * dist - 12}px`;
+          p.style.setProperty("--dx", dx);
+          p.style.setProperty("--dy", dy);
+          p.style.right = "8px";
+          p.style.top = "-4px";
+          badgeWrap.appendChild(p);
+          setTimeout(() => {
+            p.remove();
+          }, 1300);
+        }
+      }
+    }
+    if (bannerWrap && delta > 0) {
+      bannerWrap.classList.remove("pts-celebrate");
+      void bannerWrap.offsetWidth;
+      bannerWrap.classList.add("pts-celebrate");
+      setTimeout(() => {
+        bannerWrap.classList.remove("pts-celebrate");
+      }, 1400);
+    }
+  }
   function renderLoggedInUI(member) {
     const t2 = getT();
     const loggedOutWrap = document.getElementById("loyaltyLoggedOutView");
@@ -8167,7 +8242,31 @@ ${lines}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
       vipBadgeEl.textContent = `${tier.icon} ${tier.name}`;
     }
     const ptsEl = document.getElementById("loyaltyPointsVal");
-    if (ptsEl) ptsEl.textContent = pts;
+    const phone = member.phone;
+    if (lastRenderedPhone === phone && lastRenderedPoints !== null && pts !== lastRenderedPoints) {
+      const delta = pts - lastRenderedPoints;
+      const oldVal = lastRenderedPoints;
+      triggerPointsAnimation(delta, pts);
+      if (delta > 0) {
+        try {
+          playPointsGainedSound();
+        } catch (e) {
+        }
+        const toastMsgs = {
+          fr: `\u{1F389} +${delta} points cr\xE9dit\xE9s ! Nouveau solde : ${pts} pts`,
+          en: `\u{1F389} +${delta} points credited! New balance: ${pts} pts`,
+          de: `\u{1F389} +${delta} Punkte gutgeschrieben! Neuer Stand: ${pts} Pkt`,
+          es: `\u{1F389} \xA1+${delta} puntos acreditados! Nuevo saldo: ${pts} pts`,
+          ar: `\u{1F389} \u062A\u0645 \u0625\u0636\u0627\u0641\u0629 +${delta} \u0646\u0642\u0637\u0629 ! \u0631\u0635\u064A\u062F\u0643\u0645 \u0627\u0644\u062C\u062F\u064A\u062F: ${pts} \u0646\u0642\u0637\u0629`
+        };
+        showToast(toastMsgs[currentLang] || toastMsgs.fr);
+      }
+      animatePointsCounter(ptsEl, oldVal, pts, 1200);
+    } else {
+      if (ptsEl) ptsEl.textContent = pts;
+    }
+    lastRenderedPoints = pts;
+    lastRenderedPhone = phone;
     const multEl = document.getElementById("loyaltyVipMultiplierText");
     if (multEl) {
       multEl.textContent = t2.multiplierLabel.replace("{mult}", `x${tier.ratio}`).replace("{tier}", tier.bonusLabel);
