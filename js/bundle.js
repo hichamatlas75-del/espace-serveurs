@@ -25,6 +25,31 @@
   }
   var API_BASE = resolveApiBase();
   var FALLBACK_API_BASE = "https://espace-serveurs-hub.pages.dev/api";
+  var pendingRequestIds = /* @__PURE__ */ new Map();
+  function getClientRequestId(prefix, payload) {
+    const signature = `${prefix}:${JSON.stringify(payload)}`;
+    let id = pendingRequestIds.get(signature);
+    if (!id) {
+      const randomId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+      id = `${prefix}_${randomId}`;
+      pendingRequestIds.set(signature, id);
+      while (pendingRequestIds.size > 50) pendingRequestIds.delete(pendingRequestIds.keys().next().value);
+    }
+    return { id, signature };
+  }
+  function clearClientRequestId(signature) {
+    pendingRequestIds.delete(signature);
+  }
+  function reportApiStatus(available) {
+    if (typeof window === "undefined") return;
+    const previous = window.GC_API_STATUS || {};
+    const status = {
+      state: available ? "online" : "offline",
+      lastSuccessAt: available ? (/* @__PURE__ */ new Date()).toISOString() : previous.lastSuccessAt || null
+    };
+    window.GC_API_STATUS = status;
+    window.dispatchEvent(new CustomEvent("gc:api-status", { detail: status }));
+  }
   async function apiFetch(endpoint, method = "GET", body = null) {
     const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
     let primaryUrl = `${API_BASE}${cleanEndpoint}`;
@@ -46,25 +71,34 @@
     }
     try {
       const res = await fetch(primaryUrl, options);
-      if (res.ok) {
+      if (res.ok || res.status >= 400 && res.status < 500) {
+        reportApiStatus(true);
         return await res.json();
       }
       if (API_BASE !== FALLBACK_API_BASE) {
         const fallbackUrl = `${FALLBACK_API_BASE}${cleanEndpoint}`;
         const resFallback = await fetch(fallbackUrl, options);
-        if (resFallback.ok) return await resFallback.json();
+        if (resFallback.ok || resFallback.status >= 400 && resFallback.status < 500) {
+          reportApiStatus(true);
+          return await resFallback.json();
+        }
       }
+      reportApiStatus(false);
       return await res.json().catch(() => null);
     } catch (err) {
       if (API_BASE !== FALLBACK_API_BASE) {
         try {
           const fallbackUrl = `${FALLBACK_API_BASE}${cleanEndpoint}`;
           const resFallback = await fetch(fallbackUrl, options);
-          if (resFallback.ok) return await resFallback.json();
+          if (resFallback.ok || resFallback.status >= 400 && resFallback.status < 500) {
+            reportApiStatus(true);
+            return await resFallback.json();
+          }
         } catch (err2) {
           console.warn(`\u26A0\uFE0F Cloudflare D1 API [${cleanEndpoint}] fallback error:`, err2.message || err2);
         }
       }
+      reportApiStatus(false);
       console.warn(`\u26A0\uFE0F Cloudflare D1 API [${cleanEndpoint}] error:`, err.message || err);
       return null;
     }
@@ -440,11 +474,14 @@
         type: type || "waiter",
         ...extraData || {}
       };
+      const requestKey = getClientRequestId("call", payload);
+      payload.id = requestKey.id;
       apiFetch("/calls", "POST", payload).then((res) => {
         if (!res || res.success !== true || !res.id) {
           if (callback) callback(false, null, res && (res.error || res.message));
           return;
         }
+        clearClientRequestId(requestKey.signature);
         const callId = res.id;
         syncNow();
         if (callback) callback(true, callId);
@@ -517,11 +554,14 @@
         loyaltyName: loyaltyInfo && loyaltyInfo.name ? loyaltyInfo.name : "",
         loyaltyPoints: loyaltyInfo && typeof loyaltyInfo.points === "number" ? loyaltyInfo.points : null
       };
+      const requestKey = getClientRequestId("order", payload);
+      payload.id = requestKey.id;
       apiFetch("/orders", "POST", payload).then((res) => {
         if (!res || res.success !== true || !res.id) {
           if (callback) callback(false, null, res && (res.error || res.message));
           return;
         }
+        clearClientRequestId(requestKey.signature);
         const orderId = res.id;
         syncNow();
         if (callback) callback(true, orderId);
@@ -5819,10 +5859,18 @@
     const params = new URLSearchParams(window.location.search);
     const table = params.get("table") || params.get("t");
     if (table) {
-      clientTable = String(table);
+      const rawTable = Number(table);
+      const canonicalTable = Number.isInteger(rawTable) && rawTable > 0 && rawTable <= 25 ? rawTable <= 12 ? 100 + rawTable : rawTable <= 18 ? 188 + rawTable : 282 + rawTable : rawTable;
+      const isValidTable = Number.isInteger(canonicalTable) && (canonicalTable >= 101 && canonicalTable <= 115 || canonicalTable >= 201 && canonicalTable <= 219 || canonicalTable >= 301 && canonicalTable <= 323);
+      clientTable = isValidTable ? String(canonicalTable) : null;
       try {
-        sessionStorage.setItem("gc_session_table", clientTable);
-        sessionStorage.setItem("gc_session_table_time", String(Date.now()));
+        if (clientTable) {
+          sessionStorage.setItem("gc_session_table", clientTable);
+          sessionStorage.setItem("gc_session_table_time", String(Date.now()));
+        } else {
+          sessionStorage.removeItem("gc_session_table");
+          sessionStorage.removeItem("gc_session_table_time");
+        }
       } catch (e) {
       }
     } else {
@@ -6362,9 +6410,15 @@
     }
     const btnId = type === "waiter" ? "cabCallWaiter" : type === "water" ? "cabRequestWater" : "cabRequestBill";
     const btn = document.getElementById(btnId);
-    if (btn) btn.classList.add("active");
-    dbService.sendCall(clientTable2, type, (success, callId) => {
-      if (btn) btn.classList.remove("active");
+    if (btn) {
+      btn.classList.add("active");
+      btn.disabled = true;
+    }
+    dbService.sendCall(clientTable2, type, (success, callId, errorMessage) => {
+      if (btn) {
+        btn.classList.remove("active");
+        btn.disabled = false;
+      }
       if (success) {
         playServiceCallSound();
         setCallCooldown(type);
@@ -6385,7 +6439,7 @@
           listenToClientCall(callId, type, clientTable2);
         }
       } else {
-        showToast("Erreur de connexion. Veuillez r\xE9essayer.");
+        showToast(errorMessage || "Erreur de connexion. Veuillez r\xE9essayer.");
       }
     });
   }
@@ -6817,6 +6871,8 @@ ${lines}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
       return {
         name: nameFr,
         name_lang: nameFr,
+        catalogName: c.name.fr || c.name,
+        categoryId: c.categoryId || "",
         category: c.categoryNameFr || "",
         price: c.price.toString(),
         qty: c.qty,
@@ -6826,7 +6882,7 @@ ${lines}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     const loyaltyPhone = localStorage.getItem("gc_loyalty_phone") || "";
     const loyaltyName = localStorage.getItem("gc_loyalty_name") || "";
     const loyaltyInfo = loyaltyPhone ? { phone: loyaltyPhone, name: loyaltyName } : null;
-    dbService.sendPreOrder(clientTable2, itemsList, note, totalPrice, loyaltyInfo, (success, orderId) => {
+    dbService.sendPreOrder(clientTable2, itemsList, note, totalPrice, loyaltyInfo, (success, orderId, errorMessage) => {
       resetBtn();
       if (success) {
         playOrderSuccessSound();
@@ -6866,7 +6922,7 @@ ${lines}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
           es: "Error de conexi\xF3n. Por favor, int\xE9ntelo de nuevo.",
           ar: "\u062E\u0637\u0623 \u0641\u064A \u0627\u0644\u0627\u062A\u0635\u0627\u0644. \u064A\u0631\u062C\u0649 \u0627\u0644\u0645\u062D\u0627\u0648\u0644\u0629 \u0645\u0631\u0629 \u0623\u062E\u0631\u0649."
         };
-        showToast(errMsgs[currentLang] || errMsgs.fr);
+        showToast(errorMessage || errMsgs[currentLang] || errMsgs.fr);
       }
     });
   }

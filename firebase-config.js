@@ -48,6 +48,37 @@
     const API_BASE = resolveApiBase();
     const FALLBACK_API_BASE = "https://espace-serveurs-hub.pages.dev/api";
 
+    const pendingRequestIds = new Map();
+
+    function getClientRequestId(prefix, payload) {
+        const signature = `${prefix}:${JSON.stringify(payload)}`;
+        let id = pendingRequestIds.get(signature);
+        if (!id) {
+            const randomId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+                ? crypto.randomUUID()
+                : `${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+            id = `${prefix}_${randomId}`;
+            pendingRequestIds.set(signature, id);
+            while (pendingRequestIds.size > 50) pendingRequestIds.delete(pendingRequestIds.keys().next().value);
+        }
+        return { id, signature };
+    }
+
+    function clearClientRequestId(signature) {
+        pendingRequestIds.delete(signature);
+    }
+
+    function reportApiStatus(available) {
+        if (typeof window === "undefined") return;
+        const previous = window.GC_API_STATUS || {};
+        const status = {
+            state: available ? "online" : "offline",
+            lastSuccessAt: available ? new Date().toISOString() : (previous.lastSuccessAt || null)
+        };
+        window.GC_API_STATUS = status;
+        window.dispatchEvent(new CustomEvent("gc:api-status", { detail: status }));
+    }
+
     async function apiFetch(endpoint, method = "GET", body = null) {
         const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
         let primaryUrl = `${API_BASE}${cleanEndpoint}`;
@@ -69,6 +100,7 @@
             const res = await fetch(primaryUrl, options);
             // Si la requête a abouti (même avec une erreur métier 4xx comme 400, 409, 429), c'est une réponse valide du serveur : NE PAS basculer sur le fallback !
             if (res.ok || (res.status >= 400 && res.status < 500)) {
+                reportApiStatus(true);
                 return await res.json().catch(() => null);
             }
 
@@ -76,8 +108,10 @@
             if (API_BASE !== FALLBACK_API_BASE) {
                 const fallbackUrl = `${FALLBACK_API_BASE}${cleanEndpoint}`;
                 const resFallback = await fetch(fallbackUrl, options);
+                reportApiStatus(resFallback.status < 500);
                 return await resFallback.json().catch(() => null);
             }
+            reportApiStatus(false);
             return await res.json().catch(() => null);
         } catch (err) {
             // Erreur réseau (fetch a levé une exception, hors ligne, DNS)
@@ -85,11 +119,13 @@
                 try {
                     const fallbackUrl = `${FALLBACK_API_BASE}${cleanEndpoint}`;
                     const resFallback = await fetch(fallbackUrl, options);
+                    reportApiStatus(resFallback.status < 500);
                     return await resFallback.json().catch(() => null);
                 } catch (err2) {
                     console.warn(`⚠️ Cloudflare D1 API [${cleanEndpoint}] fallback error:`, err2.message || err2);
                 }
             }
+            reportApiStatus(false);
             console.warn(`⚠️ Cloudflare D1 API [${cleanEndpoint}] error:`, err.message || err);
             return null;
         }
@@ -445,6 +481,8 @@ function getVipTier(points) {
                 type: type || "waiter",
                 ...(extraData || {})
             };
+            const requestKey = getClientRequestId("call", payload);
+            payload.id = requestKey.id;
 
             apiFetch("/calls", "POST", payload)
                 .then(res => {
@@ -452,6 +490,7 @@ function getVipTier(points) {
                         if (callback) callback(false, null, res && (res.error || res.message));
                         return;
                     }
+                    clearClientRequestId(requestKey.signature);
                     const callId = res.id;
                     // Notification push envoyée nativement et sans doublon par le serveur Cloudflare D1
                     syncNow();
@@ -530,6 +569,8 @@ function getVipTier(points) {
                 loyaltyName: loyaltyInfo && loyaltyInfo.name ? loyaltyInfo.name : "",
                 loyaltyPoints: loyaltyInfo && typeof loyaltyInfo.points === "number" ? loyaltyInfo.points : null
             };
+            const requestKey = getClientRequestId("order", payload);
+            payload.id = requestKey.id;
 
             apiFetch("/orders", "POST", payload)
                 .then(res => {
@@ -537,6 +578,7 @@ function getVipTier(points) {
                         if (callback) callback(false, null, res && (res.error || res.message));
                         return;
                     }
+                    clearClientRequestId(requestKey.signature);
                     const orderId = res.id;
                     // Notification push envoyée nativement et sans doublon par le serveur Cloudflare D1
                     syncNow();

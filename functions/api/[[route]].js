@@ -1,3 +1,5 @@
+import { menuData } from "../../js/data/menu-data.js";
+
 /**
  * ============================================================================
  * GREY CORNER — CLOUDFLARE D1 BACKEND API (CATCH-ALL ROUTE)
@@ -31,6 +33,23 @@ function getZoneByTableNumber(tableNum) {
     if (num >= 201 && num <= 219) return "Loge";
     if (num >= 301 && num <= 323) return "Terrasse";
     return "Salon";
+}
+
+// Les QR codes historiques utilisent parfois les numéros courts affichés au client.
+function resolveTableNumber(rawTable) {
+    const value = Number(String(rawTable ?? "").trim());
+    if (!Number.isInteger(value)) return null;
+    if ((value >= 101 && value <= 115) || (value >= 201 && value <= 219) || (value >= 301 && value <= 323)) {
+        return value;
+    }
+    if (value >= 1 && value <= 12) return 100 + value;
+    if (value >= 13 && value <= 18) return 188 + value;
+    if (value >= 19 && value <= 25) return 282 + value;
+    return null;
+}
+
+function isValidRequestId(value) {
+    return typeof value === "string" && /^[A-Za-z0-9_-]{8,100}$/.test(value);
 }
 
 function verifyAdmin(request, env) {
@@ -399,21 +418,26 @@ export async function onRequest(context) {
 
             // POST /api/calls
             if (request.method === "POST" && segments.length === 1) {
-                const body = await request.json();
-                const tableNum = parseInt(body.table || body.tableNum, 10);
-                if (!tableNum) return errorResponse("Numéro de table manquant.");
+                const body = await request.json().catch(() => null);
+                if (!body || typeof body !== "object" || Array.isArray(body)) return errorResponse("Corps de requête invalide.");
+                const tableNum = resolveTableNumber(body.table ?? body.tableNum);
+                if (!tableNum) return errorResponse("Numéro de table invalide.");
+                const type = String(body.type || "waiter").trim();
+                if (!["waiter", "water", "bill", "reward"].includes(type)) return errorResponse("Type d'appel invalide.");
+                const note = typeof body.note === "string" ? body.note.trim() : "";
+                if (note.length > 1000) return errorResponse("La note de l'appel dépasse la taille maximale de 1000 caractères.");
+                const id = body.id === undefined ? generateId("call") : String(body.id).trim();
+                if (!isValidRequestId(id)) return errorResponse("Identifiant d'appel invalide.");
 
                 // Récupérer le serveur assigné à cette table
-                const tableRow = await db.prepare("SELECT assignedTo, zone FROM tables WHERE id = ?").bind(tableNum).first();
+                const tableRow = await db.prepare("SELECT assignedTo, zone, active FROM tables WHERE id = ?").bind(tableNum).first();
+                if (!tableRow || tableRow.active === 0) return errorResponse("Cette table n'existe pas ou n'est pas active.", 404);
                 const assignedTo = tableRow ? (tableRow.assignedTo || "") : "";
                 const zoneName = (tableRow && tableRow.zone) ? tableRow.zone : getZoneByTableNumber(tableNum);
 
-                const id = body.id || generateId("call");
-                const type = body.type || "waiter";
                 let loyaltyPhone = normalizePhone(body.loyaltyPhone || "");
-                let loyaltyName = body.loyaltyName || "";
-                const note = body.note || "";
-                const createdAt = body.createdAt || new Date().toISOString();
+                let loyaltyName = typeof body.loyaltyName === "string" ? body.loyaltyName.trim().slice(0, 100) : "";
+                const createdAt = new Date().toISOString();
 
                 // Le numéro de téléphone est le SEUL repère pour identifier le client
                 if (loyaltyPhone) {
@@ -424,10 +448,22 @@ export async function onRequest(context) {
                     }
                 }
 
-                await db.prepare(`
-                    INSERT INTO waiters_calls (id, tableNum, type, status, assignedTo, loyaltyPhone, loyaltyName, note, createdAt)
+                const insertResult = await db.prepare(`
+                    INSERT OR IGNORE INTO waiters_calls (id, tableNum, type, status, assignedTo, loyaltyPhone, loyaltyName, note, createdAt)
                     VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)
                 `).bind(id, tableNum, type, assignedTo, loyaltyPhone, loyaltyName, note, createdAt).run();
+
+                if (!insertResult.meta || insertResult.meta.changes !== 1) {
+                    const existing = await db.prepare("SELECT * FROM waiters_calls WHERE id = ?").bind(id).first();
+                    if (!existing || existing.tableNum !== tableNum || existing.type !== type || existing.note !== note || existing.loyaltyPhone !== loyaltyPhone) {
+                        return errorResponse("Cet identifiant d'appel a déjà été utilisé pour une autre demande.", 409);
+                    }
+                    return jsonResponse({
+                        success: true,
+                        id,
+                        call: { ...existing, table: existing.tableNum }
+                    });
+                }
 
                 // Notification push native FCM
                 const typeLabels = { waiter: "Appel Serveur", water: "Besoin d'Eau", bill: "L'Addition", reward: "🎁 Consommation Gratuite" };
@@ -485,45 +521,66 @@ export async function onRequest(context) {
 
             // POST /api/orders
             if (request.method === "POST" && segments.length === 1) {
-                // Vérifier si le système est en mode Rush / Freeze
-                const frozenRow = await db.prepare("SELECT value FROM system_config WHERE key = 'system_frozen'").first();
-                if (frozenRow && frozenRow.value === "true") {
-                    return errorResponse("Le service de commande en ligne est momentanément suspendu en raison d'une forte affluence (Rush Mode).", 423);
+                const body = await request.json().catch(() => null);
+                if (!body || typeof body !== "object" || Array.isArray(body)) return errorResponse("Corps de requête invalide.");
+                const tableNum = resolveTableNumber(body.table ?? body.tableNum);
+                if (!tableNum) return errorResponse("Numéro de table invalide.");
+                const id = body.id === undefined ? generateId("order") : String(body.id).trim();
+                if (!isValidRequestId(id)) return errorResponse("Identifiant de commande invalide.");
+
+                const note = typeof body.note === "string" ? body.note.trim() : "";
+                if (note.length > 1000) return errorResponse("La note de commande dépasse la taille maximale de 1000 caractères.");
+                let submittedItems = body.items;
+                if (typeof submittedItems === "string") {
+                    try { submittedItems = JSON.parse(submittedItems); } catch (e) { return errorResponse("La liste des articles n'est pas un JSON valide."); }
+                }
+                if (!Array.isArray(submittedItems) || submittedItems.length === 0 || submittedItems.length > 50) {
+                    return errorResponse("Une commande doit contenir entre 1 et 50 articles.");
                 }
 
-                const body = await request.json();
-                const tableNum = parseInt(body.table || body.tableNum, 10);
-                if (!tableNum) return errorResponse("Numéro de table manquant.");
+                let totalPrice = 0;
+                const normalizedItems = [];
+                for (const item of submittedItems) {
+                    if (!item || typeof item !== "object" || Array.isArray(item)) return errorResponse("Un article de la commande est invalide.");
+                    const itemName = typeof item.name === "string" ? item.name.trim() : (item.name && typeof item.name.fr === "string" ? item.name.fr.trim() : "");
+                    const qty = Number(item.qty);
+                    const itemNote = typeof item.note === "string" ? item.note.trim() : "";
+                    if (!itemName || itemName.length > 200) return errorResponse("Le nom d'un article est invalide.");
+                    if (!Number.isInteger(qty) || qty < 1 || qty > 99) return errorResponse("La quantité de chaque article doit être comprise entre 1 et 99.");
+                    if (itemNote.length > 300) return errorResponse("La note d'un article dépasse 300 caractères.");
+                    const catalogName = typeof item.catalogName === "string" ? item.catalogName.trim() : itemName.split(" (")[0].trim();
+                    const categoryId = typeof item.categoryId === "string" ? item.categoryId.trim() : "";
+                    const category = menuData.find(entry => entry.id === categoryId);
+                    const catalogItem = (category ? category.items : menuData.flatMap(entry => entry.items))
+                        .find(entry => entry.name && entry.name.fr && entry.name.fr.trim().toLocaleLowerCase() === catalogName.toLocaleLowerCase());
+                    if (!catalogItem) return errorResponse(`Article inconnu dans le menu : ${catalogName || itemName}.`);
+                    const catalogPrice = Number(catalogItem.price);
+                    if (!Number.isFinite(catalogPrice) || catalogPrice < 0) return errorResponse(`Le prix de l'article « ${catalogName} » n'est pas disponible.`);
+                    const roundedPrice = Math.round(catalogPrice * 100) / 100;
+                    totalPrice += qty * roundedPrice;
+                    normalizedItems.push({
+                        name: itemName,
+                        name_lang: typeof item.name_lang === "string" ? item.name_lang.slice(0, 200) : itemName,
+                        catalogName,
+                        categoryId: categoryId || "",
+                        category: typeof item.category === "string" ? item.category.slice(0, 100) : "",
+                        price: roundedPrice,
+                        qty,
+                        note: itemNote
+                    });
+                }
+                totalPrice = Math.round(totalPrice * 100) / 100;
+                if (!Number.isFinite(totalPrice) || totalPrice > 1000000) return errorResponse("Le total de la commande est invalide.");
+                const itemsStr = JSON.stringify(normalizedItems);
 
-                const tableRow = await db.prepare("SELECT assignedTo, zone FROM tables WHERE id = ?").bind(tableNum).first();
-                const assignedTo = tableRow ? (tableRow.assignedTo || "") : "";
-                const zoneName = (tableRow && tableRow.zone) ? tableRow.zone : getZoneByTableNumber(tableNum);
-
-                const id = body.id || generateId("order");
-                const itemsStr = typeof body.items === "string" ? body.items : JSON.stringify(body.items || []);
-                const note = body.note || "";
-                let totalPrice = parseFloat(body.totalPrice) || 0;
-
-                // Validation et recalcul serveur du total pour empêcher les fraudes de prix
-                try {
-                    const parsedItems = typeof body.items === "string" ? JSON.parse(body.items) : (body.items || []);
-                    if (Array.isArray(parsedItems) && parsedItems.length > 0) {
-                        let calculatedTotal = 0;
-                        for (const it of parsedItems) {
-                            const q = Math.max(1, parseInt(it.qty, 10) || 1);
-                            const p = Math.max(0, parseFloat(it.price) || 0);
-                            calculatedTotal += q * p;
-                        }
-                        if (calculatedTotal > 0 && (totalPrice <= 0 || Math.abs(totalPrice - calculatedTotal) > 0.05)) {
-                            totalPrice = Math.round(calculatedTotal * 100) / 100;
-                        }
-                    }
-                } catch(e) {}
-                if (totalPrice < 0) totalPrice = 0;
+                const tableRow = await db.prepare("SELECT assignedTo, zone, active FROM tables WHERE id = ?").bind(tableNum).first();
+                if (!tableRow || tableRow.active === 0) return errorResponse("Cette table n'existe pas ou n'est pas active.", 404);
+                const assignedTo = tableRow.assignedTo || "";
+                const zoneName = tableRow.zone || getZoneByTableNumber(tableNum);
                 let loyaltyPhone = normalizePhone(body.loyaltyPhone || "");
-                let loyaltyName = body.loyaltyName || "";
+                let loyaltyName = typeof body.loyaltyName === "string" ? body.loyaltyName.trim().slice(0, 100) : "";
                 let loyaltyPoints = typeof body.loyaltyPoints === "number" ? body.loyaltyPoints : null;
-                const createdAt = body.createdAt || new Date().toISOString();
+                const createdAt = new Date().toISOString();
 
                 // Le numéro de téléphone est le SEUL repère pour identifier le client : on rattache le compte officiel
                 if (loyaltyPhone) {
@@ -535,10 +592,34 @@ export async function onRequest(context) {
                     }
                 }
 
-                await db.prepare(`
-                    INSERT INTO pre_orders (id, tableNum, items, note, totalPrice, status, assignedTo, loyaltyPhone, loyaltyName, loyaltyPoints, loyaltyCredited, createdAt)
+                const matchesOrder = (existing) => existing &&
+                    existing.tableNum === tableNum &&
+                    existing.items === itemsStr &&
+                    existing.note === note &&
+                    Number(existing.totalPrice) === totalPrice &&
+                    existing.loyaltyPhone === loyaltyPhone;
+                const existingOrder = await db.prepare("SELECT * FROM pre_orders WHERE id = ?").bind(id).first();
+                if (existingOrder) {
+                    if (!matchesOrder(existingOrder)) return errorResponse("Cet identifiant de commande a déjà été utilisé pour une autre commande.", 409);
+                    return jsonResponse({ success: true, id, order: { id, table: existingOrder.tableNum, totalPrice: existingOrder.totalPrice, status: existingOrder.status, createdAt: existingOrder.createdAt } });
+                }
+
+                // Une commande identique déjà enregistrée reste récupérable, même si le mode Rush s'est activé entre-temps.
+                const frozenRow = await db.prepare("SELECT value FROM system_config WHERE key = 'system_frozen'").first();
+                if (frozenRow && frozenRow.value === "true") {
+                    return errorResponse("Le service de commande en ligne est momentanément suspendu en raison d'une forte affluence (Rush Mode).", 423);
+                }
+
+                const insertResult = await db.prepare(`
+                    INSERT OR IGNORE INTO pre_orders (id, tableNum, items, note, totalPrice, status, assignedTo, loyaltyPhone, loyaltyName, loyaltyPoints, loyaltyCredited, createdAt)
                     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, 0, ?)
                 `).bind(id, tableNum, itemsStr, note, totalPrice, assignedTo, loyaltyPhone, loyaltyName, loyaltyPoints, createdAt).run();
+
+                if (!insertResult.meta || insertResult.meta.changes !== 1) {
+                    const existing = await db.prepare("SELECT * FROM pre_orders WHERE id = ?").bind(id).first();
+                    if (!matchesOrder(existing)) return errorResponse("Cet identifiant de commande a déjà été utilisé pour une autre commande.", 409);
+                    return jsonResponse({ success: true, id, order: { id, table: existing.tableNum, totalPrice: existing.totalPrice, status: existing.status, createdAt: existing.createdAt } });
+                }
 
                 // Notification push native FCM
                 let itemsSummary = "";

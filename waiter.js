@@ -49,20 +49,46 @@ let currentFcmToken = null;
 
 // ── UI HELPERS (Statut Connexion & Push) ──────────────────────────────────────
 
-function setConnectionStatus(status) {
+function setConnectionStatus(status, lastSuccessAt = null) {
     const pill = document.getElementById("connectionPill");
     const label = document.getElementById("connectionLabel");
     if (!pill) return;
+    const syncTime = document.getElementById("connectionLastSync");
+    const lastKnownSuccessAt = lastSuccessAt || (window.GC_API_STATUS && window.GC_API_STATUS.lastSuccessAt) || null;
     if (status === "online") {
-        pill.classList.remove("disconnected");
+        pill.classList.remove("disconnected", "connecting");
         pill.classList.add("connected");
-        if (label) label.textContent = "En ligne";
-        pill.title = "Connecté en temps réel à Firestore";
+        if (label) label.textContent = "API en ligne";
+        if (syncTime) {
+            syncTime.textContent = lastKnownSuccessAt
+                ? `· ${new Date(lastKnownSuccessAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                : "";
+        }
+        pill.title = lastKnownSuccessAt
+            ? `API D1 connectée · Dernière réponse ${new Date(lastKnownSuccessAt).toLocaleTimeString()}`
+            : "API D1 connectée";
+    } else if (status === "connecting") {
+        pill.classList.remove("connected", "disconnected");
+        pill.classList.add("connecting");
+        if (label) label.textContent = "Vérification API";
+        if (syncTime) {
+            syncTime.textContent = lastKnownSuccessAt
+                ? `· ${new Date(lastKnownSuccessAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                : "";
+        }
+        pill.title = "Vérification de la connexion à l’API D1";
     } else {
-        pill.classList.remove("connected");
+        pill.classList.remove("connected", "connecting");
         pill.classList.add("disconnected");
-        if (label) label.textContent = "Connexion...";
-        pill.title = "En attente de connexion...";
+        if (label) label.textContent = "API indisponible";
+        if (syncTime) {
+            syncTime.textContent = lastKnownSuccessAt
+                ? `· ${new Date(lastKnownSuccessAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                : "";
+        }
+        pill.title = lastKnownSuccessAt
+            ? `L’API D1 ne répond pas · Dernière réponse ${new Date(lastKnownSuccessAt).toLocaleTimeString()}`
+            : "L’API D1 ne répond pas";
     }
 }
 
@@ -146,7 +172,8 @@ function checkImmediatePushAndConnection() {
     }
 
     if (navigator.onLine) {
-        setConnectionStatus("online");
+        const apiStatus = window.GC_API_STATUS;
+        setConnectionStatus(apiStatus ? apiStatus.state : "connecting", apiStatus && apiStatus.lastSuccessAt);
     } else {
         setConnectionStatus("offline");
     }
@@ -215,8 +242,12 @@ if (document.readyState === "complete" || document.readyState === "interactive")
     });
 }
 
-// Listeners online / offline du navigateur
-window.addEventListener("online", () => setConnectionStatus("online"));
+// La disponibilité réseau du navigateur ne garantit pas que l'API D1 réponde.
+window.addEventListener("gc:api-status", (event) => {
+    const status = event.detail || {};
+    setConnectionStatus(status.state, status.lastSuccessAt);
+});
+window.addEventListener("online", () => setConnectionStatus("connecting"));
 window.addEventListener("offline", () => setConnectionStatus("offline"));
 
 // ── GESTIONNAIRE PUSH FCM (Permissions & Tokens) ──────────────────────────────
@@ -1427,7 +1458,7 @@ function initTabNavigation() {
 
 window.addEventListener("online", () => {
     console.log("🌐 Réseau rétabli.");
-    setConnectionStatus("online");
+    setConnectionStatus("connecting");
     // Ne relancer les flux que si les listes sont vides (évite de re-consommer le quota si Firebase a maintenu le cache)
     if (!activeCallsList || activeCallsList.length === 0) {
         reconnectHub();
@@ -1972,16 +2003,16 @@ document.addEventListener("DOMContentLoaded", () => {
             firebase.auth().signInAnonymously()
                 .then(() => {
                     console.log("🔒 Authentification anonyme réussie.");
-                    setConnectionStatus("online");
+                    setConnectionStatus("connecting");
                     startRealtimeHub();
                 })
                 .catch(e => {
                     console.error("❌ Auth échouée, démarrage en mode fallback:", e);
-                    setConnectionStatus("online");
+                    setConnectionStatus("connecting");
                     startRealtimeHub();
                 });
         } else {
-            setConnectionStatus("online");
+            setConnectionStatus("connecting");
             startRealtimeHub();
         }
     }
