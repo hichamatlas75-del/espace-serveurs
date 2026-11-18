@@ -340,10 +340,11 @@ export async function onRequest(context) {
 
         // ── 1. SYNCHRONISATION TEMPS RÉEL (Pour serveurs & admin) ────────────
         if (path === "sync" && request.method === "GET") {
-            // Récupère les appels en cours ou récents (max 25)
-            const callsStmt = db.prepare("SELECT * FROM waiters_calls ORDER BY createdAt DESC LIMIT 25");
-            // Récupère les précommandes du jour ou récentes (max 35)
-            const ordersStmt = db.prepare("SELECT * FROM pre_orders ORDER BY createdAt DESC LIMIT 35");
+            // Toujours conserver les demandes en attente, même si le restaurant en reçoit
+            // davantage que le volume de commandes récentes affiché normalement.
+            const recentCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            const callsStmt = db.prepare("SELECT * FROM waiters_calls WHERE status = 'pending' OR createdAt >= ? ORDER BY createdAt DESC").bind(recentCutoff);
+            const ordersStmt = db.prepare("SELECT * FROM pre_orders WHERE status = 'pending' OR createdAt >= ? ORDER BY createdAt DESC").bind(recentCutoff);
             // Récupère toutes les tables
             const tablesStmt = db.prepare("SELECT * FROM tables ORDER BY id ASC");
             // Récupère la config
@@ -907,11 +908,19 @@ export async function onRequest(context) {
 
                 // Le palier VIP et le multiplicateur se recalculent immédiatement sur le nouveau solde de points (newTotal).
                 // Si le solde redescend (< 200 pts), le statut repasse en Bronze et le multiplicateur est réinitialisé à x1.0 !
-                await db.prepare(`
+                const redeemResult = await db.prepare(`
                     UPDATE loyalty_members
                     SET points = points - ?, rewardsClaimed = rewardsClaimed + 1, updatedAt = ?
-                    WHERE phone = ?
-                `).bind(cost, now, canonicalPhone).run();
+                    WHERE phone = ? AND points >= ?
+                `).bind(cost, now, canonicalPhone, cost).run();
+
+                // Le contrôle de solde est atomique avec la déduction : deux demandes
+                // simultanées ne peuvent pas consommer le même solde.
+                if (!redeemResult.meta || redeemResult.meta.changes !== 1) {
+                    const latestMember = await db.prepare("SELECT points FROM loyalty_members WHERE phone = ?").bind(canonicalPhone).first();
+                    const currentPts = latestMember ? latestMember.points : 0;
+                    return errorResponse(`Solde insuffisant pour débloquer ${rewardTitle} (${cost} pts requis, solde actuel: ${currentPts} pts).`, 409);
+                }
 
                 const txId = generateId("tx");
                 await db.prepare(`
@@ -919,7 +928,8 @@ export async function onRequest(context) {
                     VALUES (?, ?, 'REDEEM', ?, 0, '', '', ?, ?, ?)
                 `).bind(txId, canonicalPhone, -cost, validatedBy, rewardNote, now).run();
 
-                const newTotal = member.points - cost;
+                const updatedMember = await db.prepare("SELECT * FROM loyalty_members WHERE phone = ?").bind(canonicalPhone).first();
+                const newTotal = updatedMember ? updatedMember.points : 0;
                 const vipTier = getVipTier(newTotal);
 
                 return jsonResponse({
@@ -929,9 +939,7 @@ export async function onRequest(context) {
                     rewardTitle,
                     newTotal,
                     member: {
-                        ...member,
-                        points: newTotal,
-                        rewardsClaimed: (member.rewardsClaimed || 0) + 1,
+                        ...updatedMember,
                         vipTier
                     }
                 });

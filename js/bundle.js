@@ -74,8 +74,8 @@
     { id: "yassine", name: "Yassine", email: "yassine@greycorner.com", active: true }
   ];
   var DEFAULT_TABLES = {};
-  for (let i = 1; i <= 24; i++) {
-    const num = i <= 12 ? 100 + i : i <= 18 ? 200 + (i - 12) : 300 + (i - 18);
+  for (let i = 1; i <= 57; i++) {
+    const num = i <= 15 ? 100 + i : i <= 34 ? 200 + (i - 15) : 300 + (i - 34);
     const zone = num < 200 ? "salon" : num < 300 ? "loge" : "terrasse";
     DEFAULT_TABLES[num] = {
       tableNumber: num,
@@ -441,7 +441,11 @@
         ...extraData || {}
       };
       apiFetch("/calls", "POST", payload).then((res) => {
-        const callId = res && res.id ? res.id : `call_${Date.now()}`;
+        if (!res || res.success !== true || !res.id) {
+          if (callback) callback(false, null, res && (res.error || res.message));
+          return;
+        }
+        const callId = res.id;
         syncNow();
         if (callback) callback(true, callId);
       }).catch((err) => {
@@ -514,7 +518,11 @@
         loyaltyPoints: loyaltyInfo && typeof loyaltyInfo.points === "number" ? loyaltyInfo.points : null
       };
       apiFetch("/orders", "POST", payload).then((res) => {
-        const orderId = res && res.id ? res.id : `order_${Date.now()}`;
+        if (!res || res.success !== true || !res.id) {
+          if (callback) callback(false, null, res && (res.error || res.message));
+          return;
+        }
+        const orderId = res.id;
         syncNow();
         if (callback) callback(true, orderId);
       }).catch((err) => {
@@ -6983,7 +6991,7 @@ ${lines}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
       btn.setAttribute("aria-label", catName);
       btn.innerHTML = `
       <div class="hub-cat-circle">
-        <img src="${catImg}" alt="${catName}" class="hub-cat-img" loading="lazy" />
+        <img src="${catImg}" alt="" class="hub-cat-img" loading="lazy" decoding="async" aria-hidden="true" />
         <div class="hub-cat-overlay"></div>
         <div class="hub-cat-icon">${iconSvg}</div>
       </div>
@@ -7259,9 +7267,10 @@ ${lines}\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     } else {
       orderBtnText = currentLang === "en" ? "Order" : currentLang === "de" ? "Bestellen" : currentLang === "es" ? "Pedir" : currentLang === "ar" ? "\u0627\u0637\u0644\u0628" : "Commander";
     }
+    const dishAltText = categoryBadge ? `${itemName} (${categoryBadge}) \u2014 Grey Corner Caf\xE9 F\xE8s` : `${itemName} \u2014 Grey Corner Caf\xE9 F\xE8s`;
     card.innerHTML = `
     <div class="hub-card-media">
-      <img src="${item.image}" alt="${itemName}" class="hub-card-img" loading="lazy" />
+      <img src="${item.image}" alt="${dishAltText}" class="hub-card-img" loading="lazy" decoding="async" />
       <div class="hub-card-gradient"></div>
       ${isOver ? `<span class="hub-badge-unavailable">${unavailBadgeText}</span>` : ""}
       ${!isOver && item.isNew ? `<span class="hub-badge-new">${badgeNewText}</span>` : ""}
